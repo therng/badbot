@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
-  calculateCashflowAdjustedEquityCurve,
-  calculateDrawdown,
+  calculateCashflowNeutralDrawdownSeries,
   calculateEquityCurve
 } from '@/lib/analytics';
 import { getAccountWithLatestReport, serializeAccountHeader } from '@/lib/report-data';
@@ -27,7 +26,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const filteredDeals = filterByStartDate(latestReport.deal_ledger, (deal) => deal.time, startDate);
     const equityCurve = calculateEquityCurve(filteredDeals, latestReport.open_positions);
-    const drawdownBaseCurve = calculateCashflowAdjustedEquityCurve(
+    const drawdownSeries = calculateCashflowNeutralDrawdownSeries(
       filteredDeals,
       latestReport.open_positions
     );
@@ -39,7 +38,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     let peakEquity = 0;
     let minEquity = 0;
-    const drawdownSeries: Array<{ x: string; y: number }> = [];
+    const serializedDrawdownSeries: Array<{ x: string; y: number }> = [];
 
     if (serializedCurve.length) {
       peakEquity = serializedCurve[0].equity;
@@ -51,15 +50,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
       minEquity = Math.min(minEquity, point.equity);
     }
 
-    let drawdownPeak = 0;
-    for (const point of drawdownBaseCurve) {
+    for (const point of drawdownSeries) {
       const x = point.time instanceof Date ? point.time.toISOString() : new Date(point.time).toISOString();
-      drawdownPeak = Math.max(drawdownPeak, point.equity);
-      const drawdown = drawdownPeak > 0 ? ((drawdownPeak - point.equity) / drawdownPeak) * 100 : 0;
-      drawdownSeries.push({ x, y: drawdown });
+      serializedDrawdownSeries.push({ x, y: point.drawdownPercent });
     }
 
-    const maxDrawdown = calculateDrawdown(drawdownBaseCurve);
+    const maxDrawdown = drawdownSeries.reduce(
+      (max, point) => Math.max(max, point.drawdownPercent),
+      0
+    );
     const account = serializeAccountHeader(accountData);
 
     if (!account) {
@@ -77,7 +76,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         maxDrawdown
       },
       equityCurve: serializedCurve,
-      drawdownCurve: drawdownSeries
+      drawdownCurve: serializedDrawdownSeries
     });
   } catch (error) {
     console.error('API Error:', error);

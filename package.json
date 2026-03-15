@@ -8,10 +8,10 @@
     "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node20 --external:@prisma/client --outfile=dist/worker.js",
     "start": "node .next/standalone/server.js",
     "lint": "next lint",
-    "worker": "node dist/worker.js",
+    "worker": "npm run build:worker && node dist/worker.js",
     "worker:dev": "ts-node src/worker/index.ts",
-    "worker:once": "WORKER_RUN_ONCE=true node dist/worker.js",
-    "worker:reimport": "WORKER_RUN_ONCE=true WORKER_FORCE_REIMPORT=true node dist/worker.js"
+    "worker:once": "npm run build:worker && WORKER_RUN_ONCE=true node dist/worker.js",
+    "worker:reimport": "npm run build:worker && WORKER_RUN_ONCE=true WORKER_FORCE_REIMPORT=true node dist/worker.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

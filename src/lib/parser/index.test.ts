@@ -84,4 +84,33 @@ describe('parseReport', () => {
     expect(report.accountSummary.balance).toBe(10000);
     expect(report.accountSummary.equity).toBe(10050);
   });
+
+  it('should preserve column alignment when intermediate cells are empty', () => {
+    const htmlWithEmptySymbol = `
+      <html>
+        <head>
+          <title>123456: John Doe - Statement</title>
+        </head>
+        <body>
+          <div>Deals</div>
+          <table>
+            <tr>
+              <td>Time</td><td>Deal</td><td>Symbol</td><td>Type</td><td>Volume</td><td>Price</td><td>Commission</td><td>Swap</td><td>Profit</td><td>Comment</td>
+            </tr>
+            <tr>
+              <td>2025.03.10 11:30:00</td><td>5001</td><td></td><td>Balance</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1000</td><td>Deposit</td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const report = parseReport(htmlWithEmptySymbol);
+    expect(report.dealLedger.length).toBe(1);
+    expect(report.dealLedger[0].deal_id).toBe('5001');
+    expect(report.dealLedger[0].symbol).toBe('');
+    expect(report.dealLedger[0].type).toBe('Balance');
+    expect(report.dealLedger[0].profit).toBe(1000);
+    expect(report.dealLedger[0].comment).toBe('Deposit');
+  });
 });

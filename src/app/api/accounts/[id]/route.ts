@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
-  calculateCashflowAdjustedEquityCurve,
-  calculateDrawdown,
+  calculateCashflowNeutralDrawdown,
   calculateEquityCurve,
   calculateGrowth,
   calculateKPIs,
@@ -43,8 +42,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     );
 
     const equityCurve = calculateEquityCurve(filteredDeals, latestReport.open_positions);
-    const drawdownBaseCurve = calculateCashflowAdjustedEquityCurve(filteredDeals, latestReport.open_positions);
-    const drawdown = calculateDrawdown(drawdownBaseCurve);
+    const drawdown = calculateCashflowNeutralDrawdown(filteredDeals, latestReport.open_positions);
     const kpis = calculateKPIs(filteredDeals, filteredPositions);
 
     const latestEquity = latestReport.account_summary?.equity ?? 0;

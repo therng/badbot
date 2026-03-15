@@ -9,8 +9,20 @@ export interface GrowthPoint {
   growthPercent: number;
 }
 
+export interface CashflowNeutralDrawdownPoint {
+  time: Date;
+  equity: number;
+  unitValue: number;
+  highWaterMark: number;
+  drawdownPercent: number;
+}
+
 function isBalanceOperationType(type: unknown): boolean {
   return typeof type === 'string' && type.toLowerCase().includes('balance');
+}
+
+function getDealDelta(deal: any): number {
+  return (deal?.profit || 0) + (deal?.commission || 0) + (deal?.swap || 0);
 }
 
 // 9. Equity Curve Reconstruction
@@ -58,6 +70,86 @@ export function calculateCashflowAdjustedEquityCurve(dealLedger: any[], openPosi
   }
 
   return curve;
+}
+
+// Drawdown curve based on Unit Value (NAV) so deposit/withdraw does not distort risk.
+// External cashflow changes unit count, while unit value only changes on trading P/L events.
+export function calculateCashflowNeutralDrawdownSeries(
+  dealLedger: any[],
+  openPositions: any[]
+): CashflowNeutralDrawdownPoint[] {
+  const sortedDeals = [...dealLedger].sort((a, b) => {
+    const timeDiff = new Date(a.time).getTime() - new Date(b.time).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return String(a.deal_id || '').localeCompare(String(b.deal_id || ''));
+  });
+
+  if (sortedDeals.length === 0) return [];
+
+  const floating = openPositions.reduce((sum: number, p: any) => sum + (p.floating_profit || 0), 0);
+  const series: CashflowNeutralDrawdownPoint[] = [];
+
+  let unitValue = 100;
+  let units = 0;
+  let highWaterMark = unitValue;
+
+  sortedDeals.forEach((deal, index) => {
+    const equity = (deal.balance_after || 0) + floating;
+
+    if (!Number.isFinite(equity)) return;
+
+    if (index === 0) {
+      units = equity > 0 ? equity / unitValue : 1;
+      highWaterMark = unitValue;
+      series.push({
+        time: new Date(deal.time),
+        equity,
+        unitValue,
+        highWaterMark,
+        drawdownPercent: 0
+      });
+      return;
+    }
+
+    const dealDelta = getDealDelta(deal);
+    const isCashflow = isBalanceOperationType(deal.type);
+
+    if (isCashflow) {
+      if (unitValue !== 0) {
+        units += dealDelta / unitValue;
+      }
+    } else if (units !== 0) {
+      unitValue = equity / units;
+    }
+
+    if (!Number.isFinite(unitValue) || unitValue <= 0) {
+      unitValue = 0;
+    }
+
+    highWaterMark = Math.max(highWaterMark, unitValue);
+    const drawdownPercent =
+      highWaterMark > 0 ? ((highWaterMark - unitValue) / highWaterMark) * 100 : 0;
+
+    series.push({
+      time: new Date(deal.time),
+      equity,
+      unitValue,
+      highWaterMark,
+      drawdownPercent
+    });
+  });
+
+  return series;
+}
+
+export function calculateCashflowNeutralDrawdown(
+  dealLedger: any[],
+  openPositions: any[]
+): number {
+  const series = calculateCashflowNeutralDrawdownSeries(dealLedger, openPositions);
+  if (series.length === 0) return 0;
+
+  return series.reduce((max, point) => Math.max(max, point.drawdownPercent), 0);
 }
 
 // 12. Growth Calculation
