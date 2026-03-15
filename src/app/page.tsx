@@ -180,6 +180,8 @@ interface PositionsDetailResponse extends DetailEnvelope {
   }>;
 }
 
+type PositionEntry = PositionsDetailResponse['openPositions'][number] & { account: AccountHeader };
+
 const DETAIL_ENDPOINTS: Record<DetailKey, string> = {
   profit: 'profit-detail',
   equity: 'equity-detail',
@@ -198,7 +200,16 @@ const TIMEFRAME_BUTTONS: Array<{ value: Timeframe; label: string; ariaLabel: str
 ];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const REPORT_ACTIVE_THRESHOLD_MINUTES = 15;
-const CHART_COLORS = ['#38BDF8', '#22C55E', '#A78BFA', '#F59E0B', '#F87171'];
+const CHART_COLORS = ['#C8A96E', '#00D4A4', '#7EB8F7', '#FF6B6B', '#A78BFA'];
+const TOOLTIP_THEME = {
+  backgroundColor: '#10141e',
+  borderColor: 'rgba(200,190,160,0.22)',
+  borderWidth: 1,
+  bodyColor: '#e8e4da',
+  titleColor: 'rgba(232,228,218,0.55)',
+  bodyFont: { family: 'Azeret Mono', size: 11 },
+  titleFont: { family: 'Azeret Mono', size: 11 }
+};
 
 function formatMoneyPlain(value: number, digits = 0): string {
   if (!Number.isFinite(value)) return '--';
@@ -538,7 +549,7 @@ const AccountCard = memo(function AccountCard({
   const isActiveStatus = isFreshStatus(account.last_updated);
   const growthValue = overview ? overview.kpis.growth : 0;
   const growthText = overview ? formatPercent(growthValue, 1) : '--';
-  const growthColor = growthValue >= 0 ? '#22C55E' : '#EF4444';
+  const growthColor = growthValue >= 0 ? '#00D4A4' : '#FF6B6B';
   const balanceValue = overview?.account.balance ?? account.balance;
   const brokerLabel = account.server || account.account_mode || 'Broker';
   const chartValues = overview?.equityCurve.length
@@ -548,31 +559,29 @@ const AccountCard = memo(function AccountCard({
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div className="acc-header">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 1 }}>
+          <div className="acc-name">
             <span className={`sdot${isActiveStatus ? ' live' : ''}`} />
-            <span style={{ fontSize: 14, fontWeight: 500 }}>{displayName}</span>
+            <span className="acc-name-text">{displayName}</span>
           </div>
-          <p style={{ fontSize: 11, color: '#6B7280', marginLeft: 14 }}>#{account.account_number}</p>
-          <p style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 14, marginTop: 2 }}>
-            [Balance] ${formatMoneyPlain(balanceValue, 0)}
-          </p>
+          <div className="acc-sub">#{account.account_number} · {account.currency}</div>
+          <div className="acc-sub" style={{ marginTop: 1, color: 'var(--text-3)' }}>
+            Bal ${formatMoneyPlain(balanceValue, 0)}
+          </div>
         </div>
-        <span style={{ fontSize: 10, background: 'rgba(34,197,94,0.08)', color: '#22C55E', padding: '3px 8px', borderRadius: 6 }}>
-          {brokerLabel}
-        </span>
+        <span className="broker-tag">{brokerLabel}</span>
       </div>
 
       <div className="sp-wrap">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <span />
-          <span style={{ fontSize: 14, fontWeight: 500, fontFamily: 'var(--mono)', color: growthColor, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div className="sp-top">
+          <span className="sp-balance">Equity ${formatMoneyPlain(overview?.kpis.equity ?? account.equity, 0)}</span>
+          <span className="sp-growth" style={{ color: growthColor }}>
             {growthText}
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: growthColor, display: 'inline-block' }} />
+            <span className="sp-dot" style={{ background: growthColor }} />
           </span>
         </div>
-        <div style={{ position: 'relative', height: 58 }}>
+        <div className="sp-canvas" style={{ position: 'relative', height: 58 }}>
           {loading ? (
             <div className="chart-placeholder" />
           ) : (
@@ -595,14 +604,14 @@ const AccountCard = memo(function AccountCard({
       </div>
 
       {showYtd ? (
-        <div style={{ borderTop: '0.5px solid #2A2F3A', paddingTop: 10, marginTop: 6, marginBottom: 10 }}>
+        <div className="ytd-section">
           <YtdTable accountId={account.id} />
         </div>
       ) : null}
 
-      <div style={{ borderTop: '0.5px solid #2A2F3A', paddingTop: 10 }}>
+      <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: 10 }}>
         {error ? (
-          <div style={{ fontSize: 11, color: '#F87171', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--rose)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span>{error}</span>
             <button type="button" className="tb" onClick={() => setOverviewRefreshToken((token) => token + 1)}>
               Retry
@@ -628,7 +637,7 @@ const AccountCard = memo(function AccountCard({
             </button>
             <button type="button" className="kchip" onClick={onToggleYtd}>
               <div className="kl">Trades</div>
-              <div className="kv" style={{ color: '#E5E7EB' }}>
+              <div className="kv gold">
                 {overview ? formatCountValue(overview.kpis.trades) : '--'}
               </div>
             </button>
@@ -659,14 +668,14 @@ function YtdTable({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <p style={{ fontSize: 10, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+      <p className="ytd-label">
         Year-to-date growth
       </p>
       <div className="ytd-wrap">
         <table className="ytd">
           <thead>
             <tr>
-              <th className="row-lbl" style={{ textAlign: 'left', color: '#6B7280' }}>Year</th>
+              <th className="row-lbl" style={{ textAlign: 'left', color: 'var(--text-3)' }}>Year</th>
               {MONTH_LABELS.map((month) => (
                 <th key={month}>{month}</th>
               ))}
@@ -681,8 +690,8 @@ function YtdTable({ accountId }: { accountId: string }) {
                   const value = row.year === currentYear ? monthlyMap.get(month) ?? null : null;
                   if (value === null || value === undefined) {
                     return (
-                      <td key={month} style={{ color: '#374151' }}>
-                        --
+                      <td key={month} style={{ color: 'var(--text-3)' }}>
+                        –
                       </td>
                     );
                   }
@@ -700,10 +709,10 @@ function YtdTable({ accountId }: { accountId: string }) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={13} style={{ paddingTop: 6, fontSize: 10, color: '#6B7280', textAlign: 'right', fontFamily: 'inherit' }}>
+              <td colSpan={13} style={{ paddingTop: 8, fontSize: 9, color: 'var(--text-3)', textAlign: 'right', fontFamily: 'var(--mono)', letterSpacing: '0.06em' }}>
                 Grand total
               </td>
-              <td className="yr-col" style={{ paddingTop: 6, fontWeight: 500, color: grandTotal >= 0 ? '#22C55E' : '#EF4444' }}>
+              <td className="yr-col" style={{ paddingTop: 8, fontWeight: 500, color: grandTotal >= 0 ? 'var(--mint)' : 'var(--rose)' }}>
                 {grandTotal >= 0 ? '+' : ''}{Math.round(grandTotal).toLocaleString()}
               </td>
             </tr>
@@ -744,17 +753,13 @@ function DashboardScreen({
   const isLive = accounts.some((account) => isFreshStatus(account.last_updated));
 
   return (
-    <div style={{ paddingBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+    <div style={{ paddingBottom: 8 }}>
+      <div className="dash-head">
         <div>
-          <h2 style={{ fontSize: 17, fontWeight: 500, color: '#E5E7EB' }}>Trading monitor</h2>
-          <p style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-            MT5 · Last sync {lastSyncLabel}
-          </p>
+          <h2>Trading<br /><em>Monitor</em></h2>
+          <p>MT5 · Last sync {lastSyncLabel}</p>
         </div>
-        <span style={{ fontSize: 10, background: 'rgba(34,197,94,0.1)', color: '#22C55E', padding: '3px 8px', borderRadius: 6, fontWeight: 500 }}>
-          {isLive ? '● live' : 'offline'}
-        </span>
+        <span className="live-badge">{isLive ? '● live' : 'idle'}</span>
       </div>
 
       {loading ? (
@@ -809,53 +814,195 @@ function PositionsScreen({
 
   const totalFloat = openPositions.reduce((sum, position) => sum + Number(position.floatingProfit ?? 0), 0);
 
+  const worstFloat = openPositions.reduce((min, position) => Math.min(min, Number(position.floatingProfit ?? 0)), 0);
+  const drawdownValue = worstFloat < 0 ? Math.abs(worstFloat) : 0;
+  const winRate = openPositions.length
+    ? (openPositions.filter((position) => Number(position.floatingProfit ?? 0) >= 0).length / openPositions.length) * 100
+    : 0;
+
+  const lastPosition = useMemo(() => {
+    if (!openPositions.length) return null;
+    const sorted = [...openPositions].sort((a, b) => {
+      const aId = Number(a.positionId);
+      const bId = Number(b.positionId);
+      if (!Number.isNaN(aId) && !Number.isNaN(bId)) {
+        return aId - bId;
+      }
+      return a.positionId.localeCompare(b.positionId);
+    });
+    return sorted[sorted.length - 1] ?? null;
+  }, [openPositions]);
+
+  const overlayLive = Boolean(lastPosition && isFreshStatus(lastPosition.account.last_updated));
+
   return (
-    <div style={{ paddingBottom: 16 }}>
-      <h2 style={{ fontSize: 17, fontWeight: 500, marginBottom: 3 }}>Open positions</h2>
-      <p style={{ fontSize: 11, color: '#6B7280', marginBottom: 14 }}>
-        {openPositions.length} open · Float:{' '}
-        <span className={getSignedClass(totalFloat)}>
-          {totalFloat >= 0 ? '+$' : '-$'}{Math.abs(totalFloat).toFixed(2)}
-        </span>
-      </p>
+    <div className="positions-screen">
+      <div className="positions-content">
+        <h2 style={{ fontSize: 17, fontWeight: 500, marginBottom: 3 }}>Open positions</h2>
+        <p style={{ fontSize: 11, color: '#6B7280', marginBottom: 14 }}>
+          {openPositions.length} open · Float:{' '}
+          <span className={getSignedClass(totalFloat)}>
+            {totalFloat >= 0 ? '+$' : '-$'}{Math.abs(totalFloat).toFixed(2)}
+          </span>
+        </p>
 
-      {loading ? (
-        <div className="card">
-          <p style={{ fontSize: 12, color: '#9CA3AF' }}>Loading positions...</p>
-        </div>
-      ) : error ? (
-        <div className="card">
-          <p style={{ fontSize: 12, color: '#F87171' }}>{error}</p>
-        </div>
-      ) : openPositions.length === 0 ? (
-        <div className="card">
-          <p style={{ fontSize: 12, color: '#9CA3AF' }}>No open positions.</p>
-        </div>
-      ) : (
-        openPositions.map((position) => {
-          const sideLabel = position.side ?? '--';
-          const sideClass = sideLabel.toLowerCase() === 'buy' ? 'tag-buy' : 'tag-sell';
+        {loading ? (
+          <div className="card">
+            <p style={{ fontSize: 12, color: '#9CA3AF' }}>Loading positions...</p>
+          </div>
+        ) : error ? (
+          <div className="card">
+            <p style={{ fontSize: 12, color: '#F87171' }}>{error}</p>
+          </div>
+        ) : openPositions.length === 0 ? (
+          <div className="card">
+            <p style={{ fontSize: 12, color: '#9CA3AF' }}>No open positions.</p>
+          </div>
+        ) : (
+          openPositions.map((position) => {
+            const sideLabel = position.side ?? '--';
+            const sideClass = sideLabel.toLowerCase() === 'buy' ? 'tag-buy' : 'tag-sell';
 
-          return (
-            <div key={`${position.account.id}-${position.positionId}`} className="card" style={{ padding: '12px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{position.symbol}</span>
-                  <span className={`tag ${sideClass}`}>{sideLabel}</span>
-                  <span style={{ fontSize: 11, color: '#6B7280' }}>{Number(position.volume).toFixed(2)}</span>
+            return (
+              <div key={`${position.account.id}-${position.positionId}`} className="card" style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{position.symbol}</span>
+                    <span className={`tag ${sideClass}`}>{sideLabel}</span>
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>{Number(position.volume).toFixed(2)}</span>
+                  </div>
+                  <span className={getSignedClass(position.floatingProfit)} style={{ fontSize: 14, fontWeight: 500, fontFamily: 'var(--mono)' }}>
+                    {position.floatingProfit >= 0 ? '+$' : '-$'}{Math.abs(position.floatingProfit).toFixed(2)}
+                  </span>
                 </div>
-                <span className={getSignedClass(position.floatingProfit)} style={{ fontSize: 14, fontWeight: 500, fontFamily: 'var(--mono)' }}>
-                  {position.floatingProfit >= 0 ? '+$' : '-$'}{Math.abs(position.floatingProfit).toFixed(2)}
-                </span>
+                <p style={{ fontSize: 11, color: '#6B7280', marginBottom: 2, fontFamily: 'var(--mono)' }}>
+                  {Number(position.openPrice).toFixed(5)} → {Number(position.marketPrice).toFixed(5)}
+                </p>
+                <p style={{ fontSize: 10, color: '#4B5563' }}>{getFirstName(position.account.owner_name) ?? position.account.account_number}</p>
               </div>
-              <p style={{ fontSize: 11, color: '#6B7280', marginBottom: 2, fontFamily: 'var(--mono)' }}>
-                {Number(position.openPrice).toFixed(5)} → {Number(position.marketPrice).toFixed(5)}
-              </p>
-              <p style={{ fontSize: 10, color: '#4B5563' }}>{getFirstName(position.account.owner_name) ?? position.account.account_number}</p>
-            </div>
-          );
-        })
-      )}
+            );
+          })
+        )}
+      </div>
+      {lastPosition ? (
+        <LastPositionOverlay
+          position={lastPosition}
+          totalFloat={totalFloat}
+          winRate={winRate}
+          drawdownValue={drawdownValue}
+          tradeCount={openPositions.length}
+          isLive={overlayLive}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LastPositionOverlay({
+  position,
+  totalFloat,
+  winRate,
+  drawdownValue,
+  tradeCount,
+  isLive
+}: {
+  position: PositionEntry;
+  totalFloat: number;
+  winRate: number;
+  drawdownValue: number;
+  tradeCount: number;
+  isLive: boolean;
+}) {
+  const [range, setRange] = useState<Timeframe>('day');
+  const gradientId = useMemo(() => `overlay-sparkline-${position.positionId}`, [position.positionId]);
+
+  const changePercent = useMemo(() => {
+    const open = Number(position.openPrice ?? 0);
+    const market = Number(position.marketPrice ?? open);
+    if (!Number.isFinite(open) || open === 0) return 0;
+    return ((market - open) / open) * 100;
+  }, [position.openPrice, position.marketPrice]);
+
+  const sparklinePoints = useMemo(() => {
+    const open = Number(position.openPrice ?? 0);
+    const market = Number(position.marketPrice ?? open);
+    const mid = (open + market) / 2;
+    const series = [open, mid, market];
+    const min = Math.min(...series);
+    const max = Math.max(...series);
+    const rangeValue = max - min || Math.abs(max) || 1;
+    return series
+      .map((value, index) => {
+        const x = (index / (series.length - 1)) * 100;
+        const normalized = ((value - min) / rangeValue) * 100;
+        return `${x},${100 - normalized}`;
+      })
+      .join(' ');
+  }, [position.openPrice, position.marketPrice]);
+
+  const ownerLabel = getFirstName(position.account.owner_name) ?? position.account.account_number ?? 'Account';
+  const drawdownLabel = drawdownValue > 0 ? formatSignedMoneyPlain(-drawdownValue, 0) : '$0';
+
+  const statEntries = useMemo(
+    () => [
+      { label: 'Profit', value: formatSignedMoneyPlain(totalFloat, 0), className: getSignedClass(totalFloat) },
+      { label: 'Drawdown', value: drawdownLabel, className: drawdownValue > 0 ? 'neg' : '' },
+      { label: 'Win %', value: `${winRate.toFixed(0)}%`, className: winRate >= 50 ? 'pos' : 'neg' },
+      { label: 'Trades', value: tradeCount.toString(), className: '' }
+    ],
+    [totalFloat, drawdownValue, drawdownLabel, winRate, tradeCount]
+  );
+
+  return (
+    <div className="last-position-overlay" aria-live="polite">
+      <div className="overlay-header">
+        <span className="overlay-owner" title={ownerLabel}>{ownerLabel}</span>
+        <span className={`overlay-percent ${changePercent >= 0 ? 'pos' : 'neg'}`}>{formatPercent(changePercent, 1)}</span>
+      </div>
+      <div className="overlay-account-line">
+        <span className="overlay-account">#{position.account.account_number}</span>
+        <div className="overlay-sparkline" aria-hidden="true">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="#C8A96E" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#00D4A4" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <polyline points={sparklinePoints} fill="none" stroke={`url(#${gradientId})`} strokeWidth={2} strokeLinecap="round" />
+          </svg>
+          <span
+            className={`overlay-live-dot ${position.floatingProfit >= 0 ? 'positive' : 'negative'} ${isLive ? 'live' : ''}`}
+            aria-label={isLive ? 'Open position live' : 'Open position idle'}
+          />
+        </div>
+      </div>
+      <div className="overlay-volume-line">
+        <span className="overlay-volume">{position.side?.toUpperCase() ?? '--'} · {Number(position.volume).toFixed(2)} lots</span>
+        <span className={`overlay-open-value ${changePercent >= 0 ? 'pos' : 'neg'}`}>
+          {formatSignedMoneyPlain(position.floatingProfit ?? 0, 0)}
+        </span>
+      </div>
+      <div className="overlay-times" role="group" aria-label="Resolution">
+        {TIMEFRAME_BUTTONS.map((option) => (
+          <button
+            key={`overlay-time-${option.value}`}
+            type="button"
+            className={`overlay-time-toggle${range === option.value ? ' on' : ''}`}
+            onClick={() => setRange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <div className="overlay-stats">
+        {statEntries.map((stat) => (
+          <button key={stat.label} type="button" className={`overlay-stat ${stat.className}`}>
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1166,11 +1313,7 @@ function ProfitDetail({ data }: { data: ProfitDetailResponse }) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#1A1D24',
-        borderColor: '#2A2F3A',
-        borderWidth: 1,
-        bodyColor: '#E5E7EB',
-        titleColor: '#9CA3AF'
+        ...TOOLTIP_THEME
       }
     }
   };
@@ -1273,11 +1416,7 @@ function EquityDetail({ data }: { data: EquityDetailResponse }) {
       tooltip: {
         mode: 'index' as const,
         intersect: false,
-        backgroundColor: '#1A1D24',
-        borderColor: '#2A2F3A',
-        borderWidth: 1,
-        titleColor: '#9CA3AF',
-        bodyColor: '#E5E7EB'
+        ...TOOLTIP_THEME
       }
     },
     scales: {
@@ -1455,11 +1594,7 @@ function WinDetail({ data }: { data: WinDetailResponse }) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#1A1D24',
-        borderColor: '#2A2F3A',
-        borderWidth: 1,
-        bodyColor: '#E5E7EB',
-        titleColor: '#9CA3AF'
+        ...TOOLTIP_THEME
       }
     },
     scales: {

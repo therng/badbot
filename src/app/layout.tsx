@@ -1,22 +1,22 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Mono, Outfit } from 'next/font/google';
+import { Azeret_Mono, Cormorant_Garamond } from 'next/font/google';
 import './globals.css';
 
-const sansFont = Outfit({
+const sansFont = Cormorant_Garamond({
   subsets: ['latin'],
   variable: '--font-sans',
-  weight: ['400', '500', '700']
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic']
 });
 
-const monoFont = IBM_Plex_Mono({
+const monoFont = Azeret_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
-  weight: ['400', '700']
+  weight: ['300', '400', '500']
 });
 
 export const metadata: Metadata = {
-  title: 'Trading Monitor',
-  description: 'Multi-account trading monitor for imported broker reports.',
+  title: 'BadBot',
   manifest: '/site.webmanifest',
   icons: {
     icon: [

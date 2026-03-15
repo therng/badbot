@@ -1,92 +1,45 @@
-# Trading Monitor Frontend
+# Frontend Spec
 
-This frontend is now anchored to [`trading_monitor_v2_dark.html`](./trading_monitor_v2_dark.html) as the visual source of truth.
+Primary design source is now [`trading_monitor_redesign.html`](./trading_monitor_redesign.html).  
+The app should follow this "Financial Noir" visual system by default.
 
-## Current Source Of Truth
+## Runtime Files
 
-- Prototype reference: [`trading_monitor_v2_dark.html`](./trading_monitor_v2_dark.html)
-- Runtime page: [`src/app/page.tsx`](./src/app/page.tsx)
-- Runtime styles: [`src/app/globals.css`](./src/app/globals.css)
+- UI logic: [`src/app/page.tsx`](./src/app/page.tsx)
+- Global theme/styles: [`src/app/globals.css`](./src/app/globals.css)
+- Font wiring: [`src/app/layout.tsx`](./src/app/layout.tsx)
 
-## App Shell
+## Financial Noir Tokens
 
-- Mobile-first single-device shell
-- Fixed bottom navigation
-- Scrollable content region
-- Dark theme only
-- Desktop keeps the same centered mobile frame instead of switching to a different dashboard layout
+- Core surfaces: `--bg0`, `--bg1`, `--bg2`, `--bg3`
+- Primary accent: `--gold` (`#C8A96E`)
+- Positive: `--mint` (`#00D4A4`)
+- Negative: `--rose` (`#FF6B6B`)
+- Secondary info: `--ice` (`#7EB8F7`)
+- Typography:
+  - serif: `Cormorant Garamond`
+  - mono: `Azeret Mono`
 
-## Screens
+## App Structure
 
-### Dashboard
+- Mobile-first centered app shell
+- Fixed bottom nav with 4 tabs: `Dash`, `Live`, `History`, `Accounts`
+- Screens:
+  - Dashboard (account cards + sparkline + KPI chips + optional YTD table)
+  - Detail (profit/risk/win/equity)
+  - Positions (open positions + last-position overlay)
+  - History (expandable closed trades)
+  - Accounts (compact account summary)
 
-- Stacked account cards
-- Per-account timeframe controls: `D`, `W`, `M`, `Y`, `A`
-- KPI chip order: `Profit`, `Drawdown`, `Win %`, `Trades`
-- Growth sparkline above KPI chips
-- `Trades` chip toggles the inline YTD table
+## Behavior Rules
 
-### Detail
+- Timeframe is persisted per account (`localStorage`)
+- Detail screen inherits account timeframe
+- YTD table opens from `Trades` chip and uses `–` for missing values
+- History supports one expanded row at a time
+- Overlay on Positions remains enabled and inherits Financial Noir colors
 
-- Opened from dashboard KPI chips
-- Supported detail screens:
-  - `Profit detail`
-  - `Risk & drawdown`
-  - `Win statistics`
-  - `Equity detail`
-- Detail screen inherits the selected account timeframe
+## Cleanup Decision
 
-### Positions
-
-- Aggregated open positions across accounts
-- Shows symbol, side, volume, open price, market price, and floating P/L
-
-### History
-
-- Aggregated recent closed positions across accounts
-- Inline expand/collapse row behavior
-- One expanded row at a time
-
-### Accounts
-
-- Compact account list
-- Uses the same dark card language as the prototype
-
-## Data Mapping
-
-- `/api/accounts`
-  - account shell, account status, account list
-- `/api/accounts/:id`
-  - dashboard KPI values and growth sparkline
-- `/api/accounts/:id/profit-detail`
-  - profit detail screen
-- `/api/accounts/:id/equity-detail`
-  - equity and risk detail screens
-- `/api/accounts/:id/win-detail`
-  - win statistics screen
-- `/api/accounts/:id/growth`
-  - YTD table data
-- `/api/accounts/:id/positions`
-  - positions screen and trading history aggregation
-
-## State Rules
-
-- Selected timeframe is stored per account in `localStorage`
-- Detail view uses the same timeframe as its parent account card
-- YTD table open/close state is local UI state
-- Expanded history row state is local UI state
-
-## Styling Rules
-
-- Use semantic colors from the prototype:
-  - positive: `#22C55E`
-  - negative: `#EF4444`
-  - risk warning: `#F59E0B`
-  - accent: `#38BDF8`
-- Keep the compact spacing and typography proportions from the prototype
-- Prefer the prototype class vocabulary: `app`, `scroll`, `card`, `bnav`, `bni`, `kgrid`, `kchip`
-- Avoid reintroducing the previous desktop sidebar or glass-dashboard system unless the product direction changes
-
-## Cleanup Note
-
-Older documentation in this file described a larger desktop-oriented component system with sidebar navigation and a separate design language. That is no longer the active frontend plan. The current implementation should follow the dark monitor prototype above.
+- Older "glass dashboard" / sidebar-oriented documentation is deprecated.
+- Any future style updates should start from `trading_monitor_redesign.html` and then be reflected in `globals.css` and `page.tsx`.
