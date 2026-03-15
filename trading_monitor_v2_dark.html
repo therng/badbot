@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Monitor — BadBot</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0a0c10;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;}
+.app{max-width:420px;width:100%;background:#0F1115;border-radius:16px;height:740px;display:flex;flex-direction:column;overflow:hidden;color:#E5E7EB;box-shadow:0 24px 80px rgba(0,0,0,0.6);}
+.scroll{flex:1;overflow-y:auto;padding:14px 14px 8px;}
+.scroll::-webkit-scrollbar{display:none;}
+.bnav{flex-shrink:0;background:#1A1D24;border-top:0.5px solid #2A2F3A;display:flex;padding:8px 0 18px;}
+.bni{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:#6B7280;font-size:10px;cursor:pointer;padding:4px 0;font-family:inherit;}
+.bni.on{color:#38BDF8;}
+.bni svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5;}
+.card{background:#1A1D24;border-radius:14px;padding:14px;margin-bottom:10px;border:0.5px solid #2A2F3A;}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.35;transform:scale(0.6);}}
+.sdot{width:8px;height:8px;border-radius:50%;background:#22C55E;display:inline-block;flex-shrink:0;}
+.sdot.live{animation:breathe 2.2s ease-in-out infinite;}
+.tb{background:none;border:0.5px solid #2A2F3A;border-radius:6px;padding:3px 9px;font-size:11px;color:#6B7280;cursor:pointer;font-family:inherit;}
+.tb.on{background:#212630;color:#38BDF8;border-color:#38BDF8;}
+.kgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+.kchip{background:#212630;border-radius:10px;padding:8px 6px;cursor:pointer;border:0.5px solid transparent;transition:border-color 0.15s;}
+.kchip:hover{border-color:#38BDF8;}
+.kl{font-size:9px;color:#9CA3AF;letter-spacing:0.3px;margin-bottom:3px;}
+.kv{font-size:12px;font-weight:500;font-family:ui-monospace,monospace;}
+.pos{color:#22C55E;} .neg{color:#EF4444;} .warn{color:#F59E0B;} .blue{color:#38BDF8;}
+.slbl{font-size:10px;color:#6B7280;letter-spacing:0.5px;text-transform:uppercase;margin:0 0 8px;}
+.mrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid #2A2F3A;}
+.mrow:last-child{border-bottom:none;}
+.ml{font-size:13px;color:#9CA3AF;}
+.mv{font-size:13px;font-weight:500;font-family:ui-monospace,monospace;color:#E5E7EB;}
+.back{background:none;border:none;color:#9CA3AF;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px;padding:0 0 12px;font-family:inherit;}
+.tag{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:500;}
+.tag-buy{background:rgba(59,130,246,0.18);color:#60A5FA;}
+.tag-sell{background:rgba(239,68,68,0.16);color:#F87171;}
+.bar-track{background:#2A2F3A;border-radius:4px;height:5px;overflow:hidden;margin:3px 0 8px;}
+.bar-fill{height:100%;border-radius:4px;}
+.risk-bar{height:8px;border-radius:4px;background:linear-gradient(to right,#22C55E 0%,#F59E0B 50%,#EF4444 100%);position:relative;margin:4px 0 4px;}
+.risk-dot{width:10px;height:10px;border-radius:50%;background:#E5E7EB;border:2px solid #0F1115;position:absolute;top:-1px;transform:translateX(-50%);}
+.trow{border-bottom:0.5px solid #2A2F3A;padding:10px 0;cursor:pointer;}
+.trow:last-child{border-bottom:none;}
+.ytd-wrap{overflow-x:auto;margin-top:8px;}
+.ytd-wrap::-webkit-scrollbar{height:3px;}
+.ytd-wrap::-webkit-scrollbar-thumb{background:#4B5563;border-radius:2px;}
+.ytd{border-collapse:collapse;font-size:11px;min-width:640px;}
+.ytd th{color:#6B7280;padding:4px 7px;text-align:center;font-weight:400;white-space:nowrap;}
+.ytd td{padding:5px 7px;text-align:center;white-space:nowrap;font-family:ui-monospace,monospace;}
+.ytd .yr-col{position:sticky;right:0;background:#1A1D24;font-weight:500;}
+.ytd .row-lbl{text-align:left;color:#9CA3AF;font-family:inherit;}
+.ytd .th-yr{position:sticky;right:0;background:#1A1D24;}
+.sp-wrap{position:relative;margin-bottom:8px;}
+.tf-row{display:flex;justify-content:flex-end;gap:4px;margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="scroll" id="main-scroll"></div>
+  <div class="bnav">
+    <button class="bni on" onclick="nav('dashboard')" id="bni-dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+      Dashboard
+    </button>
+    <button class="bni" onclick="nav('positions')" id="bni-positions">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg>
+      Positions
+    </button>
+    <button class="bni" onclick="nav('history')" id="bni-history">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
+      History
+    </button>
+    <button class="bni" onclick="nav('accounts')" id="bni-accounts">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Accounts
+    </button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const ACCS=[
+  {id:'7953093',name:'Supachai',broker:'IC Markets',currency:'USD',mode:'Hedge',status:'active',
+   sp:[9200,9850,10100,9600,10800,11200,10900,11800,12100,12850],
+   data:{D:{p:245.5,dd:2.1,w:68.5,t:14,e:12850,bal:12605,gross:314,comm:42,swap:12,loss:69,g:1.9},
+         W:{p:1120.8,dd:3.8,w:65.2,t:67,e:12850,bal:12450,gross:1480,comm:208,swap:58,loss:360,g:8.4},
+         M:{p:3240.6,dd:5.4,w:62.8,t:218,e:12850,bal:12200,gross:4180,comm:642,swap:192,loss:940,g:24.2},
+         Y:{p:18540.2,dd:8.2,w:61.4,t:1847,e:12850,bal:10800,gross:23500,comm:3200,swap:890,loss:5000,g:138.7},
+         A:{p:28540.2,dd:12.5,w:60.8,t:3241,e:12850,bal:8400,gross:36000,comm:5100,swap:1400,loss:8000,g:213.4}},
+   ytd:{'2025':{Jan:null,Feb:null,Mar:1068,Apr:418,May:767,Jun:586,Jul:945,Aug:1200,Sep:2140,Oct:3100,Nov:2890,Dec:4469,year:16583.76},
+        '2026':{Jan:4976,Feb:-620,Mar:-1967,Apr:null,May:null,Jun:null,Jul:null,Aug:null,Sep:null,Oct:null,Nov:null,Dec:null,year:2388.67}}},
+  {id:'7934251',name:'Bot-Pepper',broker:'Pepperstone',currency:'USD',mode:'Netting',status:'active',
+   sp:[3800,4200,4100,4500,4200,4800,4600,5100,5000,5420],
+   data:{D:{p:-85.2,dd:4.2,w:42.1,t:8,e:5421,bal:5506,gross:120,comm:18,swap:5,loss:205,g:-1.5},
+         W:{p:320.4,dd:6.1,w:55.3,t:39,e:5421,bal:5200,gross:620,comm:120,swap:32,loss:300,g:5.9},
+         M:{p:-180.2,dd:9.8,w:48.7,t:124,e:5421,bal:5600,gross:1800,comm:380,swap:95,loss:1980,g:-3.2},
+         Y:{p:2840.6,dd:14.6,w:52.1,t:987,e:5421,bal:3800,gross:8200,comm:1600,swap:420,loss:5360,g:42.8},
+         A:{p:4420.8,dd:18.3,w:51.4,t:1842,e:5421,bal:2000,gross:12000,comm:2400,swap:680,loss:7580,g:65.4}},
+   ytd:{'2025':{Jan:null,Feb:null,Mar:null,Apr:null,May:null,Jun:null,Jul:1200,Aug:-340,Sep:980,Oct:2100,Nov:1800,Dec:3200,year:8940},
+        '2026':{Jan:1200,Feb:-180,Mar:-180,Apr:null,May:null,Jun:null,Jul:null,Aug:null,Sep:null,Oct:null,Nov:null,Dec:null,year:840}}}
+];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TFL=['D','W','M','Y','A'];
+const ST={screen:'dashboard',tf:{},ytd:{},expandedTrade:null,detAcc:null,detType:null};
+ACCS.forEach(a=>{ST.tf[a.id]='M';ST.ytd[a.id]=false;});
+const CH={};
+
+function dC(id){if(CH[id]){try{CH[id].destroy();}catch(e){}delete CH[id];}}
+function fP(v){return(v>=0?'+$':'-$')+Math.abs(v).toLocaleString('en',{maximumFractionDigits:0});}
+function cP(v){return v>=0?'pos':'neg';}
+function cD(v){return v<=5?'pos':v<=15?'warn':'neg';}
+function pct(a,b){return b?Math.min(100,Math.round(a/b*100)):0;}
+
+function nav(screen,acc,type){
+  ST.screen=screen;ST.detAcc=acc||null;ST.detType=type||null;
+  Object.keys(CH).forEach(k=>dC(k));
+  document.querySelectorAll('.bni').forEach(b=>b.classList.remove('on'));
+  const map={dashboard:'dashboard',positions:'positions',history:'history',accounts:'accounts',detail:'dashboard'};
+  const btn=document.getElementById('bni-'+(map[screen]||'dashboard'));
+  if(btn)btn.classList.add('on');
+  render();
+}
+
+function render(){
+  const el=document.getElementById('main-scroll');
+  el.scrollTop=0;
+  const s=ST.screen;
+  if(s==='dashboard')el.innerHTML=rDash();
+  else if(s==='detail')el.innerHTML=rDetail();
+  else if(s==='positions')el.innerHTML=rPos();
+  else if(s==='history')el.innerHTML=rHist();
+  else if(s==='accounts')el.innerHTML=rAccs();
+  setTimeout(initCharts,90);
+}
+
+function rDash(){
+  return`<div style="padding-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;">
+      <div>
+        <h2 style="font-size:17px;font-weight:500;color:#E5E7EB;">Trading monitor</h2>
+        <p style="font-size:11px;color:#6B7280;margin-top:2px;">MT5 · Last sync 2 min ago</p>
+      </div>
+      <span style="font-size:10px;background:rgba(34,197,94,0.1);color:#22C55E;padding:3px 8px;border-radius:6px;font-weight:500;">● live</span>
+    </div>
+    ${ACCS.map(rCard).join('')}
+  </div>`;
+}
+
+function rCard(a){
+  const d=a.data[ST.tf[a.id]];
+  const ytdOpen=ST.ytd[a.id];
+  const up=a.sp[a.sp.length-1]>=a.sp[0];
+  const gColor=d.g>=0?'#22C55E':'#EF4444';
+  const gText=(d.g>=0?'+':'')+d.g.toFixed(1)+'%';
+  return`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:1px;">
+          <span class="sdot live"></span>
+          <span style="font-size:14px;font-weight:500;">${a.name}</span>
+        </div>
+        <p style="font-size:11px;color:#6B7280;margin-left:14px;">#${a.id}</p>
+        <p style="font-size:10px;color:#9CA3AF;margin-left:14px;margin-top:2px;">[Balance] $${d.bal.toLocaleString()}</p>
+      </div>
+      <span style="font-size:10px;background:rgba(34,197,94,0.08);color:#22C55E;padding:3px 8px;border-radius:6px;">${a.broker}</span>
+    </div>
+    <div class="sp-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span></span>
+        <span style="font-size:14px;font-weight:500;font-family:ui-monospace,monospace;color:${gColor};display:flex;align-items:center;gap:5px;">${gText}<span style="width:8px;height:8px;border-radius:50%;background:${gColor};display:inline-block;"></span></span>
+      </div>
+      <div style="position:relative;height:58px;"><canvas id="sp-${a.id}"></canvas></div>
+      <div class="tf-row">${TFL.map(t=>`<button class="tb${ST.tf[a.id]===t?' on':''}" onclick="ST.tf['${a.id}']='${t}';render();">${t}</button>`).join('')}</div>
+    </div>
+    ${ytdOpen?`<div style="border-top:0.5px solid #2A2F3A;padding-top:10px;margin-top:6px;margin-bottom:10px;">${rYtd(a)}</div>`:''}
+    <div style="border-top:0.5px solid #2A2F3A;padding-top:10px;">
+      <div class="kgrid">
+        <div class="kchip" onclick="nav('detail','${a.id}','profit')"><div class="kl">Profit</div><div class="kv ${cP(d.p)}">${fP(d.p)}</div></div>
+        <div class="kchip" onclick="nav('detail','${a.id}','risk')"><div class="kl">Drawdown</div><div class="kv ${cD(d.dd)}">${d.dd.toFixed(1)}%</div></div>
+        <div class="kchip" onclick="nav('detail','${a.id}','win')"><div class="kl">Win %</div><div class="kv blue">${d.w.toFixed(1)}%</div></div>
+        <div class="kchip" onclick="ST.ytd['${a.id}']=!ST.ytd['${a.id}'];render();"><div class="kl">Trades</div><div class="kv" style="color:#E5E7EB;">${d.t.toLocaleString()}</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function rYtd(a){
+  const years=Object.keys(a.ytd);
+  const total=years.reduce((s,y)=>s+(a.ytd[y].year||0),0);
+  return`<p style="font-size:10px;color:#6B7280;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px;">Year-to-date growth</p>
+  <div class="ytd-wrap"><table class="ytd">
+    <thead><tr><th class="row-lbl" style="text-align:left;color:#6B7280;">Year</th>${MONTHS.map(m=>`<th>${m}</th>`).join('')}<th class="th-yr">Total</th></tr></thead>
+    <tbody>${years.map(y=>{const r=a.ytd[y];return`<tr><td class="row-lbl">${y}</td>${MONTHS.map(m=>{const v=r[m];if(v===null||v===undefined)return`<td style="color:#374151;">–</td>`;return`<td class="${cP(v)}">${v>=0?'+':''}${Math.round(v).toLocaleString()}</td>`;}).join('')}<td class="yr-col ${cP(r.year)}">${r.year>=0?'+':''}${Math.round(r.year).toLocaleString()}</td></tr>`;}).join('')}</tbody>
+    <tfoot><tr><td colspan="13" style="padding-top:6px;font-size:10px;color:#6B7280;text-align:right;font-family:inherit;">Grand total</td><td class="yr-col" style="padding-top:6px;font-weight:500;color:${total>=0?'#22C55E':'#EF4444'};">${total>=0?'+':''}${Math.round(total).toLocaleString()}</td></tr></tfoot>
+  </table></div>`;
+}
+
+function rDetail(){
+  const a=ACCS.find(x=>x.id===ST.detAcc);
+  const t=ST.detType;
+  const titles={profit:'Profit detail',risk:'Risk & drawdown',win:'Win statistics',equity:'Equity detail'};
+  return`<div style="padding-bottom:16px;">
+    <button class="back" onclick="nav('dashboard')">‹ Back</button>
+    <div style="margin-bottom:12px;">
+      <h2 style="font-size:16px;font-weight:500;color:#E5E7EB;">${titles[t]||t}</h2>
+      <p style="font-size:11px;color:#6B7280;margin-top:2px;">${a.name} · #${a.id}</p>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:12px;">${TFL.map(tf=>`<button class="tb${ST.tf[a.id]===tf?' on':''}" onclick="ST.tf['${a.id}']='${tf}';render();">${tf}</button>`).join('')}</div>
+    ${t==='profit'?rProfit(a):t==='risk'?rRisk(a):t==='win'?rWin(a):rEquity(a)}
+  </div>`;
+}
+
+function rProfit(a){
+  const d=a.data[ST.tf[a.id]];
+  const syms=['XAUUSD','EURUSD','GBPUSD','USDJPY','AUDUSD'];
+  const sp=[0.38,0.26,0.18,0.11,0.07].map(r=>Math.round(d.p*r));
+  const mx=Math.max(...sp.map(Math.abs));
+  const colors=['#38BDF8','#22C55E','#A78BFA','#F59E0B','#F87171'];
+  return`<div class="card"><p class="slbl">Summary</p>
+    ${[['Total profit','+$'+d.gross.toLocaleString(),'pos'],['Commission','-$'+d.comm,'neg'],['Swap','-$'+d.swap,'neg'],['Total loss','-$'+d.loss.toLocaleString(),'neg'],['Net profit',fP(d.p),cP(d.p)]].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  </div>
+  <div class="card"><p class="slbl">Symbol mix</p>
+    <div style="height:150px;position:relative;"><canvas id="d-pie"></canvas></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">${syms.map((s,i)=>`<span style="font-size:10px;color:#9CA3AF;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:${colors[i]};display:inline-block;"></span>${s}</span>`).join('')}</div>
+  </div>
+  <div class="card"><p class="slbl">Profit by symbol</p>
+    ${syms.map((s,i)=>`<div style="margin-bottom:9px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#E5E7EB;font-weight:500;">${s}</span><span class="${cP(sp[i])}" style="font-family:monospace;">${fP(sp[i])}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct(Math.abs(sp[i]),mx)}%;background:${sp[i]>=0?'#22C55E':'#EF4444'};"></div></div></div>`).join('')}
+  </div>`;
+}
+
+function rEquity(a){
+  const d=a.data[ST.tf[a.id]];
+  const peak=Math.round(d.e*1.054),minE=Math.round(d.e*0.912);
+  return`<div class="card"><p class="slbl">Balance vs equity</p>
+    <div style="height:170px;position:relative;margin-bottom:8px;"><canvas id="d-eq"></canvas></div>
+    <div style="display:flex;gap:16px;font-size:11px;color:#9CA3AF;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:14px;height:2px;background:#38BDF8;display:inline-block;border-radius:1px;"></span>Equity</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:14px;border-top:2px dashed #6B7280;display:inline-block;"></span>Balance</span>
+    </div>
+  </div>
+  <div class="card">
+    ${[['Balance','$'+d.bal.toLocaleString(),''],['Equity','$'+d.e.toLocaleString(),'blue'],['Floating P/L',fP(d.e-d.bal),cP(d.e-d.bal)],['Peak equity','$'+peak.toLocaleString(),''],['Min equity','$'+minE.toLocaleString(),'warn'],['Max drawdown',d.dd.toFixed(1)+'%',cD(d.dd)]].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  </div>`;
+}
+
+function rRisk(a){
+  const d=a.data[ST.tf[a.id]];
+  const ddPx=Math.min(d.dd/20*100,98);
+  const depLoad=Math.min(95,Math.round(d.dd*5.8));
+  const best=Math.round(d.gross*0.04),worst=Math.round(d.loss*0.038);
+  return`<div class="card"><p class="slbl">Drawdown summary</p>
+    ${[['Absolute drawdown','$'+Math.round(d.loss*0.12).toLocaleString(),''],['Relative drawdown',d.dd.toFixed(1)+'%',cD(d.dd)],['Maximal drawdown','$'+Math.round(d.loss*0.48).toLocaleString(),'warn']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  </div>
+  <div class="card"><p class="slbl">Risk gauges</p>
+    <div style="margin-bottom:14px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:#9CA3AF;">Max drawdown</span><span style="font-family:monospace;color:#E5E7EB;">${d.dd.toFixed(2)}%</span></div><div class="risk-bar"><div class="risk-dot" style="left:${ddPx}%;"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:#4B5563;margin-top:2px;"><span>0%</span><span>10%</span><span>20%</span></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="color:#9CA3AF;">Max deposit load</span><span style="font-family:monospace;color:#E5E7EB;">${depLoad}%</span></div><div class="risk-bar"><div class="risk-dot" style="left:${Math.min(depLoad,98)}%;"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:#4B5563;margin-top:2px;"><span>0%</span><span>50%</span><span>100%</span></div></div>
+  </div>
+  <div class="card"><p class="slbl">Trade extremes</p>
+    ${[['Best trade','+$'+best,'#22C55E',78],['Worst trade','-$'+worst,'#EF4444',38]].map(([l,v,c,w])=>`<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#9CA3AF;">${l}</span><span style="font-family:monospace;font-weight:500;color:${c};">${v}</span></div><div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${c};"></div></div></div>`).join('')}
+    <div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#9CA3AF;">Max consecutive wins</span><span class="mv pos">7</span></div><div class="bar-track"><div class="bar-fill" style="width:65%;background:#22C55E;"></div></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#9CA3AF;">Max consecutive losses</span><span class="mv neg">8</span></div><div class="bar-track"><div class="bar-fill" style="width:72%;background:#EF4444;"></div></div></div>
+  </div>`;
+}
+
+function rWin(a){
+  const d=a.data[ST.tf[a.id]];
+  const wins=Math.round(d.t*d.w/100),losses=d.t-wins;
+  const longs=Math.round(d.t*0.6),shorts=d.t-longs;
+  return`<div class="card"><p class="slbl">Direction</p>
+    <div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#3B82F6;">Long trades</span><span style="color:#3B82F6;font-family:monospace;font-weight:500;">${longs}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct(longs,d.t)}%;background:#3B82F6;"></div></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#F97316;">Short trades</span><span style="color:#F97316;font-family:monospace;font-weight:500;">${shorts}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct(shorts,d.t)}%;background:#F97316;"></div></div></div>
+  </div>
+  <div class="card"><p class="slbl">Results</p>
+    <div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#22C55E;">Profit trades</span><span class="mv pos">${wins}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct(wins,d.t)}%;background:#22C55E;"></div></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span style="color:#EF4444;">Loss trades</span><span class="mv neg">${losses}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct(losses,d.t)}%;background:#EF4444;"></div></div></div>
+  </div>
+  <div class="card"><p class="slbl">Long / Short by period</p>
+    <div style="height:150px;position:relative;"><canvas id="d-ls"></canvas></div>
+    <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:#9CA3AF;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#3B82F6;display:inline-block;"></span>Long</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#F97316;display:inline-block;"></span>Short</span>
+    </div>
+  </div>
+  <div class="card"><p class="slbl">Streaks</p>
+    ${[['Avg consecutive wins','2.4','pos'],['Avg consecutive losses','1.8','neg']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  </div>`;
+}
+
+function rPos(){
+  const all=[
+    {acc:'Supachai',sym:'XAUUSD',side:'buy',lots:'0.50',op:'2,318.40',cur:'2,334.85',pl:82.25},
+    {acc:'Supachai',sym:'EURUSD',side:'sell',lots:'1.00',op:'1.0892',cur:'1.0874',pl:18.0},
+    {acc:'Supachai',sym:'GBPUSD',side:'buy',lots:'0.30',op:'1.2640',cur:'1.2618',pl:-6.60},
+    {acc:'Bot-Pepper',sym:'USDJPY',side:'buy',lots:'0.20',op:'148.20',cur:'149.85',pl:22.21},
+    {acc:'Bot-Pepper',sym:'AUDUSD',side:'sell',lots:'0.50',op:'0.6480',cur:'0.6495',pl:-7.50}
+  ];
+  const float=all.reduce((s,p)=>s+p.pl,0);
+  return`<div style="padding-bottom:16px;">
+    <h2 style="font-size:17px;font-weight:500;margin-bottom:3px;">Open positions</h2>
+    <p style="font-size:11px;color:#6B7280;margin-bottom:14px;">${all.length} open · Float: <span class="${cP(float)}">${float>=0?'+$':'-$'}${Math.abs(float).toFixed(2)}</span></p>
+    ${all.map(p=>`<div class="card" style="padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:500;">${p.sym}</span><span class="tag tag-${p.side}">${p.side}</span><span style="font-size:11px;color:#6B7280;">${p.lots}</span></div>
+        <span class="${cP(p.pl)}" style="font-size:14px;font-weight:500;font-family:monospace;">${p.pl>=0?'+$':'-$'}${Math.abs(p.pl).toFixed(2)}</span>
+      </div>
+      <p style="font-size:11px;color:#6B7280;margin-bottom:2px;font-family:monospace;">${p.op} → ${p.cur}</p>
+      <p style="font-size:10px;color:#4B5563;">${p.acc}</p>
+    </div>`).join('')}
+  </div>`;
+}
+
+const TRADES=[
+  {id:'3504676352',sym:'XAUUSD',full:'Gold vs US Dollar',side:'buy',lots:'0.01',op:'5119.90',cl:'5116.18',delta:'-3.72',dpct:'-0.07',pl:-3.72,ot:'2026.03.13 15:47:12',ct:'2026.03.13 15:54:02',sl:'–',tp:'5125.92',swap:'–',charges:'-0.08'},
+  {id:'3504632100',sym:'GBPUSD',full:'British Pound vs USD',side:'sell',lots:'0.01',op:'1.32520',cl:'1.32820',delta:'+0.00300',dpct:'+0.23',pl:-3.00,ot:'2026.03.13 15:30:00',ct:'2026.03.13 15:45:58',sl:'–',tp:'–',swap:'–',charges:'-0.05'},
+  {id:'3504580001',sym:'EURUSD',full:'Euro vs US Dollar',side:'buy',lots:'0.20',op:'1.08450',cl:'1.08620',delta:'+0.00170',dpct:'+0.16',pl:34.0,ot:'2026.03.12 09:10:00',ct:'2026.03.12 14:22:30',sl:'1.0820',tp:'1.0880',swap:'-0.12',charges:'-0.40'},
+  {id:'3504510088',sym:'USDJPY',full:'US Dollar vs Yen',side:'sell',lots:'0.10',op:'149.820',cl:'149.540',delta:'-0.280',dpct:'-0.19',pl:18.7,ot:'2026.03.11 07:00:00',ct:'2026.03.11 10:45:00',sl:'150.20',tp:'149.00',swap:'–',charges:'-0.20'}
+];
+
+function rHist(){
+  return`<div style="padding-bottom:16px;">
+    <h2 style="font-size:17px;font-weight:500;margin-bottom:3px;">Trading history</h2>
+    <p style="font-size:11px;color:#6B7280;margin-bottom:14px;">All accounts · Closed positions · Tap to expand</p>
+    <div class="card" style="padding:0 14px;">
+      ${TRADES.map(t=>{
+        const open=ST.expandedTrade===t.id;
+        return`<div class="trow" onclick="ST.expandedTrade=ST.expandedTrade==='${t.id}'?null:'${t.id}';render();">
+          ${open?`<div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><div><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;"><span style="font-size:14px;font-weight:500;">${t.sym}</span><span class="tag tag-${t.side}">${t.side}</span><span style="font-size:11px;color:#6B7280;">${t.lots}</span></div><p style="font-size:11px;color:#6B7280;">${t.full}</p></div><span style="font-size:10px;color:#4B5563;">#${t.id}</span></div>
+            <div style="border-top:0.5px solid #2A2F3A;border-bottom:0.5px solid #2A2F3A;padding:8px 0;margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-family:monospace;font-size:12px;color:#E5E7EB;">${t.op} → ${t.cl}</span><span class="${cP(t.pl)}" style="font-size:13px;font-weight:500;font-family:monospace;">${t.pl>=0?'+$':'-$'}${Math.abs(t.pl).toFixed(2)}</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#9CA3AF;">Δ = ${t.delta} (${t.dpct}%)</span><span style="font-size:11px;color:#6B7280;">▴ collapse</span></div>
+              <p style="font-size:11px;color:#6B7280;margin-top:4px;">${t.ot}</p><p style="font-size:11px;color:#6B7280;">→ ${t.ct}</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${[['S/L',t.sl],['Swap',t.swap],['T/P',t.tp],['Charges',t.charges]].map(([l,v])=>`<div style="font-size:12px;"><span style="color:#9CA3AF;">${l}: </span><span style="font-family:monospace;color:#E5E7EB;">${v}</span></div>`).join('')}</div>
+          </div>`:`<div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:500;">${t.sym}</span><span class="tag tag-${t.side}">${t.side}</span><span style="font-size:11px;color:#6B7280;">${t.lots}</span></div><span class="${cP(t.pl)}" style="font-size:13px;font-weight:500;font-family:monospace;">${t.pl>=0?'+$':'-$'}${Math.abs(t.pl).toFixed(2)}</span></div>
+            <div style="display:flex;justify-content:space-between;margin-top:3px;"><span style="font-size:11px;color:#6B7280;font-family:monospace;">${t.op} → ${t.cl}</span><span style="font-size:11px;color:#4B5563;">${t.ct.slice(0,10)} ▾</span></div>
+          </div>`}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function rAccs(){
+  return`<div style="padding-bottom:16px;">
+    <h2 style="font-size:17px;font-weight:500;margin-bottom:3px;">Accounts</h2>
+    <p style="font-size:11px;color:#6B7280;margin-bottom:14px;">${ACCS.length} connected</p>
+    ${ACCS.map(a=>{const d=a.data[ST.tf[a.id]];return`<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><span class="sdot live"></span><div><p style="font-size:14px;font-weight:500;">${a.name}</p><p style="font-size:11px;color:#6B7280;">#${a.id} · ${a.broker} · ${a.currency}</p></div></div><span style="font-size:10px;background:rgba(34,197,94,0.1);color:#22C55E;padding:3px 8px;border-radius:6px;">Active</span></div>
+      <div style="display:flex;gap:20px;padding-top:10px;border-top:0.5px solid #2A2F3A;">
+        <div><p style="font-size:10px;color:#6B7280;">Profit</p><p class="${cP(d.p)}" style="font-size:13px;font-weight:500;font-family:monospace;">${fP(d.p)}</p></div>
+        <div><p style="font-size:10px;color:#6B7280;">Equity</p><p style="font-size:13px;font-weight:500;">$${d.e.toLocaleString()}</p></div>
+        <div><p style="font-size:10px;color:#6B7280;">Win %</p><p class="blue" style="font-size:13px;font-weight:500;">${d.w.toFixed(1)}%</p></div>
+        <div><p style="font-size:10px;color:#6B7280;">DD</p><p class="${cD(d.dd)}" style="font-size:13px;font-weight:500;">${d.dd.toFixed(1)}%</p></div>
+      </div>
+    </div>`;}).join('')}
+  </div>`;
+}
+
+function initCharts(){
+  ACCS.forEach(a=>{
+    const el=document.getElementById(`sp-${a.id}`);
+    if(!el)return;
+    dC(`sp-${a.id}`);
+    const up=a.sp[a.sp.length-1]>=a.sp[0];
+    CH[`sp-${a.id}`]=new Chart(el,{type:'line',
+      data:{labels:a.sp.map((_,i)=>i),datasets:[{data:a.sp,borderColor:up?'#22C55E':'#EF4444',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:up?'rgba(34,197,94,0.07)':'rgba(239,68,68,0.07)',tension:0.4}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}
+    });
+  });
+  const pe=document.getElementById('d-pie');
+  if(pe){dC('d-pie');CH['d-pie']=new Chart(pe,{type:'doughnut',
+    data:{labels:['XAUUSD','EURUSD','GBPUSD','USDJPY','AUDUSD'],datasets:[{data:[38,26,18,11,7],backgroundColor:['#38BDF8','#22C55E','#A78BFA','#F59E0B','#F87171'],borderWidth:0,hoverOffset:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1A1D24',borderColor:'#2A2F3A',borderWidth:1,bodyColor:'#E5E7EB',titleColor:'#9CA3AF'}}}
+  });}
+  const ee=document.getElementById('d-eq');
+  if(ee&&ST.detAcc){
+    const a=ACCS.find(x=>x.id===ST.detAcc);
+    const d=a.data[ST.tf[a.id]];
+    const n=10,base=d.bal,step=(d.e-base)/n;
+    const bal=Array.from({length:n},(_,i)=>Math.round(base+step*i));
+    const eq=bal.map((b,i)=>Math.round(b+(i%3===1?-b*0.016:i%3===2?b*0.011:b*0.004)));
+    dC('d-eq');CH['d-eq']=new Chart(ee,{type:'line',
+      data:{labels:['Sep 5','Sep 10','Sep 15','Sep 20','Sep 25','Oct 1','Oct 7','Oct 13','Oct 20','Oct 28'],datasets:[
+        {label:'Equity',data:eq,borderColor:'#38BDF8',borderWidth:1.5,pointRadius:0,fill:false,tension:0.4},
+        {label:'Balance',data:bal,borderColor:'#6B7280',borderWidth:1,pointRadius:0,fill:false,tension:0.3,borderDash:[4,3]}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#1A1D24',borderColor:'#2A2F3A',borderWidth:1,titleColor:'#9CA3AF',bodyColor:'#E5E7EB'}},
+        scales:{x:{grid:{color:'rgba(42,47,58,0.6)'},ticks:{color:'#6B7280',font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:5}},y:{grid:{color:'rgba(42,47,58,0.6)'},ticks:{color:'#6B7280',font:{size:10},callback:v=>'$'+v.toLocaleString()}}}}
+    });
+  }
+  const le=document.getElementById('d-ls');
+  if(le&&ST.detAcc){
+    const a=ACCS.find(x=>x.id===ST.detAcc);
+    const d=a.data[ST.tf[a.id]];
+    const lr=[0.58,0.62,0.55,0.60,0.61,0.59,0.60].map(r=>Math.round(d.t/7*r));
+    const sr=lr.map(v=>Math.round(d.t/7)-v+1);
+    dC('d-ls');CH['d-ls']=new Chart(le,{type:'bar',
+      data:{labels:['Sep','Oct','Nov','Dec','Jan','Feb','Mar'],datasets:[
+        {label:'Long',data:lr,backgroundColor:'#3B82F6',borderRadius:3,borderSkipped:false},
+        {label:'Short',data:sr,backgroundColor:'#F97316',borderRadius:3,borderSkipped:false}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1A1D24',borderColor:'#2A2F3A',borderWidth:1,bodyColor:'#E5E7EB',titleColor:'#9CA3AF'}},
+        scales:{x:{grid:{display:false},ticks:{color:'#6B7280',font:{size:10}}},y:{grid:{color:'rgba(42,47,58,0.6)'},ticks:{color:'#6B7280',font:{size:10}}}}}
+    });
+  }
+}
+
+render();
+</script>
+</body>
+</html>

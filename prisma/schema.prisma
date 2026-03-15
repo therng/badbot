@@ -1,0 +1,126 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id             String          @id @default(cuid())
+  account_number String          @unique
+  owner_name     String?
+  currency       String
+  server         String
+  account_mode   String?
+  position_mode  String?
+  reports        AccountReport[]
+}
+
+model AccountReport {
+  id               String                    @id @default(cuid())
+  account_id       String
+  file_name        String
+  file_hash        String                    @unique
+  report_timestamp DateTime
+  imported_at      DateTime                  @default(now())
+  account          Account                   @relation(fields: [account_id], references: [id])
+  closed_positions ClosedPosition[]
+  order_history    OrderHistory[]
+  deal_ledger      DealLedger[]
+  open_positions   OpenPositionSnapshot[]
+  working_orders   WorkingOrderSnapshot[]
+  account_summary  AccountSummarySnapshot?
+}
+
+model ClosedPosition {
+  id          String        @id @default(cuid())
+  report_id   String
+  position_id String
+  symbol      String
+  side        String
+  volume      Float
+  open_price  Float
+  close_price Float
+  profit      Float
+  swap        Float
+  commission  Float
+  opened_at   DateTime
+  closed_at   DateTime
+  comment     String?
+  report      AccountReport @relation(fields: [report_id], references: [id])
+}
+
+model OrderHistory {
+  id               String        @id @default(cuid())
+  report_id        String
+  order_id         String
+  symbol           String
+  type             String
+  volume_requested Float
+  volume_filled    Float
+  price            Float
+  sl               Float?
+  tp               Float?
+  state            String
+  comment          String?
+  report           AccountReport @relation(fields: [report_id], references: [id])
+}
+
+model DealLedger {
+  id            String        @id @default(cuid())
+  report_id     String
+  deal_id       String
+  time          DateTime
+  symbol        String?
+  type          String
+  volume        Float
+  price         Float
+  commission    Float
+  swap          Float
+  profit        Float
+  balance_after Float
+  comment       String?
+  report        AccountReport @relation(fields: [report_id], references: [id])
+}
+
+model OpenPositionSnapshot {
+  id              String        @id @default(cuid())
+  report_id       String
+  position_id     String
+  symbol          String
+  side            String
+  volume          Float
+  open_price      Float
+  market_price    Float
+  floating_profit Float
+  swap            Float
+  comment         String?
+  report          AccountReport @relation(fields: [report_id], references: [id])
+}
+
+model WorkingOrderSnapshot {
+  id        String        @id @default(cuid())
+  report_id String
+  order_id  String
+  symbol    String
+  type      String
+  volume    Float
+  price     Float
+  state     String
+  comment   String?
+  report    AccountReport @relation(fields: [report_id], references: [id])
+}
+
+model AccountSummarySnapshot {
+  id           String        @id @default(cuid())
+  report_id    String        @unique
+  balance      Float
+  equity       Float
+  margin       Float
+  free_margin  Float
+  floating_pl  Float
+  margin_level Float?
+  report       AccountReport @relation(fields: [report_id], references: [id])
+}
