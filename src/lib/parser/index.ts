@@ -215,12 +215,12 @@ function detectSection(text: string): ReportSection {
   const normalized = normalizeLabel(text);
   if (!normalized) return '';
 
-  if (/\bopen positions?\b/.test(normalized)) return 'Open Positions';
-  if (/\bworking orders?\b/.test(normalized)) return 'Working Orders';
-  if (/\bdeals?\b/.test(normalized)) return 'Deals';
-  if (/\borders?\b/.test(normalized) && !/\bworking\b/.test(normalized)) return 'Orders';
-  if (/\bpositions?\b/.test(normalized) && !/\bopen\b/.test(normalized)) return 'Positions';
-  if (/\bsummary\b/.test(normalized)) return 'Summary';
+  if (/^open positions?(?:\b|\s*\()/i.test(normalized)) return 'Open Positions';
+  if (/^working orders?(?:\b|\s*\()/i.test(normalized)) return 'Working Orders';
+  if (/^deals?(?:\b|\s*\()/i.test(normalized)) return 'Deals';
+  if (/^orders?(?:\b|\s*\()/i.test(normalized) && !/^working\b/i.test(normalized)) return 'Orders';
+  if (/^positions?(?:\b|\s*\()/i.test(normalized) && !/^open\b/i.test(normalized)) return 'Positions';
+  if (/^summary(?:\b|\s*\()/i.test(normalized)) return 'Summary';
 
   return '';
 }
@@ -747,7 +747,7 @@ function parseTableRows(
     const cells = getRowCells($row, $);
     if (cells.length === 0) return;
 
-    const sectionLabel = detectSection(cells.join(' '));
+    const sectionLabel = cells.length <= 2 ? detectSection(cells.join(' ')) : '';
     if (sectionLabel) {
       currentSection = sectionLabel;
       headerMap = null;
@@ -850,7 +850,9 @@ export function parseReport(htmlContent: string): ParsedReport {
   const title = $('title').text() || $('h1').first().text();
   const compactTitle = cleanText(title);
 
-  const accountMatch = compactTitle.match(/(?:^|\s)(\d{5,})(?:\s|:|$)/);
+  const accountMatch =
+    compactTitle.match(/(?:^|\s)(\d{5,})(?:\s|:|$)/) ??
+    compactTitle.match(/reporthistory[-_]?(\d{5,})/i);
   if (accountMatch) {
     report.metadata.account_number = accountMatch[1];
   }
