@@ -204,11 +204,16 @@ function isValidDate(date: Date): boolean {
 }
 
 function getRowCells($row: cheerio.Cheerio, $: cheerio.Root): string[] {
-  return $row
+  const cells = $row
     .find('th,td')
     .toArray()
-    .map((cell: cheerio.Element) => cleanText($(cell).text()))
-    .filter((cell) => cell.length > 0);
+    .map((cell: cheerio.Element) => cleanText($(cell).text()));
+
+  if (cells.every((cell) => cell.length === 0)) {
+    return [];
+  }
+
+  return cells;
 }
 
 function detectSection(text: string): ReportSection {
