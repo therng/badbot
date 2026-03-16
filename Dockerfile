@@ -1,9 +1,9 @@
 # Base image
 FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat openssl curl
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -63,7 +63,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 || exit 1
+  CMD curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["./entrypoint.sh"]
 
