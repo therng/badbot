@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node20 --external:@prisma/client --outfile=dist/worker.js",
+    "parse:mt5-report": "node -r ts-node/register scripts/parse-mt5-reports.ts",
     "start": "node .next/standalone/server.js",
     "lint": "next lint",
     "worker": "npm run build:worker && node dist/worker.js",

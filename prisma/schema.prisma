@@ -8,119 +8,147 @@ generator client {
 }
 
 model Account {
-  id             String          @id @default(cuid())
-  account_number String          @unique
-  owner_name     String?
-  currency       String
-  server         String
-  account_mode   String?
-  position_mode  String?
-  reports        AccountReport[]
+  id            String          @id @default(cuid())
+  accountNumber String          @unique @map("account_number")
+  ownerName     String?         @map("owner_name")
+  company       String?
+  currency      String
+  server        String
+  reports       AccountReport[]
 }
 
 model AccountReport {
-  id               String                    @id @default(cuid())
-  account_id       String
-  file_name        String
-  file_hash        String                    @unique
-  report_timestamp DateTime
-  imported_at      DateTime                  @default(now())
-  account          Account                   @relation(fields: [account_id], references: [id])
-  closed_positions ClosedPosition[]
-  order_history    OrderHistory[]
-  deal_ledger      DealLedger[]
-  open_positions   OpenPositionSnapshot[]
-  working_orders   WorkingOrderSnapshot[]
-  account_summary  AccountSummarySnapshot?
-}
+  id         String   @id @default(cuid())
+  accountId  String   @map("account_id")
+  fileName   String   @map("file_name")
+  fileHash   String   @unique @map("file_hash")
+  reportDate DateTime @map("report_timestamp")
 
-model ClosedPosition {
-  id          String        @id @default(cuid())
-  report_id   String
-  position_id String
-  symbol      String
-  side        String
-  volume      Float
-  open_price  Float
-  close_price Float
-  profit      Float
-  swap        Float
-  commission  Float
-  opened_at   DateTime
-  closed_at   DateTime
-  comment     String?
-  report      AccountReport @relation(fields: [report_id], references: [id])
-}
+  account        Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  dealLedger     DealLedger[]
+  openPositions  OpenPositionSnapshot[]
+  workingOrders  WorkingOrderSnapshot[]
+  accountSummary AccountSummarySnapshot?
+  reportResults  ReportResultSnapshot?
 
-model OrderHistory {
-  id               String        @id @default(cuid())
-  report_id        String
-  order_id         String
-  symbol           String
-  type             String
-  volume_requested Float
-  volume_filled    Float
-  price            Float
-  sl               Float?
-  tp               Float?
-  state            String
-  comment          String?
-  report           AccountReport @relation(fields: [report_id], references: [id])
+  @@index([accountId, reportDate])
 }
 
 model DealLedger {
-  id            String        @id @default(cuid())
-  report_id     String
-  deal_id       String
-  time          DateTime
-  symbol        String?
-  type          String
-  volume        Float
-  price         Float
-  commission    Float
-  swap          Float
-  profit        Float
-  balance_after Float
-  comment       String?
-  report        AccountReport @relation(fields: [report_id], references: [id])
+  id           String   @id @default(cuid())
+  reportId     String   @map("report_id")
+  dealId       String   @map("deal_id")
+  time         DateTime
+  symbol       String?
+  type         String
+  direction    String?
+  volume       Float?
+  price        Float?
+  orderId      String?  @map("order_id")
+  commission   Float    @default(0)
+  fee          Float    @default(0)
+  swap         Float    @default(0)
+  profit       Float    @default(0)
+  balanceAfter Float?   @map("balance_after")
+  comment      String?
+
+  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([dealId])
+  @@index([symbol])
 }
 
 model OpenPositionSnapshot {
-  id              String        @id @default(cuid())
-  report_id       String
-  position_id     String
-  symbol          String
-  side            String
-  volume          Float
-  open_price      Float
-  market_price    Float
-  floating_profit Float
-  swap            Float
-  comment         String?
-  report          AccountReport @relation(fields: [report_id], references: [id])
+  id             String    @id @default(cuid())
+  reportId       String    @map("report_id")
+  positionId     String    @map("position_id")
+  openedAt       DateTime? @map("opened_at")
+  symbol         String
+  side           String
+  volume         Float
+  openPrice      Float     @map("open_price")
+  sl             Float?
+  tp             Float?
+  marketPrice    Float     @map("market_price")
+  swap           Float     @default(0)
+  floatingProfit Float     @map("floating_profit")
+  comment        String?
+
+  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([positionId])
+  @@index([symbol])
 }
 
 model WorkingOrderSnapshot {
-  id        String        @id @default(cuid())
-  report_id String
-  order_id  String
-  symbol    String
-  type      String
-  volume    Float
-  price     Float
-  state     String
-  comment   String?
-  report    AccountReport @relation(fields: [report_id], references: [id])
+  id              String    @id @default(cuid())
+  reportId        String    @map("report_id")
+  orderId         String    @map("order_id")
+  openedAt        DateTime? @map("opened_at")
+  symbol          String
+  type            String
+  volumeRequested Float?    @map("volume_requested")
+  volumeFilled    Float?    @map("volume_filled")
+  price           Float
+  sl              Float?
+  tp              Float?
+  marketPrice     Float?    @map("market_price")
+  state           String
+  comment         String?
+
+  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([orderId])
+  @@index([symbol])
 }
 
 model AccountSummarySnapshot {
-  id           String        @id @default(cuid())
-  report_id    String        @unique
-  balance      Float
-  equity       Float
-  margin       Float
-  free_margin  Float
-  floating_pl  Float
-  margin_level Float?
-  report       AccountReport @relation(fields: [report_id], references: [id])
+  id             String @id @default(cuid())
+  reportId       String @unique @map("report_id")
+  balance        Float
+  creditFacility Float  @default(0) @map("credit_facility")
+  floatingPl     Float  @map("floating_pl")
+  equity         Float
+  freeMargin     Float  @map("free_margin")
+  margin         Float
+  marginLevel    Float? @map("margin_level")
+
+  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model ReportResultSnapshot {
+  id                         String @id @default(cuid())
+  reportId                   String @unique @map("report_id")
+  totalCommission            Float? @map("total_commission")
+  totalSwap                  Float? @map("total_swap")
+  totalNetProfit             Float? @map("total_net_profit")
+  grossProfit                Float? @map("gross_profit")
+  grossLoss                  Float? @map("gross_loss")
+  profitFactor               Float? @map("profit_factor")
+  expectedPayoff             Float? @map("expected_payoff")
+  recoveryFactor             Float? @map("recovery_factor")
+  sharpeRatio                Float? @map("sharpe_ratio")
+  balanceDrawdownAbsolute    Float? @map("balance_drawdown_absolute")
+  balanceDrawdownMaximal     Float? @map("balance_drawdown_maximal")
+  balanceDrawdownMaximalPct  Float? @map("balance_drawdown_maximal_pct")
+  balanceDrawdownRelativePct Float? @map("balance_drawdown_relative_pct")
+  balanceDrawdownRelative    Float? @map("balance_drawdown_relative")
+  totalTrades                Int?   @map("total_trades")
+  shortTradesWon             Int?   @map("short_trades_won")
+  shortTradesTotal           Int?   @map("short_trades_total")
+  longTradesWon              Int?   @map("long_trades_won")
+  longTradesTotal            Int?   @map("long_trades_total")
+  profitTradesCount          Int?   @map("profit_trades_count")
+  lossTradesCount            Int?   @map("loss_trades_count")
+  largestProfitTrade         Float? @map("largest_profit_trade")
+  largestLossTrade           Float? @map("largest_loss_trade")
+  averageProfitTrade         Float? @map("average_profit_trade")
+  averageLossTrade           Float? @map("average_loss_trade")
+  maximumConsecutiveWins     Int?   @map("maximum_consecutive_wins")
+  maximumConsecutiveLosses   Int?   @map("maximum_consecutive_losses")
+
+  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
