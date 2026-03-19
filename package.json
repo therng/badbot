@@ -12,7 +12,8 @@
     "worker": "npm run build:worker && node dist/worker.js",
     "worker:dev": "ts-node src/worker/index.ts",
     "worker:once": "npm run build:worker && WORKER_RUN_ONCE=true node dist/worker.js",
-    "worker:reimport": "npm run build:worker && WORKER_RUN_ONCE=true WORKER_FORCE_REIMPORT=true node dist/worker.js"
+    "worker:reimport": "npm run build:worker && WORKER_RUN_ONCE=true WORKER_FORCE_REIMPORT=true node dist/worker.js",
+    "db:clean": "tsx scripts/cleanup.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
@@ -40,6 +41,7 @@
     "prisma": "^6.19.2",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.0.0"
   }
 }

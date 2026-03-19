@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BadBot Trading Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Azeret+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg0:#06080d;
+  --bg1:#0b0e16;
+  --bg2:#10141e;
+  --bg3:#171c28;
+  --border:rgba(200,190,160,0.1);
+  --border-hi:rgba(200,190,160,0.22);
+  --gold:#c8a96e;
+  --mint:#00d4a4;
+  --mint-dim:rgba(0,212,164,0.18);
+  --rose:#ff6b6b;
+  --ice:#7eb8f7;
+  --warning:#f0a040;
+  --text:#e8e4da;
+  --text-2:rgba(232,228,218,0.62);
+  --text-3:rgba(232,228,218,0.34);
+  --shadow:0 32px 80px rgba(0,0,0,0.7),0 0 0 0.5px rgba(200,169,110,0.06);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Azeret Mono','Courier New',monospace;
+}
+*{box-sizing:border-box}
+html{background:var(--bg0);scroll-behavior:smooth}
+body{
+  margin:0;
+  min-height:100vh;
+  background:
+    linear-gradient(108deg,rgba(15,58,36,0.14),transparent 44%),
+    linear-gradient(250deg,rgba(120,18,34,0.1),transparent 40%),
+    var(--bg0);
+  color:var(--text);
+  font-family:var(--serif);
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  opacity:.08;
+  background:
+    linear-gradient(rgba(255,255,255,.2) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);
+  background-size:28px 28px;
+  mask-image:linear-gradient(180deg,rgba(0,0,0,.42),transparent 88%);
+}
+.monitor-page{
+  min-height:100vh;
+  padding:20px 16px;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+}
+.monitor-shell{
+  width:min(418px,100%);
+  height:min(756px,calc(100vh - 40px));
+  display:flex;
+  flex-direction:column;
+  background:var(--bg1);
+  border-radius:20px;
+  overflow:hidden;
+  border:.5px solid var(--border-hi);
+  box-shadow:var(--shadow);
+  position:relative;
+}
+.monitor-shell::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,.04) 3px,
+    rgba(0,0,0,.04) 4px
+  );
+}
+.app-scroll{
+  flex:1;
+  overflow-y:auto;
+  padding:16px 14px 18px;
+  position:relative;
+  z-index:1;
+  scrollbar-width:none;
+}
+.app-scroll::-webkit-scrollbar{display:none}
+.dashboard-list,
+.detail-scroll{display:grid;gap:10px;align-content:start}
+.card,
+.detail-card,
+.list-card,
+.table-shell,
+.chart-surface,
+.history-row,
+.kdetail,
+.summary-chip,
+.metric-tile,
+.empty-state{
+  background:var(--bg2);
+  border:.5px solid var(--border);
+  border-radius:16px;
+}
+.detail-card,
+.list-card,
+.table-shell,
+.chart-surface,
+.kdetail,
+.empty-state{padding:16px}
+.account-card{padding:0;border:0;background:none}
+.acc-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  margin-bottom:12px;
+}
+.acc-name{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.sdot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--text-3);
+  flex-shrink:0;
+}
+.sdot.live{
+  background:var(--mint);
+  animation:breathe 2.4s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.25;transform:scale(.55)}
+}
+.acc-name-text{
+  margin:0;
+  font-family:var(--serif);
+  font-size:18px;
+  font-weight:500;
+  letter-spacing:-.01em;
+  line-height:1;
+}
+.acc-sub,
+.section-heading p,
+.det-head p,
+.chart-caption span,
+.detail-grid span,
+.list-row span,
+.history-row__lead span,
+.history-row__trail span,
+.kdetail__row-main span,
+.kdetail__row-trail span,
+.kdetail__footnote,
+.table-summary,
+.generated-at{
+  margin:0;
+  color:var(--text-3);
+  font-family:var(--mono);
+  font-size:10px;
+  line-height:1.45;
+  letter-spacing:.04em;
+}
+.acc-sub{margin-top:2px;padding-left:14px}
+.acc-balance{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-top:8px;
+  padding-left:14px;
+  font-family:var(--mono);
+  font-size:20px;
+  font-weight:500;
+  letter-spacing:-.02em;
+  color:var(--text);
+}
+.status-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 9px;
+  border-radius:4px;
+  border:.5px solid var(--border);
+  background:var(--bg3);
+  color:var(--text-3);
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.status-badge.is-live{
+  color:var(--mint);
+  background:var(--mint-dim);
+  border-color:rgba(0,212,164,.2);
+}
+.status-badge__dot{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:currentColor;
+}
+.status-badge.is-live .status-badge__dot{animation:breathe 2.4s ease-in-out infinite}
+.plain-button{
+  appearance:none;
+  background:none;
+  border:0;
+  color:inherit;
+  padding:0;
+  margin:0;
+  font:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+.plain-button:hover{color:var(--gold)}
+.sp-wrap{margin-bottom:10px}
+.sp-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+.sp-balance{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-3);
+  letter-spacing:.02em;
+}
+.sp-growth{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:500;
+  letter-spacing:-.01em;
+}
+.sp-dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:currentColor;
+}
+.sparkline-wrap{display:block;height:56px}
+.sparkline-chart{width:100%;height:100%;display:block}
+.sparkline-chart circle{display:none}
+.tf-row{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:7px;
+}
+.timeframe-strip{
+  display:flex;
+  gap:3px;
+}
+.timeframe-pill,
+.jump-rail a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:auto;
+  min-width:0;
+  padding:3px 8px;
+  border-radius:4px;
+  border:.5px solid var(--border);
+  background:transparent;
+  color:var(--text-3);
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  text-decoration:none;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.timeframe-pill:hover,
+.jump-rail a:hover{border-color:var(--border-hi);color:var(--text-2)}
+.timeframe-pill.is-active{
+  border-color:var(--gold);
+  background:rgba(200,169,110,.1);
+  color:var(--gold);
+}
+.kgrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+  padding-top:12px;
+  border-top:.5px solid var(--border);
+}
+.kchip,
+.metric-tile,
+.summary-chip{
+  min-height:auto;
+  padding:9px 7px 8px;
+  border-radius:10px;
+  background:var(--bg3);
+  border:.5px solid transparent;
+  transition:border-color .18s ease,background .18s ease;
+}
+.kchip{
+  appearance:none;
+  display:grid;
+  gap:4px;
+  align-content:start;
+  width:100%;
+  text-align:left;
+  color:inherit;
+  cursor:pointer;
+  font:inherit;
+}
+.kchip:hover,
+.metric-tile:hover,
+.summary-chip:hover{border-color:var(--border-hi)}
+.kchip.is-active{
+  border-color:rgba(200,169,110,.32);
+  background:rgba(200,169,110,.1);
+}
+.kchip--wide{
+  grid-column:1 / -1;
+  grid-template-columns:1fr auto;
+  align-items:center;
+}
+.kchip--wide .kl{grid-column:1}
+.kchip--wide .kv{
+  grid-column:2;
+  grid-row:1 / span 2;
+  align-self:center;
+}
+.kl,
+.summary-chip span,
+.metric-tile span,
+.eyebrow,
+.kdetail__section-title{
+  margin:0;
+  color:var(--text-3);
+  font-family:var(--mono);
+  font-size:8.5px;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.kv,
+.summary-chip strong,
+.metric-tile strong,
+.chart-caption strong,
+.list-row strong,
+.history-row__trail strong,
+.kdetail__summary,
+.kdetail__row-main strong,
+.kdetail__row-trail strong{
+  font-family:var(--mono);
+  font-size:12.5px;
+  font-weight:500;
+  letter-spacing:-.01em;
+}
+.kchip__meta{
+  color:var(--text-2);
+  font-family:var(--mono);
+  font-size:8px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.tone-positive{color:var(--mint)}
+.tone-negative{color:var(--rose)}
+.tone-warning{color:var(--warning)}
+.tone-neutral{color:var(--ice)}
+.tone-muted{color:var(--text-2)}
+.kdetail{
+  display:grid;
+  gap:12px;
+  margin-top:10px;
+  padding:14px;
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(17,22,32,.96),rgba(12,16,24,.92));
+}
+.kdetail__header,
+.kdetail__section{display:grid;gap:10px}
+.kdetail__header h4{
+  margin:3px 0 0;
+  font-family:var(--serif);
+  font-size:16px;
+  font-weight:500;
+  letter-spacing:-.01em;
+}
+.kdetail__summary{
+  font-size:10px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--text-2);
+}
+.kdetail__list{display:grid}
+.kdetail__row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 0;
+  border-top:.5px solid var(--border);
+}
+.kdetail__row:first-child{
+  padding-top:0;
+  border-top:0;
+}
+.kdetail__row:last-child{padding-bottom:0}
+.kdetail__row-main{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.kdetail__row-main>div{
+  display:grid;
+  gap:2px;
+  min-width:0;
+}
+.kdetail__row-trail{
+  display:grid;
+  justify-items:end;
+  gap:2px;
+  text-align:right;
+}
+.kdetail__row--position .kdetail__row-main{flex-wrap:wrap}
+.kdetail__chart{
+  padding:8px 6px;
+  border-radius:12px;
+  background:var(--bg3);
+}
+.kdetail__chart .sparkline-chart{height:72px}
+.overlay-side{
+  padding:2px 6px;
+  border-radius:3px;
+  font-family:var(--mono);
+  font-size:8.5px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.overlay-side.is-buy{
+  color:var(--ice);
+  background:rgba(126,184,247,.15);
+}
+.overlay-side.is-sell{
+  color:var(--rose);
+  background:rgba(255,107,107,.15);
+}
+.detail-header{
+  display:grid;
+  gap:14px;
+  margin-bottom:6px;
+}
+.back{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  width:fit-content;
+  color:var(--text-3);
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.back:hover{color:var(--gold)}
+.det-head h2,
+.section-heading h2{
+  margin:0;
+  font-family:var(--serif);
+  font-size:22px;
+  font-weight:600;
+  letter-spacing:-.02em;
+  line-height:1;
+}
+.summary-chip-row{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.jump-rail{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+}
+.detail-card{
+  display:grid;
+  gap:14px;
+  scroll-margin-top:18px;
+}
+.section-heading{display:grid;gap:6px}
+.metric-cluster{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.chart-surface{background:var(--bg3)}
+.detail-chart{
+  width:100%;
+  height:160px;
+  display:block;
+}
+.chart-grid line{
+  stroke:rgba(255,255,255,.08);
+  stroke-dasharray:4 8;
+}
+.chart-caption{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  padding-top:10px;
+}
+.detail-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.list-row{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:8px 0;
+  border-bottom:.5px solid var(--border);
+}
+.list-row:last-child{border-bottom:0}
+.history-list{display:grid;gap:8px}
+.history-row{padding:0 14px}
+.history-row__summary{
+  width:100%;
+  padding:12px 0;
+  background:transparent;
+  border:0;
+  color:inherit;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+.history-row__lead,
+.history-row__trail{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+}
+.history-row__lead>div,
+.history-row__trail>div{
+  display:grid;
+  gap:2px;
+}
+.history-row__trail{text-align:right}
+.history-row__details{padding:0 0 12px}
+.table-shell{overflow-x:auto}
+.data-table{
+  min-width:560px;
+  width:100%;
+  border-collapse:collapse;
+}
+.data-table th,
+.data-table td{
+  padding:8px 6px;
+  text-align:left;
+  border-bottom:.5px solid var(--border);
+  white-space:nowrap;
+  font-family:var(--mono);
+  font-size:10px;
+}
+.data-table th{
+  color:var(--text-3);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-weight:400;
+}
+.table-empty-row{
+  color:var(--text-2);
+  text-align:center;
+}
+.empty-state{
+  display:grid;
+  gap:8px;
+}
+.empty-state strong{
+  font-family:var(--serif);
+  font-size:18px;
+}
+code{
+  font-family:var(--mono);
+  font-size:11px;
+}
+@media(max-width:480px){
+  .monitor-page{padding:0}
+  .monitor-shell{
+    width:100%;
+    height:100vh;
+    border-radius:0;
+    box-shadow:none;
+    border-left:0;
+    border-right:0;
+  }
+}
+</style>
+</head>
+<body>
+<main class="monitor-page">
+  <div class="monitor-shell">
+    <div class="app-scroll" id="app-scroll"></div>
+  </div>
+</main>
+
+<script src="./trading_monitor_redesign_3.data.js"></script>
+<script>
+const MODEL = window.TRADING_MONITOR_DATA || { generatedAt: null, accs: [] };
+const ACCS = Array.isArray(MODEL.accs) ? MODEL.accs : [];
+const TIMEFRAMES = [
+  { key: "day", label: "D" },
+  { key: "week", label: "W" },
+  { key: "month", label: "M" },
+  { key: "year", label: "Y" },
+  { key: "all-time", label: "A" },
+];
+
+const STATE = {
+  screen: "dashboard",
+  detailAccountId: ACCS[0]?.id || null,
+  timeframe: Object.fromEntries(ACCS.map((account) => [account.id, "month"])),
+  activePanel: Object.fromEntries(ACCS.map((account) => [account.id, null])),
+  expandedTrade: Object.fromEntries(ACCS.map((account) => [account.id, account.detail.results[0]?.positionId || null])),
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatCurrency(value, digits = 0) {
+  if (!Number.isFinite(value)) return "-";
+  return `$${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(Number(value))}`;
+}
+
+function formatSignedCurrency(value, digits = 0) {
+  if (!Number.isFinite(value)) return "-";
+  const numeric = Number(value);
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${formatCurrency(Math.abs(numeric), digits)}`;
+}
+
+function formatNumber(value, digits = 2) {
+  if (!Number.isFinite(value)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(Number(value));
+}
+
+function formatSignedPercent(value, digits = 1) {
+  if (!Number.isFinite(value)) return "-";
+  const numeric = Number(value);
+  return `${numeric > 0 ? "+" : numeric < 0 ? "-" : ""}${Math.abs(numeric).toFixed(digits)}%`;
+}
+
+function toneFromNumber(value) {
+  if (!Number.isFinite(value)) return "muted";
+  if (Number(value) > 0) return "positive";
+  if (Number(value) < 0) return "negative";
+  return "neutral";
+}
+
+function buildSparkline(values, width, height) {
+  if (!values.length) return { linePath: "", fillPath: "" };
+  const minimum = Math.min(...values);
+  const range = Math.max(...values) - minimum || 1;
+  const gap = values.length > 1 ? width / (values.length - 1) : 0;
+  const inset = Math.min(10, height / 6);
+  const points = values.map((value, index) => ({
+    x: Number((index * gap).toFixed(2)),
+    y: Number((height - inset - ((value - minimum) / range) * (height - inset * 2)).toFixed(2)),
+  }));
+  const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  return {
+    linePath,
+    fillPath: `${linePath} L ${width} ${height} L 0 ${height} Z`,
+  };
+}
+
+function renderSparkline(points, tone) {
+  const values = (points || []).map((point) => Number(point.y ?? 0)).filter(Number.isFinite);
+  const { linePath, fillPath } = buildSparkline(values, 320, 84);
+  if (!linePath) {
+    return "";
+  }
+  const palette = tone === "positive"
+    ? { fillTop: "rgba(0,212,164,0.18)", stroke: "#00d4a4" }
+    : tone === "negative"
+      ? { fillTop: "rgba(255,107,107,0.18)", stroke: "#ff6b6b" }
+      : { fillTop: "rgba(126,184,247,0.18)", stroke: "#7eb8f7" };
+
+  return `<svg class="sparkline-chart" viewBox="0 0 320 84" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${fillPath}" fill="${palette.fillTop}"></path>
+    <path d="${linePath}" fill="none" stroke="${palette.stroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+  </svg>`;
+}
+
+function renderBalanceEventChart(points) {
+  if (!points?.length) {
+    return `<div class="empty-state"><strong>No balance events</strong><span class="generated-at">No balance events were captured for this report.</span></div>`;
+  }
+
+  const width = 920;
+  const height = 300;
+  const paddingX = 20;
+  const paddingY = 24;
+  const minValue = Math.min(...points.map((point) => point.balance));
+  const maxValue = Math.max(...points.map((point) => point.balance));
+  const range = maxValue - minValue || 1;
+  const coords = points.map((point, index) => ({
+    ...point,
+    xCoord: paddingX + (index / Math.max(1, points.length - 1)) * (width - paddingX * 2),
+    yCoord: paddingY + (1 - (point.balance - minValue) / range) * (height - paddingY * 2),
+  }));
+  const activePoint = coords[coords.length - 1];
+
+  return `<div>
+    <svg class="detail-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Balance event chart">
+      <g class="chart-grid" aria-hidden="true">
+        ${Array.from({ length: 4 }, (_, index) => {
+          const y = paddingY + (index / 3) * (height - paddingY * 2);
+          return `<line x1="${paddingX}" x2="${width - paddingX}" y1="${y}" y2="${y}"></line>`;
+        }).join("")}
+      </g>
+      ${coords.slice(1).map((point, index) => {
+        const previous = coords[index];
+        const tone = point.eventDelta > 0 ? "var(--mint)" : point.eventDelta < 0 ? "var(--rose)" : "var(--gold)";
+        return `<line x1="${previous.xCoord}" x2="${point.xCoord}" y1="${previous.yCoord}" y2="${point.yCoord}" stroke="${tone}" stroke-width="4" stroke-linecap="round"></line>`;
+      }).join("")}
+      ${coords.map((point, index) => {
+        const tone = point.eventDelta > 0 ? "var(--mint)" : point.eventDelta < 0 ? "var(--rose)" : "var(--gold)";
+        return `<circle cx="${point.xCoord}" cy="${point.yCoord}" r="${index === coords.length - 1 ? 6 : 4}" fill="${tone}" stroke="rgba(11,15,27,0.95)" stroke-width="2"></circle>`;
+      }).join("")}
+    </svg>
+    <div class="chart-caption">
+      <div><span>Timestamp</span><strong>${escapeHtml(new Date(activePoint.x).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</strong></div>
+      <div><span>Balance</span><strong>${escapeHtml(formatCurrency(activePoint.balance))}</strong></div>
+      <div><span>Event</span><strong>${escapeHtml(activePoint.eventType || "Balance")}</strong></div>
+      <div><span>Amount</span><strong class="tone-${toneFromNumber(activePoint.eventDelta)}">${escapeHtml(formatSignedCurrency(activePoint.eventDelta))}</strong></div>
+    </div>
+  </div>`;
+}
+
+function accountById(accountId) {
+  return ACCS.find((account) => account.id === accountId) || null;
+}
+
+function renderTimeframeStrip(accountId) {
+  return `<div class="timeframe-strip">${TIMEFRAMES.map((timeframe) => `
+    <button class="timeframe-pill${STATE.timeframe[accountId] === timeframe.key ? " is-active" : ""}" onclick="setTimeframe('${accountId}','${timeframe.key}')">${timeframe.label}</button>
+  `).join("")}</div>`;
+}
+
+function renderPanel(account, panelKey) {
+  if (!panelKey) return "";
+  const frame = account.frames[STATE.timeframe[account.id]];
+  const panel = frame.panels[panelKey];
+  if (!panel) return "";
+
+  return `<section class="kdetail" aria-live="polite">
+    <div class="kdetail__header">
+      <div>
+        <p class="eyebrow">${escapeHtml(panel.eyebrow)}</p>
+        <h4>${escapeHtml(panel.title)}</h4>
+      </div>
+      <strong class="kdetail__summary">${escapeHtml(panel.summary)}</strong>
+    </div>
+    ${panel.metrics?.length ? `<div class="metric-cluster">${panel.metrics.map((metric) => `
+      <div class="metric-tile">
+        <span>${escapeHtml(metric.label)}</span>
+        <strong class="tone-${metric.tone || "muted"}">${escapeHtml(metric.value)}</strong>
+      </div>
+    `).join("")}</div>` : ""}
+    ${panel.chart?.length ? `<div class="kdetail__chart">${renderSparkline(panel.chart, panelKey === "drawdown" ? "negative" : panelKey === "win" ? toneFromNumber(frame.overview.winPercent - 50) : toneFromNumber(frame.overview.netProfit))}</div>` : ""}
+    ${panel.rows?.length ? `<section class="kdetail__section">
+      <p class="kdetail__section-title">${escapeHtml(panelKey === "profit" ? "Top symbols" : panelKey === "drawdown" ? "Latest balance events" : panelKey === "win" ? "By side" : panelKey === "trades" ? "Recent closed positions" : "Live positions")}</p>
+      <div class="kdetail__list">${panel.rows.map((row) => `
+        <div class="kdetail__row${panelKey === "openPositions" ? " kdetail__row--position" : ""}">
+          <div class="kdetail__row-main">
+            ${row.side ? `<span class="overlay-side is-${row.side.toLowerCase() === "sell" ? "sell" : "buy"}">${escapeHtml(row.side)}</span>` : ""}
+            <div>
+              <strong>${escapeHtml(row.lead)}</strong>
+              <span>${escapeHtml(row.sub)}</span>
+            </div>
+          </div>
+          <div class="kdetail__row-trail">
+            <strong class="tone-${row.tone || "muted"}">${escapeHtml(row.trail)}</strong>
+            <span>${escapeHtml(row.trailSub)}</span>
+          </div>
+        </div>
+      `).join("")}</div>
+    </section>` : `<div class="empty-state"><strong>No ${escapeHtml(panel.title.toLowerCase())}</strong><span class="generated-at">${escapeHtml(panel.empty)}</span></div>`}
+    ${panel.footnote ? `<p class="kdetail__footnote">${escapeHtml(panel.footnote)}</p>` : ""}
+  </section>`;
+}
+
+function renderDashboardCard(account) {
+  const frame = account.frames[STATE.timeframe[account.id]];
+  const growthTone = toneFromNumber(frame.overview.growth);
+  return `<article class="account-card">
+    <div class="acc-header">
+      <div>
+        <div class="acc-name">
+          <span class="sdot${account.status === "Active" ? " live" : ""}"></span>
+          <h3 class="acc-name-text"><button class="plain-button" onclick="navDetail('${account.id}')">${escapeHtml(account.name)}</button></h3>
+        </div>
+        <p class="acc-sub">#${escapeHtml(account.id)} · ${escapeHtml(account.server)}</p>
+        <div class="acc-balance">${escapeHtml(formatCurrency(account.balance))}</div>
+      </div>
+      <div class="status-badge${account.status === "Active" ? " is-live" : ""}">
+        <span class="status-badge__dot"></span>
+        ${account.status === "Active" ? "Algo on" : "Algo off"}
+      </div>
+    </div>
+
+    <div class="sp-wrap">
+      <div class="sp-top">
+        <span class="sp-balance">Snapshot balance</span>
+        <button class="plain-button sp-growth tone-${growthTone}" onclick="navDetail('${account.id}')">
+          <strong>${escapeHtml(formatSignedPercent(frame.overview.growth, 1))}</strong>
+          <span class="sp-dot"></span>
+        </button>
+      </div>
+      <div class="sparkline-wrap">${renderSparkline(frame.curve, growthTone)}</div>
+      <div class="tf-row">${renderTimeframeStrip(account.id)}</div>
+    </div>
+
+    <div class="kgrid">
+      <button class="kchip${STATE.activePanel[account.id] === "profit" ? " is-active" : ""}" onclick="togglePanel('${account.id}','profit')">
+        <span class="kl">Profit</span>
+        <strong class="kv tone-${toneFromNumber(frame.overview.netProfit)}">${escapeHtml(formatSignedCurrency(frame.overview.netProfit))}</strong>
+      </button>
+      <button class="kchip${STATE.activePanel[account.id] === "drawdown" ? " is-active" : ""}" onclick="togglePanel('${account.id}','drawdown')">
+        <span class="kl">DD</span>
+        <strong class="kv tone-${toneFromNumber(-frame.overview.drawdown)}">${escapeHtml(formatNumber(frame.overview.drawdown, 1))}%</strong>
+      </button>
+      <button class="kchip${STATE.activePanel[account.id] === "win" ? " is-active" : ""}" onclick="togglePanel('${account.id}','win')">
+        <span class="kl">Win</span>
+        <strong class="kv tone-${toneFromNumber(frame.overview.winPercent - 50)}">${escapeHtml(formatNumber(frame.overview.winPercent, 1))}%</strong>
+      </button>
+      <button class="kchip${STATE.activePanel[account.id] === "trades" ? " is-active" : ""}" onclick="togglePanel('${account.id}','trades')">
+        <span class="kl">Trades</span>
+        <strong class="kv tone-warning">${escapeHtml(formatNumber(frame.overview.trades, 0))}</strong>
+      </button>
+      <button class="kchip kchip--wide${STATE.activePanel[account.id] === "openPositions" ? " is-active" : ""}" onclick="togglePanel('${account.id}','openPositions')">
+        <span class="kl">Open positions</span>
+        <strong class="kv">${escapeHtml(formatNumber(frame.overview.openCount, 0))}</strong>
+        <span class="kchip__meta">Live snapshot</span>
+      </button>
+    </div>
+
+    ${renderPanel(account, STATE.activePanel[account.id])}
+  </article>`;
+}
+
+function renderDashboard() {
+  if (!ACCS.length) {
+    return `<section class="empty-state">
+      <strong>No account data</strong>
+      <span class="generated-at">Generate <code>trading_monitor_redesign_3.data.js</code> with <code>npm run parse:mt5-report -- --out-js trading_monitor_redesign_3.data.js /path/to/ReportHistory-*.html</code>.</span>
+    </section>`;
+  }
+
+  return `
+    ${MODEL.generatedAt ? `<p class="generated-at">Generated ${escapeHtml(new Date(MODEL.generatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</p>` : ""}
+    <section class="dashboard-list">
+      ${ACCS.map(renderDashboardCard).join("")}
+    </section>
+  `;
+}
+
+function renderHistoryRows(account) {
+  const results = account.detail.results || [];
+  if (!results.length) {
+    return `<div class="empty-state"><strong>No results</strong><span class="generated-at">Closed-position results will appear here after the imported report includes them.</span></div>`;
+  }
+
+  return `<div class="history-list">${results.map((trade) => {
+    const expanded = STATE.expandedTrade[account.id] === trade.positionId;
+    const side = trade.side.toLowerCase() === "sell" ? "sell" : "buy";
+    return `<article class="history-row">
+      <button class="history-row__summary" onclick="toggleTrade('${account.id}','${trade.positionId}')">
+        <div class="history-row__lead">
+          <span class="overlay-side is-${side}">${escapeHtml(trade.side)}</span>
+          <div>
+            <strong>${escapeHtml(trade.symbol)}</strong>
+            <span>${escapeHtml(new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span>
+          </div>
+        </div>
+        <div class="history-row__trail">
+          <div>
+            <span>${escapeHtml(formatNumber(trade.volume, 2))} lot</span>
+            <strong class="tone-${toneFromNumber(trade.net)}">${escapeHtml(formatSignedCurrency(trade.net))}</strong>
+          </div>
+        </div>
+      </button>
+      ${expanded ? `<div class="history-row__details">
+        <div class="detail-grid">
+          <span>Position: ${escapeHtml(trade.positionId)}</span>
+          <span>Opened: ${escapeHtml(new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span>
+          <span>Closed: ${escapeHtml(new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span>
+          <span>Open Price: ${escapeHtml(formatNumber(trade.openPrice, 5))}</span>
+          <span>Close Price: ${escapeHtml(formatNumber(trade.closePrice, 5))}</span>
+          <span class="tone-${toneFromNumber(trade.profit)}">Profit: ${escapeHtml(formatSignedCurrency(trade.profit))}</span>
+          <span class="tone-${toneFromNumber(trade.swap)}">Swap: ${escapeHtml(formatSignedCurrency(trade.swap))}</span>
+          <span class="tone-${toneFromNumber(trade.commission)}">Commission: ${escapeHtml(formatSignedCurrency(trade.commission))}</span>
+          <span>Comment: ${escapeHtml(trade.comment || "-")}</span>
+        </div>
+      </div>` : ""}
+    </article>`;
+  }).join("")}</div>`;
+}
+
+function renderDetail(account) {
+  const detail = account.detail;
+  return `
+    <div class="detail-header">
+      <button class="plain-button back" onclick="navDashboard()">Back</button>
+      <div class="det-head">
+        <h2>${escapeHtml(account.ownerName)}</h2>
+        <p>#${escapeHtml(account.id)} · ${escapeHtml(account.server)} · YTD ${escapeHtml(formatSignedPercent(account.growth.summary.ytdGrowth, 1))} · report ${escapeHtml(new Date(detail.report.reportTimestamp).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</p>
+      </div>
+      <div class="summary-chip-row">
+        <div class="summary-chip"><span>Balance</span><strong>${escapeHtml(formatCurrency(detail.summary.balance))}</strong></div>
+        <div class="summary-chip"><span>Equity</span><strong>${escapeHtml(formatCurrency(detail.summary.equity))}</strong></div>
+        <div class="summary-chip"><span>Results</span><strong>${escapeHtml(formatNumber(detail.summary.resultCount, 0))}</strong></div>
+        <div class="summary-chip"><span>Open</span><strong>${escapeHtml(formatNumber(detail.summary.openCount, 0))}</strong></div>
+      </div>
+      <nav class="jump-rail" aria-label="Jump to section">
+        <a href="#overview">overview</a>
+        <a href="#results">results</a>
+        <a href="#open-positions">open positions</a>
+        <a href="#working-orders">working orders</a>
+      </nav>
+    </div>
+
+    <section id="overview" class="detail-card">
+      <div class="section-heading">
+        <p class="eyebrow">Overview</p>
+        <h2>Latest imported report snapshot</h2>
+        <p>Balance, margin, and funding events are shown from the latest report so the account detail reflects the report sections before any secondary analytics.</p>
+      </div>
+      <div class="metric-cluster">
+        <div class="metric-tile"><span>Balance</span><strong>${escapeHtml(formatCurrency(detail.summary.balance))}</strong></div>
+        <div class="metric-tile"><span>Equity</span><strong>${escapeHtml(formatCurrency(detail.summary.equity))}</strong></div>
+        <div class="metric-tile"><span>Floating</span><strong class="tone-${toneFromNumber(detail.summary.floatingProfit)}">${escapeHtml(formatSignedCurrency(detail.summary.floatingProfit))}</strong></div>
+        <div class="metric-tile"><span>Margin</span><strong>${escapeHtml(formatCurrency(detail.summary.margin))}</strong></div>
+        <div class="metric-tile"><span>Free Margin</span><strong>${escapeHtml(formatCurrency(detail.summary.freeMargin))}</strong></div>
+        <div class="metric-tile"><span>Margin Level</span><strong>${escapeHtml(Number.isFinite(detail.summary.marginLevel) ? `${formatNumber(detail.summary.marginLevel, 2)}%` : "-")}</strong></div>
+      </div>
+      <div class="chart-surface">${renderBalanceEventChart(detail.equityCurve)}</div>
+      <div class="list-card">
+        <p class="eyebrow">Report info</p>
+        <div class="detail-grid">
+          <span>File: ${escapeHtml(detail.report.fileName)}</span>
+          <span>Report Time: ${escapeHtml(new Date(detail.report.reportTimestamp).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span>
+          <span>Status: ${escapeHtml(account.status)}</span>
+          <span>YTD Growth: ${escapeHtml(formatSignedPercent(account.growth.summary.ytdGrowth, 1))}</span>
+        </div>
+      </div>
+      <div class="list-card">
+        <p class="eyebrow">Balance operations</p>
+        ${detail.balanceOperations.length ? detail.balanceOperations.map((operation) => `
+          <div class="list-row">
+            <div>
+              <strong>${escapeHtml(operation.type || "Balance")}</strong>
+              <span>${escapeHtml(new Date(operation.time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span>
+            </div>
+            <div style="text-align:right">
+              <span>Balance ${escapeHtml(formatCurrency(operation.balanceAfter))}</span>
+              <strong class="tone-${toneFromNumber(operation.delta)}">${escapeHtml(formatSignedCurrency(operation.delta))}</strong>
+            </div>
+          </div>
+        `).join("") : `<div class="empty-state"><strong>No balance operations</strong><span class="generated-at">The latest report does not include deposit or withdrawal events.</span></div>`}
+      </div>
+    </section>
+
+    <section id="results" class="detail-card">
+      <div class="section-heading">
+        <p class="eyebrow">Results</p>
+        <h2>Closed positions from the latest report</h2>
+        <p>Net result, trade costs, and per-position rows stay anchored to the imported report instead of the derived timeframe dashboards.</p>
+      </div>
+      <div class="metric-cluster">
+        <div class="metric-tile"><span>Net</span><strong class="tone-${toneFromNumber(detail.summary.netProfit)}">${escapeHtml(formatSignedCurrency(detail.summary.netProfit))}</strong></div>
+        <div class="metric-tile"><span>Win Rate</span><strong class="tone-${toneFromNumber(detail.summary.winRate - 50)}">${escapeHtml(formatNumber(detail.summary.winRate, 1))}%</strong></div>
+        <div class="metric-tile"><span>Best Trade</span><strong class="tone-${toneFromNumber(detail.summary.bestTrade)}">${escapeHtml(formatSignedCurrency(detail.summary.bestTrade))}</strong></div>
+        <div class="metric-tile"><span>Worst Trade</span><strong class="tone-${toneFromNumber(detail.summary.worstTrade)}">${escapeHtml(formatSignedCurrency(detail.summary.worstTrade))}</strong></div>
+      </div>
+      ${renderHistoryRows(account)}
+    </section>
+
+    <section id="open-positions" class="detail-card">
+      <div class="section-heading">
+        <p class="eyebrow">Open positions</p>
+        <h2>Live snapshot from the same imported report</h2>
+        <p>Every open position comes directly from the latest report snapshot, including floating P/L and current market price.</p>
+      </div>
+      <div class="metric-cluster">
+        <div class="metric-tile"><span>Open Count</span><strong>${escapeHtml(formatNumber(detail.summary.openCount, 0))}</strong></div>
+        <div class="metric-tile"><span>Open Volume</span><strong>${escapeHtml(formatNumber(detail.summary.openVolume, 2))}</strong></div>
+        <div class="metric-tile"><span>Floating</span><strong class="tone-${toneFromNumber(detail.summary.floatingProfit)}">${escapeHtml(formatSignedCurrency(detail.summary.floatingProfit))}</strong></div>
+        <div class="metric-tile"><span>Equity</span><strong>${escapeHtml(formatCurrency(detail.summary.equity))}</strong></div>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Open Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Volume</th>
+              <th>Open</th>
+              <th>Market</th>
+              <th>Swap</th>
+              <th>Profit</th>
+              <th>Comment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detail.openPositions.length ? detail.openPositions.map((position) => `
+              <tr>
+                <td>${escapeHtml(position.positionId)}</td>
+                <td>${escapeHtml(position.openedAt ? new Date(position.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "-")}</td>
+                <td>${escapeHtml(position.symbol)}</td>
+                <td>${escapeHtml(position.side)}</td>
+                <td>${escapeHtml(formatNumber(position.volume, 2))}</td>
+                <td>${escapeHtml(formatNumber(position.openPrice, 5))}</td>
+                <td>${escapeHtml(formatNumber(position.marketPrice, 5))}</td>
+                <td class="tone-${toneFromNumber(position.swap)}">${escapeHtml(formatSignedCurrency(position.swap))}</td>
+                <td class="tone-${toneFromNumber(position.floatingProfit)}">${escapeHtml(formatSignedCurrency(position.floatingProfit))}</td>
+                <td>${escapeHtml(position.comment || "-")}</td>
+              </tr>
+            `).join("") : `<tr><td class="table-empty-row" colspan="10">No open positions in this report.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="working-orders" class="detail-card">
+      <div class="section-heading">
+        <p class="eyebrow">Working orders</p>
+        <h2>Pending orders from the latest report</h2>
+        <p>Working orders stay separate from open positions so the account detail reads the way the report itself is structured.</p>
+      </div>
+      <div class="metric-cluster">
+        <div class="metric-tile"><span>Working Count</span><strong>${escapeHtml(formatNumber(detail.summary.workingCount, 0))}</strong></div>
+        <div class="metric-tile"><span>Margin</span><strong>${escapeHtml(formatCurrency(detail.summary.margin))}</strong></div>
+        <div class="metric-tile"><span>Free Margin</span><strong>${escapeHtml(formatCurrency(detail.summary.freeMargin))}</strong></div>
+        <div class="metric-tile"><span>Margin Level</span><strong>${escapeHtml(Number.isFinite(detail.summary.marginLevel) ? `${formatNumber(detail.summary.marginLevel, 2)}%` : "-")}</strong></div>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Open Time</th>
+              <th>Symbol</th>
+              <th>Type</th>
+              <th>Volume</th>
+              <th>Price</th>
+              <th>S/L</th>
+              <th>T/P</th>
+              <th>Market</th>
+              <th>State</th>
+              <th>Comment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detail.workingOrders.length ? detail.workingOrders.map((order) => `
+              <tr>
+                <td>${escapeHtml(order.orderId)}</td>
+                <td>${escapeHtml(order.openedAt ? new Date(order.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "-")}</td>
+                <td>${escapeHtml(order.symbol)}</td>
+                <td>${escapeHtml(order.type)}</td>
+                <td>${escapeHtml(formatNumber(order.volume, 2))}</td>
+                <td>${escapeHtml(formatNumber(order.price, 5))}</td>
+                <td>${escapeHtml(Number.isFinite(order.sl) ? formatNumber(order.sl, 5) : "-")}</td>
+                <td>${escapeHtml(Number.isFinite(order.tp) ? formatNumber(order.tp, 5) : "-")}</td>
+                <td>${escapeHtml(Number.isFinite(order.marketPrice) ? formatNumber(order.marketPrice, 5) : "-")}</td>
+                <td>${escapeHtml(order.state)}</td>
+                <td>${escapeHtml(order.comment || "-")}</td>
+              </tr>
+            `).join("") : `<tr><td class="table-empty-row" colspan="11">No working orders in this report.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function render() {
+  const root = document.getElementById("app-scroll");
+  root.className = `app-scroll ${STATE.screen === "detail" ? "detail-scroll" : ""}`.trim();
+
+  if (STATE.screen === "detail" && STATE.detailAccountId) {
+    const account = accountById(STATE.detailAccountId);
+    root.innerHTML = account ? renderDetail(account) : renderDashboard();
+  } else {
+    root.innerHTML = renderDashboard();
+  }
+}
+
+function navDetail(accountId) {
+  STATE.screen = "detail";
+  STATE.detailAccountId = accountId;
+  render();
+  document.getElementById("app-scroll").scrollTop = 0;
+}
+
+function navDashboard() {
+  STATE.screen = "dashboard";
+  render();
+  document.getElementById("app-scroll").scrollTop = 0;
+}
+
+function setTimeframe(accountId, timeframe) {
+  STATE.timeframe[accountId] = timeframe;
+  render();
+}
+
+function togglePanel(accountId, panel) {
+  STATE.activePanel[accountId] = STATE.activePanel[accountId] === panel ? null : panel;
+  render();
+}
+
+function toggleTrade(accountId, positionId) {
+  STATE.expandedTrade[accountId] = STATE.expandedTrade[accountId] === positionId ? null : positionId;
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
