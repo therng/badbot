@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   dealNet,
-  filterBySince,
   getAccountBundle,
-  getSinceDate,
   getReportWinPercent,
   isTradingDeal,
-  parseTimeframe,
+  normalizeTradeSide,
   serializeAccountBundle,
 } from "@/lib/trading/account-data";
 
@@ -25,17 +23,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "No report data for this account" }, { status: 404 });
     }
 
-    const timeframe = parseTimeframe(request.nextUrl.searchParams.get("timeframe"));
-    const reportTime = latestReport.reportDate ? new Date(latestReport.reportDate) : new Date();
-    const since = getSinceDate(timeframe, reportTime);
-    const trades = filterBySince(
-      latestReport.dealLedger.filter((deal) => isTradingDeal(deal.type)),
-      (trade) => trade.time,
-      since,
-    ).map((trade) => ({
-      ...trade,
-      pnl: dealNet(trade),
-    }));
+    const trades = latestReport.dealLedger
+      .filter((deal) => isTradingDeal(deal.type))
+      .map((trade) => ({
+        ...trade,
+        pnl: dealNet(trade),
+      }));
 
     const wins = trades.filter((trade) => trade.pnl > 0);
     const losses = trades.filter((trade) => trade.pnl < 0);
@@ -74,13 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const bySide = Array.from(
       trades.reduce<Map<string, { side: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-        const normalizedType = typeof trade.type === "string" ? trade.type.trim().toLowerCase() : "";
-        const normalizedDirection = typeof trade.direction === "string" ? trade.direction.trim().toLowerCase() : "";
-        const side = normalizedType === "buy" || normalizedType === "sell"
-          ? normalizedType.toUpperCase()
-          : normalizedDirection === "buy" || normalizedDirection === "sell"
-            ? normalizedDirection.toUpperCase()
-            : "UNKNOWN";
+        const side = normalizeTradeSide(trade.type, trade.direction);
         const current = groups.get(side) ?? {
           side,
           trades: 0,
@@ -118,7 +105,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     return NextResponse.json({
-      timeframe,
       account,
       summary: {
         winRate: getReportWinPercent(reportResults),
@@ -128,8 +114,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         profitFactor: latestReport.reportResults?.profitFactor ?? null,
         recoveryFactor: latestReport.reportResults?.recoveryFactor ?? null,
         expectedPayoff: latestReport.reportResults?.expectedPayoff ?? null,
-        averageConsecutiveWins: latestReport.reportResults?.maximumConsecutiveWins ?? null,
-        averageConsecutiveLosses: latestReport.reportResults?.maximumConsecutiveLosses ?? null,
+        averageConsecutiveWins: latestReport.reportResults?.averageConsecutiveWins ?? null,
+        averageConsecutiveLosses: latestReport.reportResults?.averageConsecutiveLosses ?? null,
       },
       bySymbol,
       bySide,
