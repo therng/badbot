@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  buildDailyProfitSeries,
   dealNet,
   filterBySince,
   getAccountBundle,
@@ -37,13 +38,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }));
 
     const netProfit = deals.reduce((total, trade) => total + trade.pnl, 0);
-    const grossProfit = deals.filter((trade) => trade.pnl > 0).reduce((total, trade) => total + trade.pnl, 0);
-    const grossLoss = Math.abs(deals.filter((trade) => trade.pnl < 0).reduce((total, trade) => total + trade.pnl, 0));
-    const commissionTotal = deals.reduce((total, trade) => total + Number(trade.commission ?? 0), 0);
-    const swapTotal = deals.reduce((total, trade) => total + Number(trade.swap ?? 0), 0);
-    const avgTradePnL = deals.length ? netProfit / deals.length : 0;
-    const bestTrade = deals.length ? Math.max(...deals.map((trade) => trade.pnl)) : 0;
-    const worstTrade = deals.length ? Math.min(...deals.map((trade) => trade.pnl)) : 0;
+    const dailyProfit = buildDailyProfitSeries(deals, 5, reportTime);
+    const profitFactor = latestReport.reportResults?.profitFactor ?? null;
 
     const bySymbol = Array.from(
       deals.reduce<Map<string, { symbol: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
@@ -96,16 +92,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       timeframe,
       account,
       summary: {
-        trades: deals.length,
         netProfit,
-        grossProfit,
-        grossLoss,
-        commissionTotal,
-        swapTotal,
-        avgTradePnL,
-        bestTrade,
-        worstTrade,
-        profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
+        profitFactor,
+        dailyProfit,
       },
       bySymbol,
       recentDeals,

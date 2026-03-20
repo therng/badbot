@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   dealNet,
+  buildSymbolTradePercent,
+  getLongTradeWinPercent,
+  getShortTradeWinPercent,
   filterBySince,
   getAccountBundle,
   getSinceDate,
@@ -9,6 +12,30 @@ import {
   parseTimeframe,
   serializeAccountBundle,
 } from "@/lib/trading/account-data";
+
+function computeTradesPerWeek(
+  timeframe: ReturnType<typeof parseTimeframe>,
+  deals: Array<{ time: Date | string }>,
+) {
+  if (timeframe === "all-time") {
+    return null;
+  }
+
+  if (deals.length < 2) {
+    return null;
+  }
+
+  const sorted = [...deals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
+  const oldest = new Date(sorted[0].time).getTime();
+  const newest = new Date(sorted[sorted.length - 1].time).getTime();
+
+  if (!Number.isFinite(oldest) || !Number.isFinite(newest) || newest <= oldest) {
+    return null;
+  }
+
+  const weeks = Math.max(1, (newest - oldest) / 604_800_000);
+  return deals.length / weeks;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -76,13 +103,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }));
 
     const summary = {
-      openCount: openPositions.length,
-      workingCount: workingOrders.length,
       dealCount: closedDeals.length,
-      dealVolume: closedDeals.reduce((total, trade) => total + Number(trade.volume ?? 0), 0),
-      openVolume: openPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0),
+      tradesPerWeek: computeTradesPerWeek(timeframe, closedDeals),
+      longTradeWin: getLongTradeWinPercent(latestReport.reportResults ?? null),
+      shortTradeWin: getShortTradeWinPercent(latestReport.reportResults ?? null),
+      symbolTradePercent: buildSymbolTradePercent(closedDeals),
+      openCount: openPositions.length,
       floatingProfit: openPositions.reduce((total, position) => total + Number(position.floatingProfit ?? 0), 0),
-      realizedProfit: closedDeals.reduce((total, trade) => total + dealNet(trade), 0),
     };
 
     const openBySymbol = Object.values(

@@ -33,13 +33,11 @@ export interface StandaloneFrame {
   label: string;
   context: string;
   overview: {
-    trades: number;
-    winPercent: number;
     netProfit: number;
     drawdown: number;
-    growth: number;
-    absoluteGain: number;
-    equity: number;
+    winPercent: number;
+    trades: number;
+    floatingPL: number;
     openCount: number;
   };
   curve: Array<{ x: string; y: number }>;
@@ -278,7 +276,7 @@ function buildTradingResults(report: ParsedReport) {
     .map((deal) => ({
       dealId: deal.dealId,
       symbol: deal.symbol || "UNKNOWN",
-      side: deal.direction || deal.type || "UNKNOWN",
+      side: normalizeTradeSide(deal.type, deal.direction).toUpperCase(),
       volume: Number(deal.volume ?? 0),
       time: deal.time,
       price: deal.price ?? null,
@@ -366,6 +364,20 @@ function normalizeDealType(type: string | null | undefined) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
 }
 
+function normalizeTradeSide(type: string | null | undefined, direction: string | null | undefined) {
+  const normalizedType = normalizeDealType(type);
+  if (normalizedType === "buy" || normalizedType === "sell") {
+    return normalizedType;
+  }
+
+  const normalizedDirection = normalizeDealType(direction);
+  if (normalizedDirection === "buy" || normalizedDirection === "sell") {
+    return normalizedDirection;
+  }
+
+  return normalizedType || normalizedDirection || "unknown";
+}
+
 function isBalanceDeal(type: string | null | undefined) {
   return normalizeDealType(type).includes("balance");
 }
@@ -448,19 +460,35 @@ function getAccountStatus(reportTimestamp: Date, activeWindowMinutes = 15) {
 }
 
 function buildBalanceEquityCurve(
-  deals: Array<{ time: Date | string; balanceAfter?: number | null; dealId?: string }>,
+  deals: Array<{ time: Date | string; type?: string | null; profit?: number | null; commission?: number | null; swap?: number | null; balanceAfter?: number | null; dealId?: string }>,
 ) {
+  let lastKnownBalance: number | null = null;
+
   return [...deals]
     .sort((left, right) => {
       const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
       return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
     })
-    .map((deal) => ({
-      time: deal.time,
-      balance: Number(deal.balanceAfter ?? 0),
-      equity: Number(deal.balanceAfter ?? 0),
-    }))
-    .filter((point) => Number.isFinite(point.balance));
+    .map((deal) => {
+      const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
+      if (Number.isFinite(parsedBalance)) {
+        lastKnownBalance = parsedBalance;
+      }
+
+      if (!Number.isFinite(lastKnownBalance ?? Number.NaN)) {
+        return null;
+      }
+
+      const balance = Number(lastKnownBalance);
+      return {
+        time: deal.time,
+        balance,
+        equity: balance,
+        eventType: deal.type ?? null,
+        eventDelta: dealNet(deal),
+      };
+    })
+    .filter((point): point is { time: Date | string; balance: number; equity: number; eventType: string | null; eventDelta: number } => point !== null);
 }
 
 function buildUnitDrawdownCurve(
@@ -492,7 +520,7 @@ function buildUnitDrawdownCurve(
   let highWaterMark = Number.NEGATIVE_INFINITY;
 
   return sorted.flatMap((deal) => {
-    const equity = Number(deal.balanceAfter ?? 0);
+    const equity = Number(deal.balanceAfter ?? Number.NaN);
     if (!Number.isFinite(equity)) {
       return [];
     }
@@ -532,7 +560,7 @@ function deriveStartingBalanceFromDeal(deal: {
     swap?: number | null;
     balanceAfter?: number | null;
   }) {
-  return Number(deal.balanceAfter ?? 0) - dealNet(deal);
+  return Number(deal.balanceAfter ?? Number.NaN) - dealNet(deal);
 }
 
 function collectDealWindow(
@@ -564,7 +592,7 @@ function collectDealWindow(
 
   for (const deal of sorted) {
     const timestamp = new Date(deal.time).getTime();
-    const balanceAfter = Number(deal.balanceAfter ?? runningBalance);
+    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
 
     if (startTimestamp !== null && timestamp < startTimestamp) {
       runningBalance = Number.isFinite(balanceAfter) ? balanceAfter : runningBalance;
@@ -611,7 +639,7 @@ function computeCompoundedGrowth(
   let previousBalance = startBalance;
 
   for (const deal of window) {
-    const balanceAfter = Number(deal.balanceAfter ?? previousBalance);
+    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
     if (!Number.isFinite(balanceAfter)) {
       continue;
     }
@@ -714,13 +742,7 @@ function computeTradesPerWeek(timeframe: StandaloneTimeframe, totalTrades: numbe
       weeks = 52;
       break;
     case "all-time": {
-      if (recentDeals.length < 2) {
-        weeks = null;
-        break;
-      }
-      const newest = recentDeals[0].time.getTime();
-      const oldest = recentDeals[recentDeals.length - 1].time.getTime();
-      weeks = Number.isFinite(newest) && Number.isFinite(oldest) && oldest < newest ? Math.max(1, (newest - oldest) / 604_800_000) : null;
+      weeks = null;
       break;
     }
   }
@@ -755,7 +777,7 @@ function computeBalanceDrawdown(
   let percent = 0;
 
   for (const deal of deals.filter((item) => isTradingDeal(item.type))) {
-    const adjustedBalance = Number(deal.balanceAfter ?? 0);
+    const adjustedBalance = Number(deal.balanceAfter ?? Number.NaN);
     if (!Number.isFinite(adjustedBalance)) {
       continue;
     }
@@ -882,16 +904,13 @@ function buildGrowthSeries(report: ParsedReport): StandaloneGrowthSeries {
 
 function buildReportDetail(report: ParsedReport, fileName: string): StandaloneReportDetail {
   const sortedDeals = [...report.dealLedger].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
-  const equityCurve = buildBalanceEquityCurve(sortedDeals).map((point, index) => {
-    const deal = sortedDeals[index] ?? null;
-    return {
-      x: iso(point.time) ?? "",
-      equity: point.equity,
-      balance: point.balance,
-      eventType: deal?.type ?? null,
-      eventDelta: deal ? dealNet(deal) : null,
-    };
-  });
+  const equityCurve = buildBalanceEquityCurve(sortedDeals).map((point) => ({
+    x: iso(point.time) ?? "",
+    equity: point.equity,
+    balance: point.balance,
+    eventType: point.eventType,
+    eventDelta: point.eventDelta,
+  }));
 
   const results = buildTradingResults(report)
     .sort((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime());
@@ -917,9 +936,10 @@ function buildReportDetail(report: ParsedReport, fileName: string): StandaloneRe
   const streaks = computeStreaks(chronologicalResults.map((trade) => trade.net));
   const endingAdjustedBalance = sortedDeals.reduce((state, deal) => {
     const funding = isBalanceDeal(deal.type) ? state.funding + dealNet(deal) : state.funding;
+    const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
     return {
       funding,
-      adjustedBalance: Number(deal.balanceAfter ?? 0) - funding,
+      adjustedBalance: Number.isFinite(parsedBalance) ? parsedBalance - funding : state.adjustedBalance,
     };
   }, {
     funding: 0,
@@ -1090,29 +1110,20 @@ function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): Stand
     ? ((report.openPositions.length + report.workingOrders.length) / (dealsForTimeframe.length + report.openPositions.length + report.workingOrders.length)) * 100
     : 0;
 
-  const growth = timeframe === "all-time"
-    ? computeCompoundedGrowth(report.dealLedger, null)
-    : timeframe === "year"
-      ? computeCompoundedGrowth(
-          report.dealLedger,
-          new Date(reportTime.getFullYear(), 0, 1, 0, 0, 0, 0),
-          new Date(reportTime.getFullYear(), 11, 31, 23, 59, 59, 999),
-        )
-      : computeCompoundedGrowth(report.dealLedger, since, null);
-  const absoluteGain = timeframe === "all-time"
-    ? computeAbsoluteGain(report.dealLedger, null)
-    : timeframe === "year"
-      ? computeAbsoluteGain(
-          report.dealLedger,
-          new Date(reportTime.getFullYear(), 0, 1, 0, 0, 0, 0),
-          new Date(reportTime.getFullYear(), 11, 31, 23, 59, 59, 999),
-        )
-      : computeAbsoluteGain(report.dealLedger, since, null);
-
-  const drawdown = computeBalanceDrawdown(
-    deals,
-    getLatestDealBalance(deals, report.accountSummary.balance ?? 0),
-  ).percent;
+  const drawdown = report.reportResults?.balance_drawdown_maximal_pct
+    ?? report.reportResults?.balance_drawdown_relative_pct
+    ?? computeBalanceDrawdown(
+      deals,
+      getLatestDealBalance(deals, report.accountSummary.balance ?? 0),
+    ).percent;
+  const winPercent = report.reportResults?.profit_trades_count !== undefined || report.reportResults?.loss_trades_count !== undefined
+    ? (() => {
+        const winsCount = Number(report.reportResults?.profit_trades_count ?? 0);
+        const lossesCount = Number(report.reportResults?.loss_trades_count ?? 0);
+        const total = Number(report.reportResults?.total_trades ?? winsCount + lossesCount);
+        return total > 0 ? (winsCount / total) * 100 : 0;
+      })()
+    : dealsForTimeframe.length ? (wins.length / dealsForTimeframe.length) * 100 : 0;
   const meta = TIMEFRAME_META[timeframe];
   const currentEquity = report.accountSummary.equity ?? 0;
   const peakEquity = unitDrawdownCurve.length ? Math.max(...unitDrawdownCurve.map((point) => point.equity)) : currentEquity;
@@ -1129,13 +1140,11 @@ function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): Stand
     label: meta.label,
     context: meta.context,
     overview: {
-      trades: dealsForTimeframe.length,
-      winPercent: dealsForTimeframe.length ? (wins.length / dealsForTimeframe.length) * 100 : 0,
       netProfit,
       drawdown,
-      growth,
-      absoluteGain,
-      equity: currentEquity,
+      winPercent,
+      trades: dealsForTimeframe.length,
+      floatingPL: report.accountSummary.floating_pl ?? 0,
       openCount: report.openPositions.length,
     },
     curve,

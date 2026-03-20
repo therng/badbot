@@ -3,14 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildBalanceEquityCurve,
   buildUnitDrawdownCurve,
-  computeStreaks,
   filterBySince,
   getAccountBundle,
   getSinceDate,
-  dealNet,
-  isTradingDeal,
   parseTimeframe,
   serializeAccountBundle,
+  getPrimaryDrawdownPercent,
 } from "@/lib/trading/account-data";
 
 export const dynamic = "force-dynamic";
@@ -34,31 +32,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const sortedDeals = [...filteredDeals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
     const equityCurve = buildBalanceEquityCurve(sortedDeals, latestReport.openPositions);
     const unitDrawdownCurve = buildUnitDrawdownCurve(filteredDeals, latestReport.openPositions);
-    const tradeNetSeries = sortedDeals.filter((deal) => isTradingDeal(deal.type)).map((deal) => dealNet(deal));
-    const streaks = computeStreaks(tradeNetSeries);
 
-    const curve = equityCurve.map((point, index) => {
-      const deal = sortedDeals[index] ?? null;
-      return {
-        x: point.time instanceof Date ? point.time.toISOString() : new Date(point.time).toISOString(),
-        equity: point.equity,
-        balance: point.balance,
-        eventType: deal?.type ?? null,
-        eventDelta: deal ? dealNet(deal) : null,
-      };
-    });
-
-    let peakEquity = 0;
-    let minEquity = 0;
-    if (curve.length) {
-      peakEquity = curve[0].equity;
-      minEquity = curve[0].equity;
-    }
-
-    for (const point of curve) {
-      peakEquity = Math.max(peakEquity, point.equity);
-      minEquity = Math.min(minEquity, point.equity);
-    }
+    const curve = equityCurve.map((point) => ({
+      x: point.time instanceof Date ? point.time.toISOString() : new Date(point.time).toISOString(),
+      equity: point.equity,
+      balance: point.balance,
+      eventType: point.eventType ?? null,
+      eventDelta: point.eventDelta ?? null,
+    }));
 
     const account = serializeAccountBundle(bundle);
     if (!account) {
@@ -69,18 +50,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       timeframe,
       account,
       summary: {
-        points: curve.length,
-        currentEquity: account.equity,
-        peakEquity,
-        minEquity,
-        maxDrawdown: unitDrawdownCurve.reduce((maximum, point) => Math.max(maximum, point.drawdownPercent), 0),
         absoluteDrawdown: latestReport.reportResults?.balanceDrawdownAbsolute ?? null,
         relativeDrawdownPct: latestReport.reportResults?.balanceDrawdownRelativePct ?? null,
-        relativeDrawdownAmount: latestReport.reportResults?.balanceDrawdownRelative ?? null,
-        maximalDrawdownPct: latestReport.reportResults?.balanceDrawdownMaximalPct ?? null,
         maximalDrawdownAmount: latestReport.reportResults?.balanceDrawdownMaximal ?? null,
+        maximalDrawdownPct: latestReport.reportResults?.balanceDrawdownMaximalPct ?? getPrimaryDrawdownPercent(latestReport.reportResults ?? null),
         maximalDepositLoad: null,
-        maxConsecutiveLoss: latestReport.reportResults?.maximumConsecutiveLosses ?? streaks.worstLossStreak,
       },
       equityCurve: curve,
       drawdownCurve: unitDrawdownCurve.map((point) => ({

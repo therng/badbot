@@ -10,7 +10,9 @@ const FTP_PORT = Number.parseInt(process.env.FTP_PORT || "21", 10);
 const FTP_USER = process.env.FTP_USER || "supachai";
 const FTP_PASS = process.env.FTP_PASS || "9717";
 const FTP_PATH = process.env.FTP_PATH || "usb1_1_1/Metatrader5";
-const WORKER_POLL_MS = Number.parseInt(process.env.WORKER_POLL_MS || "60000", 10);
+const WORKER_POLL_MS = Number.parseInt(process.env.WORKER_POLL_MS || "150000", 10);
+const FILE_STABLE_MS = Number.parseInt(process.env.WORKER_FILE_STABLE_MS || "60000", 10);
+const MIN_FILE_SIZE_BYTES = Number.parseInt(process.env.WORKER_MIN_FILE_SIZE_BYTES || "1024", 10);
 const RUN_ONCE = process.env.WORKER_RUN_ONCE === "true";
 const FORCE_REIMPORT = process.env.WORKER_FORCE_REIMPORT === "true";
 
@@ -56,6 +58,29 @@ async function downloadFile(client: Client, fileName: string) {
 
   await client.downloadTo(writable, fileName);
   return Buffer.concat(chunks);
+}
+
+function isHtmlReportFile(file: { name: string }) {
+  return file.name.endsWith(".html") && !file.name.startsWith("._");
+}
+
+function shouldReadFile(file: { name: string; size?: number; modifiedAt?: Date }) {
+  if (!isHtmlReportFile(file)) {
+    return false;
+  }
+
+  if (typeof file.size === "number" && file.size > 0 && file.size < MIN_FILE_SIZE_BYTES) {
+    return false;
+  }
+
+  if (file.modifiedAt instanceof Date && Number.isFinite(file.modifiedAt.getTime())) {
+    const ageMs = Date.now() - file.modifiedAt.getTime();
+    if (ageMs < FILE_STABLE_MS) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 async function importReport(fileName: string, htmlContent: string) {
@@ -207,20 +232,28 @@ export async function processReports() {
     await client.cd(FTP_PATH);
 
     const files = await client.list();
-    const htmlFiles = files
-      .filter((file) => file.name.endsWith(".html") && !file.name.startsWith("._"))
-      .sort((left, right) => left.name.localeCompare(right.name));
+    const htmlFiles = files.filter(isHtmlReportFile).sort((left, right) => left.name.localeCompare(right.name));
+    const readyFiles = htmlFiles.filter(shouldReadFile);
+    const deferredFiles = htmlFiles.filter((file) => !shouldReadFile(file));
 
     const stats = {
       found: htmlFiles.length,
+      ready: readyFiles.length,
+      deferred: deferredFiles.length,
       imported: 0,
       skipped: 0,
       failed: 0,
     };
 
-    console.log(`Found ${htmlFiles.length} HTML reports.`);
+    console.log(
+      `Found ${htmlFiles.length} HTML reports. Ready=${readyFiles.length} deferred=${deferredFiles.length} stableMs=${FILE_STABLE_MS}`,
+    );
 
-    for (const file of htmlFiles) {
+    if (deferredFiles.length > 0) {
+      console.log(`Deferring recent or incomplete files: ${deferredFiles.map((file) => file.name).join(", ")}`);
+    }
+
+    for (const file of readyFiles) {
       console.log(`Processing ${file.name}...`);
 
       try {
@@ -235,7 +268,7 @@ export async function processReports() {
     }
 
     console.log(
-      `Report pass complete. Found=${stats.found} imported=${stats.imported} skipped=${stats.skipped} failed=${stats.failed}`,
+      `Report pass complete. Found=${stats.found} ready=${stats.ready} deferred=${stats.deferred} imported=${stats.imported} skipped=${stats.skipped} failed=${stats.failed}`,
     );
 
     return stats;

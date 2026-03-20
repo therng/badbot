@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  computeStreaks,
   dealNet,
   filterBySince,
   getAccountBundle,
   getSinceDate,
+  getReportWinPercent,
   isTradingDeal,
   parseTimeframe,
   serializeAccountBundle,
@@ -39,10 +39,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const wins = trades.filter((trade) => trade.pnl > 0);
     const losses = trades.filter((trade) => trade.pnl < 0);
-    const breakeven = trades.filter((trade) => trade.pnl === 0);
     const totalTrades = trades.length;
-    const netProfit = trades.reduce((total, trade) => total + trade.pnl, 0);
-    const streaks = computeStreaks(trades.map((trade) => trade.pnl));
+    const reportResults = latestReport.reportResults ?? null;
+    const reportWins = Number(reportResults?.profitTradesCount ?? wins.length);
+    const reportLosses = Number(reportResults?.lossTradesCount ?? losses.length);
 
     const bySymbol = Array.from(
       trades.reduce<Map<string, { symbol: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
@@ -74,7 +74,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const bySide = Array.from(
       trades.reduce<Map<string, { side: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-        const side = trade.direction || trade.type || "UNKNOWN";
+        const normalizedType = typeof trade.type === "string" ? trade.type.trim().toLowerCase() : "";
+        const normalizedDirection = typeof trade.direction === "string" ? trade.direction.trim().toLowerCase() : "";
+        const side = normalizedType === "buy" || normalizedType === "sell"
+          ? normalizedType.toUpperCase()
+          : normalizedDirection === "buy" || normalizedDirection === "sell"
+            ? normalizedDirection.toUpperCase()
+            : "UNKNOWN";
         const current = groups.get(side) ?? {
           side,
           trades: 0,
@@ -115,19 +121,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       timeframe,
       account,
       summary: {
-        totalTrades,
-        wins: wins.length,
-        losses: losses.length,
-        breakeven: breakeven.length,
-        winRate: totalTrades ? (wins.length / totalTrades) * 100 : 0,
-        lossRate: totalTrades ? (losses.length / totalTrades) * 100 : 0,
-        avgWin: wins.length ? wins.reduce((total, trade) => total + trade.pnl, 0) / wins.length : 0,
-        avgLoss: losses.length
-          ? Math.abs(losses.reduce((total, trade) => total + trade.pnl, 0) / losses.length)
-          : 0,
-        expectancy: totalTrades ? netProfit / totalTrades : 0,
-        bestWinStreak: streaks.bestWinStreak,
-        worstLossStreak: streaks.worstLossStreak,
+        winRate: getReportWinPercent(reportResults),
+        wins: reportWins,
+        losses: reportLosses,
+        sharpeRatio: latestReport.reportResults?.sharpeRatio ?? null,
+        profitFactor: latestReport.reportResults?.profitFactor ?? null,
+        recoveryFactor: latestReport.reportResults?.recoveryFactor ?? null,
+        expectedPayoff: latestReport.reportResults?.expectedPayoff ?? null,
+        averageConsecutiveWins: latestReport.reportResults?.maximumConsecutiveWins ?? null,
+        averageConsecutiveLosses: latestReport.reportResults?.maximumConsecutiveLosses ?? null,
       },
       bySymbol,
       bySide,

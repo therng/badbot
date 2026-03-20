@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildBalanceEquityCurve,
   computeBalanceDrawdown,
-  computeAbsoluteGain,
-  computeAllTimeGrowth,
-  computeCompoundedGrowth,
-  computeYearGrowth,
   filterBySince,
   getAccountBundle,
+  getPrimaryDrawdownPercent,
+  getReportWinPercent,
   getSinceDate,
   isTradingDeal,
   parseTimeframe,
@@ -42,41 +40,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const filteredDeals = filterBySince(latestReport.dealLedger, (deal) => deal.time, since);
     const tradingDeals = filteredDeals.filter((deal) => isTradingDeal(deal.type));
     const equityCurve = buildBalanceEquityCurve(filteredDeals, latestReport.openPositions);
-    const drawdown = computeBalanceDrawdown(
+    const computedDrawdown = computeBalanceDrawdown(
       filteredDeals,
-      filteredDeals.length ? Number(filteredDeals[filteredDeals.length - 1].balanceAfter ?? 0) : account?.balance ?? 0,
+      filteredDeals.length ? Number(filteredDeals[filteredDeals.length - 1].balanceAfter ?? Number.NaN) : account?.balance ?? 0,
     ).percent;
     const outcomeSummary = summarizeTrades(tradingDeals);
-
-    const growth =
-      timeframe === "all-time"
-        ? computeAllTimeGrowth(latestReport.dealLedger)
-        : timeframe === "year"
-          ? computeYearGrowth(latestReport.dealLedger, reportTime.getFullYear())
-          : computeCompoundedGrowth(latestReport.dealLedger, since, null);
-
-    const absoluteGain =
-      timeframe === "all-time"
-        ? computeAbsoluteGain(latestReport.dealLedger, null)
-        : timeframe === "year"
-          ? computeAbsoluteGain(
-              latestReport.dealLedger,
-              new Date(reportTime.getFullYear(), 0, 1, 0, 0, 0, 0),
-              new Date(reportTime.getFullYear(), 11, 31, 23, 59, 59, 999),
-            )
-          : computeAbsoluteGain(latestReport.dealLedger, since, null);
+    const reportResults = latestReport.reportResults ?? null;
+    const drawdown = getPrimaryDrawdownPercent(reportResults) || computedDrawdown;
+    const winPercent = getReportWinPercent(reportResults);
 
     return NextResponse.json({
       timeframe,
       account,
       kpis: {
-        trades: outcomeSummary.trades,
-        winPercent: outcomeSummary.winPercent,
         netProfit: outcomeSummary.netProfit,
         drawdown,
-        growth,
-        absoluteGain,
-        equity: latestReport.accountSummary?.equity ?? 0,
+        winPercent,
+        trades: outcomeSummary.trades,
+        floatingPL: latestReport.accountSummary?.floatingPl ?? 0,
         openCount: latestReport.openPositions.length,
       },
       equityCurve: equityCurve.map((point) => ({

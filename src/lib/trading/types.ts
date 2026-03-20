@@ -30,13 +30,11 @@ export interface AccountOverviewResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   kpis: {
-    trades: number;
-    winPercent: number;
     netProfit: number;
     drawdown: number;
-    growth: number;
-    absoluteGain: number;
-    equity: number;
+    winPercent: number;
+    trades: number;
+    floatingPL: number;
     openCount: number;
   };
   equityCurve: ChartPoint[];
@@ -46,18 +44,11 @@ export interface EquityDetailResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
-    points: number;
-    currentEquity: number;
-    peakEquity: number;
-    minEquity: number;
-    maxDrawdown: number;
     absoluteDrawdown: number | null;
     relativeDrawdownPct: number | null;
-    relativeDrawdownAmount: number | null;
-    maximalDrawdownPct: number | null;
     maximalDrawdownAmount: number | null;
+    maximalDrawdownPct: number | null;
     maximalDepositLoad: number | null;
-    maxConsecutiveLoss: number | null;
   };
   equityCurve: EquityEventPoint[];
   drawdownCurve: ChartPoint[];
@@ -87,13 +78,16 @@ export interface PositionsResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
-    openCount: number;
-    workingCount: number;
     dealCount: number;
-    dealVolume: number;
-    openVolume: number;
+    tradesPerWeek: number | null;
+    longTradeWin: number | null;
+    shortTradeWin: number | null;
+    symbolTradePercent: Array<{
+      symbol: string;
+      percent: number;
+    }>;
+    openCount: number;
     floatingProfit: number;
-    realizedProfit: number;
   };
   openPositions: Array<{
     positionId: string;
@@ -143,16 +137,12 @@ export interface ProfitDetailResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
-    trades: number;
     netProfit: number;
-    grossProfit: number;
-    grossLoss: number;
-    commissionTotal: number;
-    swapTotal: number;
-    avgTradePnL: number;
-    bestTrade: number;
-    worstTrade: number;
     profitFactor: number | null;
+    dailyProfit: Array<{
+      date: string;
+      profit: number;
+    }>;
   };
   bySymbol: Array<{
     symbol: string;
@@ -176,17 +166,15 @@ export interface WinDetailResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
-    totalTrades: number;
+    winRate: number;
     wins: number;
     losses: number;
-    breakeven: number;
-    winRate: number;
-    lossRate: number;
-    avgWin: number;
-    avgLoss: number;
-    expectancy: number;
-    bestWinStreak: number;
-    worstLossStreak: number;
+    sharpeRatio: number | null;
+    profitFactor: number | null;
+    recoveryFactor: number | null;
+    expectedPayoff: number | null;
+    averageConsecutiveWins: number | null;
+    averageConsecutiveLosses: number | null;
   };
   bySymbol: Array<{
     symbol: string;

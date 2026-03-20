@@ -14,9 +14,6 @@ import type {
 } from "@/lib/trading/types";
 
 import {
-  approximateSharpe,
-  computeActivityPercent,
-  computeTradesPerWeek,
   displayName,
   formatCompactNumber,
   formatCompactSignedCurrency,
@@ -231,34 +228,28 @@ function ProfitPanel({
       panelId={panelId}
       eyebrow={periodLabel}
       title="Profit detail"
-      summary={detail ? `${formatWholeNumber(detail.summary.trades)} trades` : "Loading"}
+      summary={detail ? `${formatSignedCurrency(detail.summary.netProfit)}` : "Loading"}
     >
       {!detail && loading ? (
         <DashboardPanelSkeleton />
       ) : error && !detail ? (
         <InlineState tone="error" title="Profit detail unavailable" message={error} />
       ) : detail ? (
-        detail.summary.trades ? (
+        detail ? (
           <>
             <div className="metric-cluster">
-              <MetricTile label="Net" value={formatSignedCurrency(detail.summary.netProfit)} tone={toneFromNumber(detail.summary.netProfit)} />
-              <MetricTile label="Avg Trade" value={formatSignedCurrency(detail.summary.avgTradePnL)} tone={toneFromNumber(detail.summary.avgTradePnL)} />
-              <MetricTile label="Gross Profit" value={formatCurrency(detail.summary.grossProfit)} />
+              <MetricTile label="Net Profit" value={formatSignedCurrency(detail.summary.netProfit)} tone={toneFromNumber(detail.summary.netProfit)} />
               <MetricTile label="Profit Factor" value={formatNumber(detail.summary.profitFactor, 2)} tone={toneFromNumber(detail.summary.profitFactor)} />
             </div>
 
-            <DashboardListSection title="Top symbols">
-              {detail.bySymbol.slice(0, 4).map((item) => (
-                <div key={item.symbol} className="kdetail__row">
+            <DashboardListSection title="Daily Profit (last 5 days)">
+              {detail.summary.dailyProfit.map((item) => (
+                <div key={item.date} className="kdetail__row">
                   <div className="kdetail__row-main">
-                    <strong>{item.symbol}</strong>
-                    <span>
-                      {formatWholeNumber(item.trades)} trades · {formatPlainPercent(item.winRate)}
-                    </span>
+                    <strong>{item.date}</strong>
                   </div>
                   <div className="kdetail__row-trail">
-                    <strong className={`tone-${toneFromNumber(item.netProfit)}`}>{formatSignedCurrency(item.netProfit)}</strong>
-                    <span>Avg {formatSignedCurrency(item.avgTrade)}</span>
+                    <strong className={`tone-${toneFromNumber(item.profit)}`}>{formatSignedCurrency(item.profit)}</strong>
                   </div>
                 </div>
               ))}
@@ -292,14 +283,14 @@ function DrawdownPanel({
       panelId={panelId}
       eyebrow={periodLabel}
       title="Risk & drawdown"
-      summary={detail ? `${formatPlainPercent(detail.summary.maxDrawdown)} max DD` : "Loading"}
+      summary={detail ? `${formatPlainPercent(detail.summary.maximalDrawdownPct)}` : "Loading"}
     >
       {!detail && loading ? (
         <DashboardPanelSkeleton />
       ) : error && !detail ? (
         <InlineState tone="error" title="Risk detail unavailable" message={error} />
       ) : detail ? (
-        detail.drawdownCurve.length ? (
+        detail ? (
           <>
             <div className="metric-cluster">
               <MetricTile
@@ -311,7 +302,7 @@ function DrawdownPanel({
               />
               <MetricTile
                 label="Relative Drawdown"
-                value={formatDrawdownMetric(detail.summary.relativeDrawdownAmount, detail.summary.relativeDrawdownPct)}
+                value={formatPlainPercent(detail.summary.relativeDrawdownPct)}
                 tone={toneFromNumber(
                   detail.summary.relativeDrawdownPct === null ? null : -detail.summary.relativeDrawdownPct,
                 )}
@@ -328,13 +319,6 @@ function DrawdownPanel({
                 value={formatPlainPercent(detail.summary.maximalDepositLoad)}
                 tone={toneFromNumber(
                   detail.summary.maximalDepositLoad === null ? null : -detail.summary.maximalDepositLoad,
-                )}
-              />
-              <MetricTile
-                label="Max Consecutive Loss"
-                value={formatWholeNumber(detail.summary.maxConsecutiveLoss)}
-                tone={toneFromNumber(
-                  detail.summary.maxConsecutiveLoss === null ? null : -detail.summary.maxConsecutiveLoss,
                 )}
               />
             </div>
@@ -381,8 +365,6 @@ function WinPanel({
   loading: boolean;
   error: string | null;
 }) {
-  const sharpe = approximateSharpe(detail);
-
   return (
     <DashboardPanelShell
       panelId={panelId}
@@ -395,35 +377,19 @@ function WinPanel({
       ) : error && !detail ? (
         <InlineState tone="error" title="Win detail unavailable" message={error} />
       ) : detail ? (
-        detail.summary.totalTrades ? (
+        detail ? (
           <>
             <div className="metric-cluster">
+              <MetricTile label="Win Rate" value={formatPlainPercent(detail.summary.winRate)} tone={toneFromRate(detail.summary.winRate)} />
               <MetricTile label="Wins" value={formatWholeNumber(detail.summary.wins)} tone="positive" />
               <MetricTile label="Losses" value={formatWholeNumber(detail.summary.losses)} tone="negative" />
-              <MetricTile label="Expectancy" value={formatSignedCurrency(detail.summary.expectancy)} tone={toneFromNumber(detail.summary.expectancy)} />
-              <MetricTile label="Sharpe*" value={formatNumber(sharpe, 2)} tone={toneFromNumber(sharpe)} />
+              <MetricTile label="Sharpe Ratio" value={formatNumber(detail.summary.sharpeRatio, 2)} tone={toneFromNumber(detail.summary.sharpeRatio)} />
+              <MetricTile label="Profit Factor" value={formatNumber(detail.summary.profitFactor, 2)} tone={toneFromNumber(detail.summary.profitFactor)} />
+              <MetricTile label="Recovery Factor" value={formatNumber(detail.summary.recoveryFactor, 2)} tone={toneFromNumber(detail.summary.recoveryFactor)} />
+              <MetricTile label="Expect Payoff" value={formatSignedCurrency(detail.summary.expectedPayoff)} tone={toneFromNumber(detail.summary.expectedPayoff)} />
+              <MetricTile label="Avg Consecutive Wins" value={formatWholeNumber(detail.summary.averageConsecutiveWins)} />
+              <MetricTile label="Avg Consecutive Losses" value={formatWholeNumber(detail.summary.averageConsecutiveLosses)} />
             </div>
-
-            {detail.outcomeSeries.length ? (
-              <div className="kdetail__chart">
-                <SparklineChart points={detail.outcomeSeries} active={false} tone={toneFromRate(detail.summary.winRate)} />
-              </div>
-            ) : null}
-
-            <DashboardListSection title="By side">
-              {detail.bySide.map((item) => (
-                <div key={item.side} className="kdetail__row">
-                  <div className="kdetail__row-main">
-                    <strong>{item.side}</strong>
-                    <span>{formatWholeNumber(item.trades)} trades</span>
-                  </div>
-                  <div className="kdetail__row-trail">
-                    <strong className={`tone-${toneFromRate(item.winRate)}`}>{formatPlainPercent(item.winRate)}</strong>
-                    <span className={`tone-${toneFromNumber(item.netProfit)}`}>{formatSignedCurrency(item.netProfit)}</span>
-                  </div>
-                </div>
-              ))}
-            </DashboardListSection>
           </>
         ) : (
           <InlineState tone="empty" title="No win data" message="Win statistics will appear once the selected timeframe includes closed trades." />
@@ -450,8 +416,6 @@ function TradesPanel({
   loading: boolean;
   error: string | null;
 }) {
-  const tradesPerWeek = computeTradesPerWeek(timeframe, detail?.summary.dealCount, detail);
-  const activityPercent = computeActivityPercent(detail, detail?.summary.dealCount);
 
   return (
     <DashboardPanelShell
@@ -465,13 +429,13 @@ function TradesPanel({
       ) : error && !detail ? (
         <InlineState tone="error" title="Trades unavailable" message={error} />
       ) : detail ? (
-        detail.summary.dealCount || detail.summary.openCount || detail.summary.workingCount ? (
+        detail ? (
           <>
             <div className="metric-cluster">
-              <MetricTile label="Deals" value={formatWholeNumber(detail.summary.dealCount)} />
-              <MetricTile label="Open" value={formatWholeNumber(detail.summary.openCount)} />
-              <MetricTile label="Working" value={formatWholeNumber(detail.summary.workingCount)} />
-              <MetricTile label="Trades/Week" value={formatNumber(tradesPerWeek, 1)} tone={toneFromNumber(tradesPerWeek)} />
+              <MetricTile label="Deals" value={formatWholeNumber(detail.summary.dealCount)} tone="warning" />
+              <MetricTile label="Trades/Week" value={formatNumber(detail.summary.tradesPerWeek, 1)} tone={toneFromNumber(detail.summary.tradesPerWeek)} />
+              <MetricTile label="Long Trade Win" value={formatPlainPercent(detail.summary.longTradeWin)} tone={toneFromRate(detail.summary.longTradeWin)} />
+              <MetricTile label="Short Trade Win" value={formatPlainPercent(detail.summary.shortTradeWin)} tone={toneFromRate(detail.summary.shortTradeWin)} />
             </div>
 
             <DashboardListSection title="Recent deals">
@@ -495,7 +459,18 @@ function TradesPanel({
               })}
             </DashboardListSection>
 
-            <p className="kdetail__footnote">{formatPlainPercent(activityPercent)} of tracked rows are still pending or open.</p>
+            <DashboardListSection title="Symbol Trade %">
+              {detail.summary.symbolTradePercent.slice(0, 4).map((item) => (
+                <div key={item.symbol} className="kdetail__row">
+                  <div className="kdetail__row-main">
+                    <strong>{item.symbol}</strong>
+                  </div>
+                  <div className="kdetail__row-trail">
+                    <strong>{formatPlainPercent(item.percent)}</strong>
+                  </div>
+                </div>
+              ))}
+            </DashboardListSection>
           </>
         ) : (
           <InlineState tone="empty" title="No trades" message="The latest report has no deals, open positions, or working orders to summarize here." />
@@ -564,17 +539,18 @@ function DashboardCard({ account }: { account: SerializedAccount }) {
   const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`);
   const detailTimeframe = TIMEFRAME_CONTEXT[timeframe];
-  const resolvedAccount = overview.data?.account ?? account;
-  const active = resolvedAccount.status === "Active";
+  const resolvedAccount = overview.data?.account;
+  const accountSource = resolvedAccount ?? account;
+  const active = accountSource.status === "Active";
   const sparklinePoints = overview.data?.equityCurve.length
     ? overview.data.equityCurve
     : [{ x: "0", y: 0 }];
-  const accountName = displayName(resolvedAccount);
-  const accountNumber = resolvedAccount.account_number || account.account_number;
-  const growthTone = toneFromNumber(overview.data?.kpis.growth);
+  const accountName = displayName(accountSource);
+  const accountNumber = accountSource.account_number;
+  const growthTone = toneFromNumber(overview.data?.kpis.netProfit);
   const sparklineTone = growthTone === "muted" ? "neutral" : growthTone;
   const winTone = toneFromRate(overview.data?.kpis.winPercent);
-  const openTone = toneFromNumber(resolvedAccount.floating_pl);
+  const openTone = toneFromNumber(overview.data?.kpis.floatingPL ?? accountSource.floating_pl);
   const positionsUrl =
     activePanel === "trades" || activePanel === "open-positions"
       ? `/api/accounts/${account.id}/positions?timeframe=${timeframe}`
@@ -601,7 +577,7 @@ function DashboardCard({ account }: { account: SerializedAccount }) {
           </div>
           <p className="acc-sub">#{accountNumber}</p>
           <Link className="acc-balance" href={`/accounts/${account.id}`}>
-            {formatCurrency(account.balance)}
+            {formatCurrency(accountSource.balance)}
           </Link>
         </div>
         <Link className={active ? "status-badge is-live" : "status-badge"} href={`/accounts/${account.id}`}>
@@ -613,7 +589,7 @@ function DashboardCard({ account }: { account: SerializedAccount }) {
       <div className="sp-wrap">
         <div className="sp-top sp-top--compact">
           <Link className={`sp-growth tone-${growthTone}`} href={`/accounts/${account.id}#results`}>
-            <strong>{formatCardGrowth(overview.data?.kpis.growth)}</strong>
+            <strong>{formatCompactSignedValue(overview.data?.kpis.netProfit)}</strong>
           </Link>
         </div>
 
@@ -671,7 +647,7 @@ function DashboardCard({ account }: { account: SerializedAccount }) {
         />
         <Link className="kchip kchip--link" href={`/accounts/${account.id}#results`}>
           <span className="kl">Open</span>
-          <strong className={`kv tone-${openTone}`}>{formatCompactSignedCurrency(resolvedAccount.floating_pl)}</strong>
+          <strong className={`kv tone-${openTone}`}>{formatCompactSignedCurrency(overview.data?.kpis.floatingPL ?? accountSource.floating_pl)}</strong>
         </Link>
         <KpiChipButton
           label="Open positions"

@@ -193,6 +193,25 @@ type DealBalanceRow = {
   balanceAfter?: number | null;
 };
 
+type ReportResultsRow = {
+  totalTrades?: number | null;
+  shortTradesWon?: number | null;
+  shortTradesTotal?: number | null;
+  longTradesWon?: number | null;
+  longTradesTotal?: number | null;
+  profitTradesCount?: number | null;
+  lossTradesCount?: number | null;
+  profitFactor?: number | null;
+  expectedPayoff?: number | null;
+  recoveryFactor?: number | null;
+  sharpeRatio?: number | null;
+  balanceDrawdownAbsolute?: number | null;
+  balanceDrawdownMaximal?: number | null;
+  balanceDrawdownMaximalPct?: number | null;
+  balanceDrawdownRelativePct?: number | null;
+  balanceDrawdownRelative?: number | null;
+};
+
 function sortDeals<T extends { time: Date | string; dealId?: string }>(deals: T[]) {
   return [...deals].sort((left, right) => {
     const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
@@ -237,7 +256,7 @@ function collectDealWindow(deals: DealBalanceRow[], start: Date | null, end: Dat
 
   for (const deal of sorted) {
     const timestamp = new Date(deal.time).getTime();
-    const balanceAfter = Number(deal.balanceAfter ?? runningBalance);
+    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
 
     if (startTimestamp !== null && timestamp < startTimestamp) {
       runningBalance = Number.isFinite(balanceAfter) ? balanceAfter : runningBalance;
@@ -284,7 +303,7 @@ export function computeCompoundedGrowth(
   let previousBalance = startBalance;
 
   for (const deal of window) {
-    const balanceAfter = Number(deal.balanceAfter ?? previousBalance);
+    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
     if (!Number.isFinite(balanceAfter)) {
       continue;
     }
@@ -373,25 +392,136 @@ export function computeStreaks(values: number[]) {
   return { bestWinStreak, worstLossStreak };
 }
 
+function toFiniteNumber(value: number | null | undefined) {
+  return Number.isFinite(value ?? Number.NaN) ? Number(value) : null;
+}
+
+function toIsoDay(value: Date | string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+export function getReportWinPercent(reportResults: ReportResultsRow | null | undefined) {
+  const wins = Number(reportResults?.profitTradesCount ?? 0);
+  const losses = Number(reportResults?.lossTradesCount ?? 0);
+  const explicitTotal = Number(reportResults?.totalTrades ?? Number.NaN);
+  const total = Number.isFinite(explicitTotal) && explicitTotal > 0 ? explicitTotal : wins + losses;
+  return total > 0 ? (wins / total) * 100 : 0;
+}
+
+export function getLongTradeWinPercent(reportResults: ReportResultsRow | null | undefined) {
+  const wins = Number(reportResults?.longTradesWon ?? 0);
+  const total = Number(reportResults?.longTradesTotal ?? 0);
+  return total > 0 ? (wins / total) * 100 : null;
+}
+
+export function getShortTradeWinPercent(reportResults: ReportResultsRow | null | undefined) {
+  const wins = Number(reportResults?.shortTradesWon ?? 0);
+  const total = Number(reportResults?.shortTradesTotal ?? 0);
+  return total > 0 ? (wins / total) * 100 : null;
+}
+
+export function getPrimaryDrawdownPercent(reportResults: ReportResultsRow | null | undefined) {
+  return toFiniteNumber(reportResults?.balanceDrawdownMaximalPct)
+    ?? toFiniteNumber(reportResults?.balanceDrawdownRelativePct)
+    ?? 0;
+}
+
+export function buildDailyProfitSeries(
+  deals: Array<{ time: Date | string; type?: string | null; profit?: number | null; commission?: number | null; swap?: number | null }>,
+  days = 5,
+  now = new Date(),
+) {
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  const dayKeys: string[] = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const cursor = new Date(end);
+    cursor.setDate(end.getDate() - offset);
+    dayKeys.push(cursor.toISOString().slice(0, 10));
+  }
+
+  const totals = new Map(dayKeys.map((key) => [key, 0]));
+  for (const deal of deals) {
+    if (!isTradingDeal(deal.type)) {
+      continue;
+    }
+
+    const day = toIsoDay(deal.time);
+    if (!day || !totals.has(day)) {
+      continue;
+    }
+
+    totals.set(day, Number(totals.get(day) ?? 0) + dealNet(deal));
+  }
+
+  return dayKeys.map((date) => ({
+    date,
+    profit: Number(totals.get(date) ?? 0),
+  }));
+}
+
+export function buildSymbolTradePercent(
+  deals: Array<{ symbol?: string | null; type?: string | null }>,
+) {
+  const counts = new Map<string, number>();
+  let total = 0;
+
+  for (const deal of deals) {
+    if (!isTradingDeal(deal.type)) {
+      continue;
+    }
+
+    const symbol = sanitizeOptionalText(deal.symbol) ?? "UNKNOWN";
+    counts.set(symbol, Number(counts.get(symbol) ?? 0) + 1);
+    total += 1;
+  }
+
+  if (total === 0) {
+    return [] as Array<{ symbol: string; percent: number }>;
+  }
+
+  return [...counts.entries()]
+    .map(([symbol, count]) => ({
+      symbol,
+      percent: (count / total) * 100,
+    }))
+    .sort((left, right) => right.percent - left.percent || left.symbol.localeCompare(right.symbol));
+}
+
 export function buildBalanceEquityCurve(
-  deals: Array<{ time: Date | string; balanceAfter?: number | null; dealId?: string }>,
+  deals: Array<{ time: Date | string; type?: string | null; profit?: number | null; commission?: number | null; swap?: number | null; balanceAfter?: number | null; dealId?: string }>,
   _openPositions: Array<{ floatingProfit?: number | null; floating_profit?: number | null }>,
 ) {
+  let lastKnownBalance: number | null = null;
+
   return sortDeals(deals)
     .map((deal) => {
-      const balance = Number(deal.balanceAfter ?? Number.NaN);
-      if (!Number.isFinite(balance)) {
+      const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
+      if (Number.isFinite(parsedBalance)) {
+        lastKnownBalance = parsedBalance;
+      }
+
+      if (!Number.isFinite(lastKnownBalance ?? Number.NaN)) {
         return null;
       }
 
+      const balance = Number(lastKnownBalance);
       return {
         time: deal.time,
         balance,
         // Historic equity snapshots are not available per deal event; keep the curve tied to the deal balance.
         equity: balance,
+        eventType: deal.type ?? null,
+        eventDelta: dealNet(deal),
       };
     })
-    .filter((point): point is { time: Date | string; balance: number; equity: number } => point !== null);
+    .filter((point): point is { time: Date | string; balance: number; equity: number; eventType: string | null; eventDelta: number } => point !== null);
 }
 
 export function buildUnitDrawdownCurve(
@@ -592,6 +722,7 @@ export async function getAccountListItems() {
         take: 1,
         include: {
           accountSummary: true,
+          reportResults: true,
           dealLedger: {
             orderBy: {
               time: "asc",

@@ -228,7 +228,7 @@ export function getTotalClosedVolume(positions: PositionsResponse | null | undef
     return 0;
   }
 
-  return Number(positions.summary.dealVolume ?? 0) || Number(positions.summary.openVolume ?? 0);
+  return Number(positions.summary.dealCount ?? 0) || Number(positions.summary.openCount ?? 0);
 }
 
 export function getLeadPosition(positions: PositionsResponse | null | undefined) {
@@ -316,20 +316,6 @@ export function buildGrowthRows(growth: GrowthResponse | null | undefined, accou
     .sort((left, right) => right.year - left.year);
 }
 
-export function approximateSharpe(win: WinDetailResponse | null | undefined) {
-  const series = win?.outcomeSeries.map((point) => Number(point.y ?? 0)).filter(Number.isFinite) ?? [];
-  if (series.length < 2) {
-    return null;
-  }
-
-  const average = series.reduce((total, value) => total + value, 0) / series.length;
-  const deviation = Math.sqrt(
-    series.reduce((total, value) => total + (value - average) ** 2, 0) / (series.length - 1),
-  );
-
-  return deviation ? average / deviation : null;
-}
-
 export function computeRecoveryFactor(netProfit: number | null | undefined, maxDrawdown: number | null | undefined) {
   if (!Number.isFinite(maxDrawdown) || !maxDrawdown) {
     return null;
@@ -362,20 +348,7 @@ export function computeTradesPerWeek(
       weeks = 52;
       break;
     case "all-time": {
-      const rows = positions?.recentDeals ?? [];
-      if (rows.length < 2) {
-        weeks = null;
-        break;
-      }
-
-      const newest = new Date(rows[0].time).getTime();
-      const oldest = new Date(rows[rows.length - 1].time).getTime();
-      if (!Number.isFinite(newest) || !Number.isFinite(oldest) || oldest >= newest) {
-        weeks = null;
-        break;
-      }
-
-      weeks = Math.max(1, (newest - oldest) / 6_048_000_00);
+      weeks = null;
       break;
     }
   }
@@ -388,7 +361,7 @@ export function computeActivityPercent(positions: PositionsResponse | null | und
     return null;
   }
 
-  const pending = Number(positions.summary.openCount ?? 0) + Number(positions.summary.workingCount ?? 0);
+  const pending = Number(positions.summary.openCount ?? 0);
   const overall = Number(totalTrades ?? 0) + pending;
   return overall ? (pending / overall) * 100 : null;
 }
