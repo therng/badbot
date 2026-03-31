@@ -23,7 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-supachai}:${POSTGRES_PASSWORD:-9717}@db:5432/${POSTGRES_DB:-trading_db}
       SECRET_KEY: ${SECRET_KEY:-therng}
-      RUN_DB_PUSH: "true"
+      RUN_DB_MIGRATIONS: "true"
       FTP_HOST: ${FTP_HOST:-therng.thddns.net}
       FTP_PORT: ${FTP_PORT:-21}
       FTP_USER: ${FTP_USER:-supachai}
@@ -50,7 +50,7 @@ services:
     command: node dist/worker.js
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-supachai}:${POSTGRES_PASSWORD:-9717}@db:5432/${POSTGRES_DB:-trading_db}
-      RUN_DB_PUSH: "false"
+      RUN_DB_MIGRATIONS: "false"
       FTP_HOST: ${FTP_HOST:-therng.thddns.net}
       FTP_PORT: ${FTP_PORT:-21}
       FTP_USER: ${FTP_USER:-supachai}

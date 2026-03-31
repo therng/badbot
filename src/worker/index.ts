@@ -1,9 +1,14 @@
+import { createHash } from "node:crypto";
 import { Writable } from "node:stream";
 
 import { Client } from "basic-ftp";
+import { Prisma } from "@prisma/client";
 
 import { parseReport } from "../lib/parser";
 import { prisma } from "../lib/prisma";
+import { recomputeAccountReportResult } from "../lib/trading/calculate-report-results";
+
+const prismaClient = prisma as any;
 
 const FTP_HOST = process.env.FTP_HOST || "therng.thddns.net";
 const FTP_PORT = Number.parseInt(process.env.FTP_PORT || "21", 10);
@@ -15,17 +20,6 @@ const FILE_STABLE_MS = Number.parseInt(process.env.WORKER_FILE_STABLE_MS || "600
 const MIN_FILE_SIZE_BYTES = Number.parseInt(process.env.WORKER_MIN_FILE_SIZE_BYTES || "1024", 10);
 const RUN_ONCE = process.env.WORKER_RUN_ONCE === "true";
 const FORCE_REIMPORT = process.env.WORKER_FORCE_REIMPORT === "true";
-
-async function deleteReportGraph(reportId: string) {
-  await prisma.$transaction(async (tx) => {
-    await tx.dealLedger.deleteMany({ where: { reportId } });
-    await tx.openPositionSnapshot.deleteMany({ where: { reportId } });
-    await tx.workingOrderSnapshot.deleteMany({ where: { reportId } });
-    await tx.accountSummarySnapshot.deleteMany({ where: { reportId } });
-    await tx.reportResultSnapshot.deleteMany({ where: { reportId } });
-    await tx.accountReport.delete({ where: { id: reportId } });
-  });
-}
 
 function decodeReportBuffer(buffer: Buffer) {
   if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
@@ -83,153 +77,427 @@ function shouldReadFile(file: { name: string; size?: number; modifiedAt?: Date }
   return true;
 }
 
+function toDecimal(value: number | null | undefined) {
+  const normalized = Number(value);
+  return new Prisma.Decimal(Number.isFinite(normalized) ? normalized : 0);
+}
+
+function toDecimalOrNull(value: number | null | undefined) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) {
+    return null;
+  }
+  return new Prisma.Decimal(normalized);
+}
+
+function normalizeRequiredText(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = normalizeRequiredText(value);
+  return normalized ? normalized : null;
+}
+
+function normalizeDate(value: Date | null | undefined) {
+  if (!(value instanceof Date)) {
+    return null;
+  }
+
+  return Number.isFinite(value.getTime()) ? value : null;
+}
+
+function normalizeNumber(value: number | null | undefined, fallback = 0) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : fallback;
+}
+
+function isSameInstant(left: Date | null | undefined, right: Date | null | undefined) {
+  return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+}
+
+function compareInstants(left: Date | null | undefined, right: Date | null | undefined) {
+  const leftTime = left instanceof Date ? left.getTime() : Number.NaN;
+  const rightTime = right instanceof Date ? right.getTime() : Number.NaN;
+
+  if (!Number.isFinite(leftTime) && !Number.isFinite(rightTime)) {
+    return 0;
+  }
+
+  if (!Number.isFinite(leftTime)) {
+    return -1;
+  }
+
+  if (!Number.isFinite(rightTime)) {
+    return 1;
+  }
+
+  return leftTime - rightTime;
+}
+
+function isSameOrNewerReportDate(incoming: Date, existing: Date | null | undefined) {
+  return compareInstants(incoming, existing) >= 0;
+}
+
 async function importReport(fileName: string, htmlContent: string) {
   const parsedData = parseReport(htmlContent);
-  const existingReport = await prisma.accountReport.findUnique({
-    where: { fileHash: parsedData.fileHash },
-  });
-
-  if (existingReport && !FORCE_REIMPORT) {
-    console.log(`Skipping ${fileName}, already imported.`);
-    return "skipped" as const;
-  }
-
-  if (existingReport && FORCE_REIMPORT) {
-    console.log(`Force reimport enabled. Replacing previous import for ${fileName}...`);
-    await deleteReportGraph(existingReport.id);
-  }
-
-  const accountNumber = parsedData.metadata.account_number.trim();
+  const accountNumber = normalizeRequiredText(parsedData.metadata.account_number);
   if (!accountNumber) {
     console.warn(`Skipping ${fileName}: account number is missing from report metadata.`);
     return "skipped" as const;
   }
 
-  const ownerName = parsedData.metadata.owner_name.trim() || null;
-  const company = parsedData.metadata.company?.trim() || null;
-  const currency = parsedData.metadata.currency.trim() || "USD";
-  const server = parsedData.metadata.server.trim() || "UNKNOWN";
-  await prisma.$transaction(async (tx) => {
-    const account = await tx.account.upsert({
-      where: { accountNumber },
+  const reportDate = normalizeDate(parsedData.metadata.report_timestamp);
+  if (!reportDate) {
+    console.warn(`Skipping ${fileName}: report timestamp is missing or invalid for account ${accountNumber}.`);
+    return "skipped" as const;
+  }
+
+  const ownerName = normalizeOptionalText(parsedData.metadata.owner_name);
+  const company = normalizeOptionalText(parsedData.metadata.company);
+  const currency = normalizeRequiredText(parsedData.metadata.currency) || "USD";
+  const server = normalizeRequiredText(parsedData.metadata.server) || "UNKNOWN";
+  const fileHash = createHash("sha256").update(htmlContent).digest("hex");
+
+  console.log(
+    `Parsed ${fileName}: account=${accountNumber} reportDate=${reportDate.toISOString()} open=${parsedData.openPositions.length} positions=${parsedData.positions.length} deals=${parsedData.dealLedger.length}`,
+  );
+
+  const existingAccount = await prismaClient.tradingAccount.findUnique({
+    where: { accountNo: accountNumber },
+    select: {
+      id: true,
+      reportDate: true,
+      accountSnapshot: {
+        select: {
+          reportDate: true,
+        },
+      },
+      reportImports: {
+        where: { fileHash },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!FORCE_REIMPORT && existingAccount?.reportImports.length) {
+    console.log(
+      `Skipping ${fileName}: duplicate file hash for account=${accountNumber} reportDate=${reportDate.toISOString()} hash=${fileHash}.`,
+    );
+    return "skipped" as const;
+  }
+
+  const replacingCurrentSnapshot = isSameInstant(existingAccount?.accountSnapshot?.reportDate, reportDate);
+  if (replacingCurrentSnapshot) {
+    console.log(
+      `Refreshing ${fileName}: replacing current snapshot for account=${accountNumber} reportDate=${reportDate.toISOString()}.`,
+    );
+  }
+
+  const shouldRefreshCurrentSnapshot = isSameOrNewerReportDate(reportDate, existingAccount?.accountSnapshot?.reportDate);
+  const shouldAdvanceAccountReportDate = isSameOrNewerReportDate(reportDate, existingAccount?.reportDate);
+
+  if (!shouldRefreshCurrentSnapshot) {
+    console.log(
+      `Historical import ${fileName}: keeping current snapshot for account=${accountNumber} at ${existingAccount?.accountSnapshot?.reportDate?.toISOString() ?? "n/a"} because incoming reportDate=${reportDate.toISOString()} is older.`,
+    );
+  }
+
+  const importedAccountId = await prismaClient.$transaction(async (tx: any) => {
+    const account = await tx.tradingAccount.upsert({
+      where: { accountNo: accountNumber },
       update: {
-        ownerName,
+        accountName: ownerName,
         company,
         currency,
-        server,
+        serverName: server,
+        reportDate: shouldAdvanceAccountReportDate ? reportDate : existingAccount?.reportDate ?? null,
       },
       create: {
-        accountNumber,
-        ownerName,
+        accountNo: accountNumber,
+        accountName: ownerName,
         company,
         currency,
-        server,
+        serverName: server,
+        reportDate,
       },
     });
 
-    const report = await tx.accountReport.create({
-      data: {
-        accountId: account.id,
+    await tx.reportImport.upsert({
+      where: {
+        tradingAccountId_fileHash: {
+          tradingAccountId: account.id,
+          fileHash,
+        },
+      },
+      update: {
         fileName,
-        fileHash: parsedData.fileHash,
-        reportDate: parsedData.metadata.report_timestamp,
+        reportDate,
+      },
+      create: {
+        tradingAccountId: account.id,
+        fileName,
+        fileHash,
+        reportDate,
       },
     });
 
-    if (parsedData.dealLedger.length) {
-      await tx.dealLedger.createMany({
-        data: parsedData.dealLedger.map((deal) => ({ ...deal, reportId: report.id })),
-      });
-    }
-
-    if (parsedData.openPositions.length) {
-      await tx.openPositionSnapshot.createMany({
-        data: parsedData.openPositions.map((position) => ({ ...position, reportId: report.id })),
-      });
-    }
-
-    if (parsedData.workingOrders.length) {
-      await tx.workingOrderSnapshot.createMany({
-        data: parsedData.workingOrders.map((order) => ({
-          ...order,
-          price: order.price ?? 0,
-          reportId: report.id,
-        })),
-      });
-    }
-
-    await tx.accountSummarySnapshot.create({
-      data: {
-        reportId: report.id,
-        balance: parsedData.accountSummary.balance,
-        creditFacility: parsedData.accountSummary.credit_facility ?? 0,
-        equity: parsedData.accountSummary.equity,
-        margin: parsedData.accountSummary.margin,
-        freeMargin: parsedData.accountSummary.free_margin,
-        floatingPl: parsedData.accountSummary.floating_pl,
-        marginLevel:
-          Number.isFinite(parsedData.accountSummary.margin_level) && parsedData.accountSummary.margin_level !== 0
-            ? parsedData.accountSummary.margin_level
-            : null,
-      },
-    });
-
-    if (parsedData.reportResults) {
-      await tx.reportResultSnapshot.create({
-        data: {
-          reportId: report.id,
-          totalCommission: parsedData.reportResults.total_commission ?? null,
-          totalSwap: parsedData.reportResults.total_swap ?? null,
-          totalNetProfit: parsedData.reportResults.total_net_profit ?? null,
-          grossProfit: parsedData.reportResults.gross_profit ?? null,
-          grossLoss: parsedData.reportResults.gross_loss ?? null,
-          profitFactor: parsedData.reportResults.profit_factor ?? null,
-          expectedPayoff: parsedData.reportResults.expected_payoff ?? null,
-          recoveryFactor: parsedData.reportResults.recovery_factor ?? null,
-          sharpeRatio: parsedData.reportResults.sharpe_ratio ?? null,
-          balanceDrawdownAbsolute: parsedData.reportResults.balance_drawdown_absolute ?? null,
-          balanceDrawdownMaximal: parsedData.reportResults.balance_drawdown_maximal ?? null,
-          balanceDrawdownMaximalPct: parsedData.reportResults.balance_drawdown_maximal_pct ?? null,
-          balanceDrawdownRelativePct: parsedData.reportResults.balance_drawdown_relative_pct ?? null,
-          balanceDrawdownRelative: parsedData.reportResults.balance_drawdown_relative ?? null,
-          totalTrades: parsedData.reportResults.total_trades ?? null,
-          shortTradesWon: parsedData.reportResults.short_trades_won ?? null,
-          shortTradesTotal: parsedData.reportResults.short_trades_total ?? null,
-          longTradesWon: parsedData.reportResults.long_trades_won ?? null,
-          longTradesTotal: parsedData.reportResults.long_trades_total ?? null,
-          profitTradesCount: parsedData.reportResults.profit_trades_count ?? null,
-          lossTradesCount: parsedData.reportResults.loss_trades_count ?? null,
-          largestProfitTrade: parsedData.reportResults.largest_profit_trade ?? null,
-          largestLossTrade: parsedData.reportResults.largest_loss_trade ?? null,
-          averageProfitTrade: parsedData.reportResults.average_profit_trade ?? null,
-          averageLossTrade: parsedData.reportResults.average_loss_trade ?? null,
-          maximumConsecutiveWins: parsedData.reportResults.maximum_consecutive_wins ?? null,
-          maximumConsecutiveLosses: parsedData.reportResults.maximum_consecutive_losses ?? null,
+    if (shouldRefreshCurrentSnapshot) {
+      await tx.accountSnapshot.upsert({
+        where: { tradingAccountId: account.id },
+        update: {
+          sourceFileName: fileName,
+          balance: toDecimal(parsedData.accountSummary.balance),
+          creditFacility: toDecimal(parsedData.accountSummary.credit_facility ?? 0),
+          freeMargin: toDecimal(parsedData.accountSummary.free_margin),
+          margin: toDecimal(parsedData.accountSummary.margin),
+          floatingPl: toDecimal(parsedData.accountSummary.floating_pl),
+          marginLevel:
+            Number.isFinite(parsedData.accountSummary.margin_level) && parsedData.accountSummary.margin_level !== 0
+              ? parsedData.accountSummary.margin_level
+              : null,
+          equity: toDecimal(parsedData.accountSummary.equity),
+          reportDate,
+        },
+        create: {
+          tradingAccountId: account.id,
+          sourceFileName: fileName,
+          balance: toDecimal(parsedData.accountSummary.balance),
+          creditFacility: toDecimal(parsedData.accountSummary.credit_facility ?? 0),
+          freeMargin: toDecimal(parsedData.accountSummary.free_margin),
+          margin: toDecimal(parsedData.accountSummary.margin),
+          floatingPl: toDecimal(parsedData.accountSummary.floating_pl),
+          marginLevel:
+            Number.isFinite(parsedData.accountSummary.margin_level) && parsedData.accountSummary.margin_level !== 0
+              ? parsedData.accountSummary.margin_level
+              : null,
+          equity: toDecimal(parsedData.accountSummary.equity),
+          reportDate,
         },
       });
+
+      await tx.openPosition.deleteMany({
+        where: { tradingAccountId: account.id },
+      });
+
+      if (parsedData.openPositions.length) {
+        await tx.openPosition.createMany({
+          data: parsedData.openPositions.map((position) => ({
+            tradingAccountId: account.id,
+            positionNo: position.positionId,
+            openTime: position.openedAt,
+            symbol: position.symbol || "UNKNOWN",
+            type: position.side || "UNKNOWN",
+            volume: normalizeNumber(position.volume),
+            price: toDecimal(position.openPrice),
+            sl: toDecimalOrNull(position.sl),
+            tp: toDecimalOrNull(position.tp),
+            marketPrice: toDecimal(position.marketPrice),
+            swap: toDecimal(position.swap ?? 0),
+            profit: toDecimal(position.floatingProfit ?? 0),
+            comment: position.comment ?? null,
+            reportDate,
+          })),
+        });
+      }
     }
+
+    const incomingPositionIds = parsedData.positions.map((position) => position.positionNo);
+    const existingPositions = incomingPositionIds.length
+      ? await tx.position.findMany({
+          where: {
+            tradingAccountId: account.id,
+            positionNo: { in: incomingPositionIds },
+          },
+          select: {
+            positionNo: true,
+            reportDate: true,
+          },
+        })
+      : [];
+
+    const existingPositionReportDates = new Map<string, Date>(
+      existingPositions.map((position: { positionNo: string; reportDate: Date }) => [position.positionNo, position.reportDate]),
+    );
+
+    const positionsToCreate = [];
+    const positionsToUpdate = [];
+
+    for (const position of parsedData.positions) {
+      const payload = {
+        symbol: position.symbol || "UNKNOWN",
+        type: position.type || "UNKNOWN",
+        volume: normalizeNumber(position.volume),
+        openTime: position.openTime ?? null,
+        openPrice: toDecimalOrNull(position.openPrice),
+        sl: toDecimalOrNull(position.sl),
+        tp: toDecimalOrNull(position.tp),
+        closeTime: position.closeTime ?? null,
+        closePrice: toDecimalOrNull(position.closePrice),
+        commission: toDecimal(position.commission ?? 0),
+        swap: toDecimal(position.swap ?? 0),
+        profit: toDecimal(position.profit ?? 0),
+        comment: position.comment ?? null,
+        reportDate,
+      };
+
+      const existingReportDate = existingPositionReportDates.get(position.positionNo);
+      if (!existingReportDate) {
+        positionsToCreate.push({
+          tradingAccountId: account.id,
+          positionNo: position.positionNo,
+          ...payload,
+        });
+        continue;
+      }
+
+      if (isSameOrNewerReportDate(reportDate, existingReportDate)) {
+        positionsToUpdate.push({
+          positionNo: position.positionNo,
+          payload,
+        });
+      }
+    }
+
+    if (positionsToCreate.length) {
+      await tx.position.createMany({
+        data: positionsToCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    for (const position of positionsToUpdate) {
+      await tx.position.update({
+        where: {
+          tradingAccountId_positionNo: {
+            tradingAccountId: account.id,
+            positionNo: position.positionNo,
+          },
+        },
+        data: position.payload,
+      });
+    }
+
+    const incomingDealIds = parsedData.dealLedger.map((deal) => deal.dealId);
+    const existingDeals = incomingDealIds.length
+      ? await tx.deal.findMany({
+          where: {
+            tradingAccountId: account.id,
+            dealNo: { in: incomingDealIds },
+          },
+          select: {
+            dealNo: true,
+            reportDate: true,
+          },
+        })
+      : [];
+
+    const existingDealReportDates = new Map<string, Date>(
+      existingDeals.map((deal: { dealNo: string; reportDate: Date }) => [deal.dealNo, deal.reportDate]),
+    );
+
+    const dealsToCreate = [];
+    const dealsToUpdate = [];
+
+    for (const deal of parsedData.dealLedger) {
+      const payload = {
+        time: deal.time,
+        symbol: deal.symbol ?? null,
+        type: deal.type || "UNKNOWN",
+        direction: deal.direction ?? null,
+        volume: deal.volume ?? null,
+        price: toDecimalOrNull(deal.price),
+        commission: toDecimal(deal.commission ?? 0),
+        fee: toDecimal(deal.fee ?? 0),
+        swap: toDecimal(deal.swap ?? 0),
+        profit: toDecimal(deal.profit ?? 0),
+        balance: toDecimalOrNull(deal.balanceAfter),
+        comment: deal.comment ?? null,
+        reportDate,
+      };
+
+      const existingReportDate = existingDealReportDates.get(deal.dealId);
+      if (!existingReportDate) {
+        dealsToCreate.push({
+          tradingAccountId: account.id,
+          dealNo: deal.dealId,
+          ...payload,
+        });
+        continue;
+      }
+
+      if (isSameOrNewerReportDate(reportDate, existingReportDate)) {
+        dealsToUpdate.push({
+          dealNo: deal.dealId,
+          payload,
+        });
+      }
+    }
+
+    if (dealsToCreate.length) {
+      await tx.deal.createMany({
+        data: dealsToCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    for (const deal of dealsToUpdate) {
+      await tx.deal.update({
+        where: {
+          tradingAccountId_dealNo: {
+            tradingAccountId: account.id,
+            dealNo: deal.dealNo,
+          },
+        },
+        data: deal.payload,
+      });
+    }
+
+    return account.id as string;
   });
+
+  await recomputeAccountReportResult(importedAccountId, reportDate);
 
   console.log(`Successfully saved ${fileName}.`);
   return "imported" as const;
 }
 
-export async function processReports() {
+type ReportStats = {
+  found: number;
+  ready: number;
+  deferred: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+};
+
+export async function processReports(): Promise<ReportStats | null> {
   const client = new Client();
   client.ftp.verbose = false;
 
   try {
     console.log(`Connecting to FTP ${FTP_HOST}:${FTP_PORT}...`);
-    await client.access({
-      host: FTP_HOST,
-      port: FTP_PORT,
-      user: FTP_USER,
-      password: FTP_PASS,
-      secure: false,
-    });
+    try {
+      await client.access({
+        host: FTP_HOST,
+        port: FTP_PORT,
+        user: FTP_USER,
+        password: FTP_PASS,
+        secure: false,
+      });
+    } catch (error) {
+      console.error(`Could not connect to FTP ${FTP_HOST}:${FTP_PORT}:`, error);
+      return null;
+    }
 
     console.log(`Connected. Changing working directory to ${FTP_PATH}...`);
-    await client.cd(FTP_PATH);
+    try {
+      await client.cd(FTP_PATH);
+    } catch (error) {
+      console.error(`Failed to change directory to ${FTP_PATH}:`, error);
+      return null;
+    }
 
     const files = await client.list();
     const htmlFiles = files.filter(isHtmlReportFile).sort((left, right) => left.name.localeCompare(right.name));
@@ -283,7 +551,9 @@ async function runWorker() {
   if (RUN_ONCE) {
     console.log(`Run-once mode enabled (force reimport: ${FORCE_REIMPORT ? "on" : "off"}).`);
     const result = await processReports();
-    if (result.failed > 0) {
+    if (!result) {
+      console.log("Run-once import skipped because the FTP server could not be reached.");
+    } else if (result.failed > 0) {
       throw new Error(`Run-once import finished with ${result.failed} failed report(s).`);
     }
     console.log("Run-once mode complete. Exiting.");
@@ -309,6 +579,6 @@ if (require.main === module) {
       process.exitCode = 1;
     })
     .finally(async () => {
-      await prisma.$disconnect();
+      await prismaClient.$disconnect();
     });
 }

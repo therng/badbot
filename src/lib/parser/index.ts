@@ -13,6 +13,7 @@ export interface ParsedReport {
     report_timestamp: Date;
   };
   dealLedger: DealLedgerRow[];
+  positions: PositionRow[];
   openPositions: OpenPositionRow[];
   workingOrders: WorkingOrderRow[];
   accountSummary: {
@@ -57,6 +58,7 @@ export interface ParsedReport {
 
 type ReportSection =
   | "Deals"
+  | "Positions"
   | "Open Positions"
   | "Working Orders"
   | "Summary"
@@ -93,6 +95,23 @@ interface OpenPositionRow {
   marketPrice: number;
   floatingProfit: number;
   swap: number;
+  comment: string | null;
+}
+
+interface PositionRow {
+  positionNo: string;
+  symbol: string;
+  type: string;
+  volume: number;
+  openTime: Date | null;
+  openPrice: number | null;
+  sl: number | null;
+  tp: number | null;
+  closeTime: Date | null;
+  closePrice: number | null;
+  commission: number;
+  swap: number;
+  profit: number;
   comment: string | null;
 }
 
@@ -279,6 +298,9 @@ function detectSection(text: string): ReportSection {
   }
   if (/^deals?(?:\b|\s*\()/i.test(normalized)) {
     return "Deals";
+  }
+  if (/^positions?(?:\b|\s*\()/i.test(normalized)) {
+    return "Positions";
   }
   if (/^summary(?:\b|\s*\()/i.test(normalized)) {
     return "Summary";
@@ -765,6 +787,37 @@ function parseOpenPositionRow(cells: string[], headerMap: HeaderMap | null): Ope
   };
 }
 
+function parsePositionRow(cells: string[], headerMap: HeaderMap | null): PositionRow | null {
+  const openTime = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "open time"], "first"), 0]);
+  if (!openTime) {
+    return null;
+  }
+
+  const positionNo = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["position", "ticket", "id"], "first"), 1)));
+  if (!positionNo) {
+    return null;
+  }
+
+  return {
+    positionNo,
+    symbol: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["symbol"], "first"), 2))) || "UNKNOWN",
+    type:
+      cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["type", "side", "direction"], "first"), 3))) ||
+      "UNKNOWN",
+    volume: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4))),
+    openTime,
+    openPrice: parseNumberMaybe(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "open price"], "first"), 5))),
+    sl: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["s/l", "sl"], "first"))),
+    tp: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["t/p", "tp"], "first"))),
+    closeTime: findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "close time"], "last"), 8]),
+    closePrice: parseNumberMaybe(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "close price"], "last"), 9))),
+    commission: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["commission"], "first"), 10))),
+    swap: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["swap"], "first"), 11))),
+    profit: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "p/l"], "first"), 12))),
+    comment: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), cells.length - 1))) || null,
+  };
+}
+
 function parseWorkingOrderRow(cells: string[], headerMap: HeaderMap | null): WorkingOrderRow | null {
   const time = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "open time"], "first"), 0]);
   if (!time) {
@@ -843,6 +896,14 @@ function parseTableRows($table: any, $: any, report: ParsedReport, reportDateCan
       return;
     }
 
+    if (currentSection === "Positions") {
+      const parsed = parsePositionRow(cells, headerMap);
+      if (parsed) {
+        report.positions.push(parsed);
+      }
+      return;
+    }
+
     if (currentSection === "Open Positions") {
       const parsed = parseOpenPositionRow(cells, headerMap);
       if (parsed) {
@@ -891,6 +952,7 @@ export function parseReport(htmlContent: string): ParsedReport {
       report_timestamp: new Date(),
     },
     dealLedger: [],
+    positions: [],
     openPositions: [],
     workingOrders: [],
     accountSummary: {

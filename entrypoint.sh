@@ -3,8 +3,8 @@
 set -eu
 
 # Only one service should mutate the schema during startup.
-if [ "${RUN_DB_PUSH:-false}" = "true" ]; then
-  npx prisma db push --skip-generate
+if [ "${RUN_DB_MIGRATIONS:-false}" = "true" ]; then
+  npx prisma migrate deploy
 fi
 
 # Execute the CMD from Dockerfile

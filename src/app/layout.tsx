@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "Trading Monitor",
-  description: "Mobile-first trading analytics dashboard for BadBot accounts.",
+  title: "badBot",
+  description: "Dark-themed MT5 multi-account analytics with trading-only growth and balance-operation-aware performance.",
   manifest: "/site.webmanifest",
   icons: {
     icon: [
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <meta name="apple-mobile-web-app-title" content="BadBot" />
+        <meta name="apple-mobile-web-app-title" content="badBot" />
       </head>
       <body>{children}</body>
     </html>

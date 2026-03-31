@@ -7,148 +7,170 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Account {
-  id            String          @id @default(cuid())
-  accountNumber String          @unique @map("account_number")
-  ownerName     String?         @map("owner_name")
-  company       String?
-  currency      String
-  server        String
-  reports       AccountReport[]
+model TradingAccount {
+  id                String              @id @default(cuid())
+  accountNo         String              @unique @map("account_number")
+  accountName       String?             @map("owner_name")
+  company           String?
+  currency          String
+  serverName        String              @map("server")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  reportDate        DateTime?           @map("report_date")
+  accountSnapshot   AccountSnapshot?
+  accountReportResult AccountReportResult?
+  openPositions     OpenPosition[]
+  positions         Position[]
+  deals             Deal[]
+  reportImports     ReportImport[]
+
+  @@map("Account")
 }
 
-model AccountReport {
-  id         String   @id @default(cuid())
-  accountId  String   @map("account_id")
-  fileName   String   @map("file_name")
-  fileHash   String   @unique @map("file_hash")
-  reportDate DateTime @map("report_timestamp")
+model AccountReportResult {
+  id                         String         @id @default(cuid())
+  tradingAccountId           String         @unique @map("account_id")
+  computedAt                 DateTime       @default(now()) @map("computed_at")
+  sourceReportDate           DateTime?      @map("source_report_date")
+  totalCommission            Decimal?       @db.Decimal(28, 8) @map("total_commission")
+  totalSwap                  Decimal?       @db.Decimal(28, 8) @map("total_swap")
+  totalNetProfit             Decimal?       @db.Decimal(28, 8) @map("total_net_profit")
+  grossProfit                Decimal?       @db.Decimal(28, 8) @map("gross_profit")
+  grossLoss                  Decimal?       @db.Decimal(28, 8) @map("gross_loss")
+  profitFactor               Float?         @map("profit_factor")
+  expectedPayoff             Decimal?       @db.Decimal(28, 8) @map("expected_payoff")
+  recoveryFactor             Float?         @map("recovery_factor")
+  sharpeRatio                Float?         @map("sharpe_ratio")
+  balanceDrawdownAbsolute    Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_absolute")
+  balanceDrawdownMaximal     Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_maximal")
+  balanceDrawdownMaximalPct  Float?         @map("balance_drawdown_maximal_pct")
+  balanceDrawdownRelativePct Float?         @map("balance_drawdown_relative_pct")
+  balanceDrawdownRelative    Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_relative")
+  totalTrades                Int?           @map("total_trades")
+  shortTradesWon             Int?           @map("short_trades_won")
+  shortTradesTotal           Int?           @map("short_trades_total")
+  longTradesWon              Int?           @map("long_trades_won")
+  longTradesTotal            Int?           @map("long_trades_total")
+  profitTradesCount          Int?           @map("profit_trades_count")
+  lossTradesCount            Int?           @map("loss_trades_count")
+  largestProfitTrade         Decimal?       @db.Decimal(28, 8) @map("largest_profit_trade")
+  largestLossTrade           Decimal?       @db.Decimal(28, 8) @map("largest_loss_trade")
+  averageProfitTrade         Decimal?       @db.Decimal(28, 8) @map("average_profit_trade")
+  averageLossTrade           Decimal?       @db.Decimal(28, 8) @map("average_loss_trade")
+  maximumConsecutiveWins     Int?           @map("maximum_consecutive_wins")
+  maximumConsecutiveLosses   Int?           @map("maximum_consecutive_losses")
+  tradingAccount             TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
 
-  account        Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  dealLedger     DealLedger[]
-  openPositions  OpenPositionSnapshot[]
-  workingOrders  WorkingOrderSnapshot[]
-  accountSummary AccountSummarySnapshot?
-  reportResults  ReportResultSnapshot?
-
-  @@index([accountId, reportDate])
+  @@index([computedAt])
+  @@map("AccountReportResult")
 }
 
-model DealLedger {
-  id           String   @id @default(cuid())
-  reportId     String   @map("report_id")
-  dealId       String   @map("deal_id")
-  time         DateTime
-  symbol       String?
-  type         String
-  direction    String?
-  volume       Float?
-  price        Float?
-  orderId      String?  @map("order_id")
-  commission   Float    @default(0)
-  fee          Float    @default(0)
-  swap         Float    @default(0)
-  profit       Float    @default(0)
-  balanceAfter Float?   @map("balance_after")
-  comment      String?
+model AccountSnapshot {
+  id               String         @id @default(cuid())
+  tradingAccountId String         @unique @map("account_id")
+  sourceFileName   String?        @map("source_file_name")
+  balance          Decimal        @db.Decimal(28, 8)
+  creditFacility   Decimal        @default(0) @map("credit_facility") @db.Decimal(28, 8)
+  floatingPl       Decimal        @map("floating_pl") @db.Decimal(28, 8)
+  equity           Decimal        @db.Decimal(28, 8)
+  freeMargin       Decimal        @map("free_margin") @db.Decimal(28, 8)
+  margin           Decimal        @db.Decimal(28, 8)
+  marginLevel      Float?         @map("margin_level")
+  reportDate       DateTime       @map("report_date")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
 
-  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  @@map("AccountSnapshot")
+}
 
-  @@index([reportId])
-  @@index([dealId])
+model OpenPosition {
+  id               String         @id @default(cuid())
+  tradingAccountId String         @map("account_id")
+  positionNo       String         @map("position_no")
+  openTime         DateTime?      @map("open_time")
+  symbol           String
+  type             String
+  volume           Float
+  price            Decimal        @db.Decimal(28, 8)
+  sl               Decimal?       @db.Decimal(28, 8)
+  tp               Decimal?       @db.Decimal(28, 8)
+  marketPrice      Decimal        @map("market_price") @db.Decimal(28, 8)
+  swap             Decimal        @default(0) @db.Decimal(28, 8)
+  profit           Decimal        @default(0) @db.Decimal(28, 8)
+  comment          String?
+  reportDate       DateTime       @map("report_date")
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+
+  @@index([tradingAccountId, symbol])
+  @@index([tradingAccountId, reportDate])
+  @@map("OpenPosition")
+}
+
+model Position {
+  id               String         @id @default(cuid())
+  tradingAccountId String         @map("account_id")
+  positionNo       String         @map("position_no")
+  symbol           String
+  type             String
+  volume           Float
+  openTime         DateTime?      @map("open_time")
+  openPrice        Decimal?       @map("open_price") @db.Decimal(28, 8)
+  sl               Decimal?       @db.Decimal(28, 8)
+  tp               Decimal?       @db.Decimal(28, 8)
+  closeTime        DateTime?      @map("close_time")
+  closePrice       Decimal?       @map("close_price") @db.Decimal(28, 8)
+  commission       Decimal        @default(0) @db.Decimal(28, 8)
+  swap             Decimal        @default(0) @db.Decimal(28, 8)
+  profit           Decimal        @default(0) @db.Decimal(28, 8)
+  comment          String?
+  reportDate       DateTime       @map("report_date")
+  importedAt       DateTime       @default(now()) @map("imported_at")
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([tradingAccountId, positionNo])
+  @@index([tradingAccountId, closeTime])
+  @@index([tradingAccountId, reportDate])
+  @@map("Position")
+}
+
+model Deal {
+  id               String         @id @default(cuid())
+  tradingAccountId String         @map("account_id")
+  dealNo           String         @map("deal_no")
+  time             DateTime
+  symbol           String?
+  type             String
+  direction        String?
+  volume           Float?
+  price            Decimal?       @db.Decimal(28, 8)
+  commission       Decimal        @default(0) @db.Decimal(28, 8)
+  fee              Decimal        @default(0) @db.Decimal(28, 8)
+  swap             Decimal        @default(0) @db.Decimal(28, 8)
+  profit           Decimal        @default(0) @db.Decimal(28, 8)
+  balance          Decimal?       @db.Decimal(28, 8)
+  comment          String?
+  reportDate       DateTime       @map("report_date")
+  importedAt       DateTime       @default(now()) @map("imported_at")
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([tradingAccountId, dealNo])
+  @@index([tradingAccountId, time])
+  @@index([tradingAccountId, reportDate])
   @@index([symbol])
+  @@map("Deal")
 }
 
-model OpenPositionSnapshot {
-  id             String    @id @default(cuid())
-  reportId       String    @map("report_id")
-  positionId     String    @map("position_id")
-  openedAt       DateTime? @map("opened_at")
-  symbol         String
-  side           String
-  volume         Float
-  openPrice      Float     @map("open_price")
-  sl             Float?
-  tp             Float?
-  marketPrice    Float     @map("market_price")
-  swap           Float     @default(0)
-  floatingProfit Float     @map("floating_profit")
-  comment        String?
+model ReportImport {
+  id               String         @id @default(cuid())
+  tradingAccountId String         @map("account_id")
+  fileName         String         @map("file_name")
+  fileHash         String         @map("file_hash")
+  reportDate       DateTime       @map("report_date")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
 
-  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@index([reportId])
-  @@index([positionId])
-  @@index([symbol])
-}
-
-model WorkingOrderSnapshot {
-  id              String    @id @default(cuid())
-  reportId        String    @map("report_id")
-  orderId         String    @map("order_id")
-  openedAt        DateTime? @map("opened_at")
-  symbol          String
-  type            String
-  volumeRequested Float?    @map("volume_requested")
-  volumeFilled    Float?    @map("volume_filled")
-  price           Float
-  sl              Float?
-  tp              Float?
-  marketPrice     Float?    @map("market_price")
-  state           String
-  comment         String?
-
-  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@index([reportId])
-  @@index([orderId])
-  @@index([symbol])
-}
-
-model AccountSummarySnapshot {
-  id             String @id @default(cuid())
-  reportId       String @unique @map("report_id")
-  balance        Float
-  creditFacility Float  @default(0) @map("credit_facility")
-  floatingPl     Float  @map("floating_pl")
-  equity         Float
-  freeMargin     Float  @map("free_margin")
-  margin         Float
-  marginLevel    Float? @map("margin_level")
-
-  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-}
-
-model ReportResultSnapshot {
-  id                         String @id @default(cuid())
-  reportId                   String @unique @map("report_id")
-  totalCommission            Float? @map("total_commission")
-  totalSwap                  Float? @map("total_swap")
-  totalNetProfit             Float? @map("total_net_profit")
-  grossProfit                Float? @map("gross_profit")
-  grossLoss                  Float? @map("gross_loss")
-  profitFactor               Float? @map("profit_factor")
-  expectedPayoff             Float? @map("expected_payoff")
-  recoveryFactor             Float? @map("recovery_factor")
-  sharpeRatio                Float? @map("sharpe_ratio")
-  balanceDrawdownAbsolute    Float? @map("balance_drawdown_absolute")
-  balanceDrawdownMaximal     Float? @map("balance_drawdown_maximal")
-  balanceDrawdownMaximalPct  Float? @map("balance_drawdown_maximal_pct")
-  balanceDrawdownRelativePct Float? @map("balance_drawdown_relative_pct")
-  balanceDrawdownRelative    Float? @map("balance_drawdown_relative")
-  totalTrades                Int?   @map("total_trades")
-  shortTradesWon             Int?   @map("short_trades_won")
-  shortTradesTotal           Int?   @map("short_trades_total")
-  longTradesWon              Int?   @map("long_trades_won")
-  longTradesTotal            Int?   @map("long_trades_total")
-  profitTradesCount          Int?   @map("profit_trades_count")
-  lossTradesCount            Int?   @map("loss_trades_count")
-  largestProfitTrade         Float? @map("largest_profit_trade")
-  largestLossTrade           Float? @map("largest_loss_trade")
-  averageProfitTrade         Float? @map("average_profit_trade")
-  averageLossTrade           Float? @map("average_loss_trade")
-  maximumConsecutiveWins     Int?   @map("maximum_consecutive_wins")
-  maximumConsecutiveLosses   Int?   @map("maximum_consecutive_losses")
-
-  report AccountReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  @@unique([tradingAccountId, fileHash])
+  @@index([tradingAccountId])
+  @@index([reportDate])
+  @@map("ReportImport")
 }

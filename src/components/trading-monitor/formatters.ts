@@ -11,23 +11,27 @@ import type {
 const EMPTY_TEXT_VALUES = new Set(["unknown", "n/a", "na", "--"]);
 
 export const TIMEFRAME_OPTIONS: Array<{ value: Timeframe; label: string; ariaLabel: string }> = [
-  { value: "day", label: "D", ariaLabel: "Day" },
-  { value: "week", label: "W", ariaLabel: "Week" },
-  { value: "month", label: "M", ariaLabel: "Month" },
-  { value: "year", label: "Y", ariaLabel: "Year" },
-  { value: "all-time", label: "A", ariaLabel: "All time" },
+  { value: "1d", label: "1D", ariaLabel: "1 day" },
+  { value: "5d", label: "5D", ariaLabel: "5 days" },
+  { value: "1m", label: "1M", ariaLabel: "1 month" },
+  { value: "3m", label: "3M", ariaLabel: "3 months" },
+  { value: "6m", label: "6M", ariaLabel: "6 months" },
+  { value: "1y", label: "1Y", ariaLabel: "1 year" },
+  { value: "all", label: "ALL", ariaLabel: "All time" },
 ];
 
 export function normalizeClientTimeframe(value: string | null | undefined): Timeframe {
   switch (value) {
-    case "day":
-    case "week":
-    case "month":
-    case "year":
-    case "all-time":
+    case "1d":
+    case "5d":
+    case "1m":
+    case "3m":
+    case "6m":
+    case "1y":
+    case "all":
       return value;
     default:
-      return "all-time";
+      return "all";
   }
 }
 
@@ -60,6 +64,16 @@ export function formatPercent(value: number | null | undefined, digits = 2) {
   const numeric = value ?? 0;
   return `${numeric > 0 ? "+" : ""}${numeric.toFixed(digits)}%`;
 }
+
+export function formatGrowth(value: number | null | undefined, digits = 2) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  const numeric = value ?? 0;
+  return `${numeric > 0 ? "+" : ""}${numeric.toFixed(digits)}`;
+}
+
 
 export function formatNumber(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
@@ -201,6 +215,60 @@ export function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+export function buildSmoothPath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    return `M ${points[0]?.x ?? 0} ${points[0]?.y ?? 0}`;
+  }
+
+  const commands = [`M ${points[0]?.x ?? 0} ${points[0]?.y ?? 0}`];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[Math.max(0, index - 1)] ?? points[0]!;
+    const current = points[index]!;
+    const next = points[index + 1]!;
+    const following = points[Math.min(points.length - 1, index + 2)] ?? next;
+    const controlOneX = current.x + (next.x - previous.x) / 6;
+    const controlOneY = current.y + (next.y - previous.y) / 6;
+    const controlTwoX = next.x - (following.x - current.x) / 6;
+    const controlTwoY = next.y - (following.y - current.y) / 6;
+
+    commands.push(
+      `C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)} ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)} ${next.x} ${next.y}`,
+    );
+  }
+
+  return commands.join(" ");
+}
+
+export function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>, startIndex: number) {
+  if (startIndex < 0 || startIndex >= points.length - 1) {
+    return "";
+  }
+
+  const previous = points[Math.max(0, startIndex - 1)] ?? points[0];
+  const current = points[startIndex];
+  const next = points[startIndex + 1];
+  const following = points[Math.min(points.length - 1, startIndex + 2)] ?? next;
+
+  if (!previous || !current || !next || !following) {
+    return "";
+  }
+
+  const controlOneX = current.x + (next.x - previous.x) / 6;
+  const controlOneY = current.y + (next.y - previous.y) / 6;
+  const controlTwoX = next.x - (following.x - current.x) / 6;
+  const controlTwoY = next.y - (following.y - current.y) / 6;
+
+  return [
+    `M ${current.x} ${current.y}`,
+    `C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)} ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)} ${next.x} ${next.y}`,
+  ].join(" ");
+}
+
 export function buildSparkline(values: number[], width: number, height: number) {
   if (!values.length) {
     return { linePath: "", fillPath: "", points: [] as Array<{ x: number; y: number }> };
@@ -208,18 +276,23 @@ export function buildSparkline(values: number[], width: number, height: number) 
 
   const minimum = Math.min(...values);
   const range = Math.max(...values) - minimum || 1;
-  const gap = values.length > 1 ? width / (values.length - 1) : 0;
-  const inset = Math.min(10, height / 6);
+  const horizontalInset = Math.min(6, width / 24);
+  const plotWidth = Math.max(width - horizontalInset * 2, 1);
+  const gap = values.length > 1 ? plotWidth / (values.length - 1) : 0;
+  // Keep a bit more room below the line so the curve sits slightly higher in the frame.
+  const topInset = Math.min(6, height / 10);
+  const bottomInset = Math.min(14, height / 4.5);
+  const plotHeight = Math.max(height - topInset - bottomInset, 1);
   const points = values.map((value, index) => ({
-    x: Number((index * gap).toFixed(2)),
-    y: Number((height - inset - ((value - minimum) / range) * (height - inset * 2)).toFixed(2)),
+    x: Number((horizontalInset + index * gap).toFixed(2)),
+    y: Number((topInset + (1 - (value - minimum) / range) * plotHeight).toFixed(2)),
   }));
-  const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const linePath = buildSmoothPath(points);
 
   return {
     points,
     linePath,
-    fillPath: `${linePath} L ${width} ${height} L 0 ${height} Z`,
+    fillPath: `${linePath} L ${width - horizontalInset} ${height} L ${horizontalInset} ${height} Z`,
   };
 }
 
@@ -335,19 +408,25 @@ export function computeTradesPerWeek(
 
   let weeks: number | null;
   switch (timeframe) {
-    case "day":
+    case "1d":
       weeks = 1 / 7;
       break;
-    case "week":
-      weeks = 1;
+    case "5d":
+      weeks = 5 / 7;
       break;
-    case "month":
+    case "1m":
       weeks = 4.35;
       break;
-    case "year":
+    case "3m":
+      weeks = 13;
+      break;
+    case "6m":
+      weeks = 26;
+      break;
+    case "1y":
       weeks = 52;
       break;
-    case "all-time": {
+    case "all": {
       weeks = null;
       break;
     }

@@ -45,7 +45,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Copy the built worker
 COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
 
-# Copy prisma schema so npx prisma db push works
+# Copy Prisma schema and migrations so startup can run `prisma migrate deploy`
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Install prisma CLI for migrations in entrypoint

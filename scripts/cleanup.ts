@@ -6,13 +6,12 @@ async function main() {
   console.log("Cleaning database...");
 
   await prisma.$transaction([
-    prisma.dealLedger.deleteMany(),
-    prisma.openPositionSnapshot.deleteMany(),
-    prisma.workingOrderSnapshot.deleteMany(),
-    prisma.accountSummarySnapshot.deleteMany(),
-    prisma.reportResultSnapshot.deleteMany(),
-    prisma.accountReport.deleteMany(),
-    prisma.account.deleteMany(),
+    prisma.deal.deleteMany(),
+    prisma.position.deleteMany(),
+    prisma.openPosition.deleteMany(),
+    prisma.accountSnapshot.deleteMany(),
+    prisma.reportImport.deleteMany(),
+    prisma.tradingAccount.deleteMany(),
   ]);
 
   console.log("Cleanup complete.");

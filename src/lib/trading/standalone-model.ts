@@ -2,32 +2,6 @@ import type { ParsedReport } from "../parser";
 
 export type StandaloneTimeframe = "day" | "week" | "month" | "year" | "all-time";
 
-export interface StandaloneMetric {
-  label: string;
-  value: string;
-  tone?: "positive" | "negative" | "warning" | "neutral" | "muted";
-}
-
-export interface StandaloneRow {
-  lead: string;
-  sub: string;
-  trail: string;
-  trailSub: string;
-  tone?: "positive" | "negative" | "warning" | "neutral" | "muted";
-  side?: string;
-}
-
-export interface StandalonePanel {
-  eyebrow: string;
-  title: string;
-  summary: string;
-  metrics?: StandaloneMetric[];
-  rows?: StandaloneRow[];
-  chart?: Array<{ x: string; y: number }>;
-  footnote?: string;
-  empty: string;
-}
-
 export interface StandaloneFrame {
   timeframe: StandaloneTimeframe;
   label: string;
@@ -41,123 +15,6 @@ export interface StandaloneFrame {
     openCount: number;
   };
   curve: Array<{ x: string; y: number }>;
-  panels: {
-    profit: StandalonePanel;
-    drawdown: StandalonePanel;
-    win: StandalonePanel;
-    trades: StandalonePanel;
-    openPositions: StandalonePanel;
-  };
-}
-
-export interface StandaloneReportDetail {
-  report: {
-    fileName: string;
-    reportTimestamp: string;
-  };
-  summary: {
-    balance: number;
-    equity: number;
-    floatingProfit: number;
-    margin: number;
-    freeMargin: number;
-    marginLevel: number | null;
-    openCount: number;
-    workingCount: number;
-    resultCount: number;
-    openVolume: number;
-    resultVolume: number;
-    grossProfit: number;
-    grossLoss: number;
-    netProfit: number;
-    commissionTotal: number;
-    swapTotal: number;
-    winRate: number;
-    bestTrade: number | null;
-    worstTrade: number | null;
-  };
-  balanceDrawdown: {
-    amount: number;
-    percent: number;
-    peakBalance: number;
-    troughBalance: number;
-  };
-  tradeStats: {
-    totalTrades: number;
-    wins: number;
-    losses: number;
-    breakeven: number;
-    winRate: number;
-    lossRate: number;
-    totalVolume: number;
-    averageVolume: number;
-    avgTradeNet: number;
-    avgWin: number;
-    avgLoss: number;
-    profitFactor: number | null;
-    expectancy: number;
-    bestTrade: number | null;
-    worstTrade: number | null;
-    bestWinStreak: number;
-    worstLossStreak: number;
-    longTrades: number;
-    shortTrades: number;
-    longWinRate: number;
-    shortWinRate: number;
-  };
-  equityCurve: Array<{
-    x: string;
-    equity: number;
-    balance: number;
-    eventType: string | null;
-    eventDelta: number | null;
-  }>;
-  balanceOperations: Array<{
-    time: string;
-    type: string | null;
-    delta: number;
-    balanceAfter: number;
-  }>;
-  openPositions: Array<{
-    positionId: string;
-    openedAt: string | null;
-    symbol: string;
-    side: string;
-    volume: number;
-    openPrice: number;
-    sl: number | null;
-    tp: number | null;
-    marketPrice: number;
-    floatingProfit: number;
-    swap: number;
-    comment: string | null;
-  }>;
-  workingOrders: Array<{
-    orderId: string;
-    openedAt: string | null;
-    symbol: string;
-    type: string;
-    volume: number;
-    price: number;
-    sl: number | null;
-    tp: number | null;
-    marketPrice: number | null;
-    state: string;
-    comment: string | null;
-  }>;
-  results: Array<{
-    dealId: string;
-    symbol: string;
-    side: string;
-    volume: number;
-    time: string;
-    price: number | null;
-    profit: number;
-    swap: number;
-    commission: number;
-    net: number;
-    comment: string | null;
-  }>;
 }
 
 export interface StandaloneGrowthSeries {
@@ -180,13 +37,13 @@ export interface StandaloneAccountModel {
   currency: string;
   server: string;
   status: "Active" | "Inactive";
+  reportTimestamp: string;
   balance: number;
   equity: number;
   floatingProfit: number;
   marginLevel: number | null;
   frames: Record<StandaloneTimeframe, StandaloneFrame>;
   growth: StandaloneGrowthSeries;
-  detail: StandaloneReportDetail;
 }
 
 export interface StandaloneParsedReportJson {
@@ -253,6 +110,10 @@ export interface StandaloneMonitorData {
   accs: StandaloneAccountModel[];
 }
 
+type DealRow = ParsedReport["dealLedger"][number];
+
+const MAX_FUTURE_SKEW_MS = 5 * 60_000;
+
 const TIMEFRAME_META: Record<StandaloneTimeframe, { label: string; context: string }> = {
   day: { label: "D", context: "Today" },
   week: { label: "W", context: "This week" },
@@ -270,77 +131,11 @@ function iso(value: Date | string | null | undefined) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
-function buildTradingResults(report: ParsedReport) {
-  return report.dealLedger
-    .filter((deal) => isTradingDeal(deal.type))
-    .map((deal) => ({
-      dealId: deal.dealId,
-      symbol: deal.symbol || "UNKNOWN",
-      side: normalizeTradeSide(deal.type, deal.direction).toUpperCase(),
-      volume: Number(deal.volume ?? 0),
-      time: deal.time,
-      price: deal.price ?? null,
-      profit: Number(deal.profit ?? 0),
-      swap: Number(deal.swap ?? 0),
-      commission: Number(deal.commission ?? 0),
-      net: dealNet(deal),
-      comment: deal.comment || null,
-    }));
-}
-
-function formatCurrency(value: number | null | undefined, digits = 0) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  return `$${new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(Number(value ?? 0))}`;
-}
-
-function formatSignedCurrency(value: number | null | undefined, digits = 0) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  const numeric = Number(value ?? 0);
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${formatCurrency(Math.abs(numeric), digits)}`;
-}
-
-function formatPlainPercent(value: number | null | undefined, digits = 1) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  return `${Math.abs(Number(value)).toFixed(digits)}%`;
-}
-
-function toneFromNumber(value: number | null | undefined): StandaloneMetric["tone"] {
-  if (!Number.isFinite(value)) {
-    return "muted";
-  }
-  if (Number(value) > 0) {
-    return "positive";
-  }
-  if (Number(value) < 0) {
-    return "negative";
-  }
-  return "neutral";
-}
-
-function toneFromRate(value: number | null | undefined, benchmark = 50): StandaloneMetric["tone"] {
-  if (!Number.isFinite(value)) {
-    return "muted";
-  }
-  if (Number(value) > benchmark) {
-    return "positive";
-  }
-  if (Number(value) < benchmark) {
-    return "negative";
-  }
-  return "neutral";
+function sortDeals<T extends { time: Date | string; dealId?: string }>(deals: T[]) {
+  return [...deals].sort((left, right) => {
+    const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
+    return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
+  });
 }
 
 function filterBySince<T>(rows: T[], getTimestamp: (row: T) => Date | string, since: Date | null) {
@@ -352,34 +147,12 @@ function filterBySince<T>(rows: T[], getTimestamp: (row: T) => Date | string, si
   return rows.filter((row) => new Date(getTimestamp(row)).getTime() >= minimum);
 }
 
-function dealNet(row: { profit?: number | null; commission?: number | null; swap?: number | null }) {
-  return Number(row.profit ?? 0) + Number(row.commission ?? 0) + Number(row.swap ?? 0);
-}
-
-function dealProfit(row: { profit?: number | null }) {
-  return Number(row.profit ?? 0);
-}
-
 function normalizeDealType(type: string | null | undefined) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
 }
 
-function normalizeTradeSide(type: string | null | undefined, direction: string | null | undefined) {
-  const normalizedType = normalizeDealType(type);
-  if (normalizedType === "buy" || normalizedType === "sell") {
-    return normalizedType;
-  }
-
-  const normalizedDirection = normalizeDealType(direction);
-  if (normalizedDirection === "buy" || normalizedDirection === "sell") {
-    return normalizedDirection;
-  }
-
-  return normalizedType || normalizedDirection || "unknown";
-}
-
-function isBalanceDeal(type: string | null | undefined) {
-  return normalizeDealType(type).includes("balance");
+function dealNet(row: { profit?: number | null; commission?: number | null; swap?: number | null }) {
+  return Number(row.profit ?? 0) + Number(row.commission ?? 0) + Number(row.swap ?? 0);
 }
 
 function isFundingDeal(type: string | null | undefined) {
@@ -415,17 +188,19 @@ function isTradingDeal(type: string | null | undefined) {
   return normalized.includes("buy") || normalized.includes("sell");
 }
 
-function getLatestDealBalance(
-  deals: Array<{ time: Date | string; dealId?: string; balanceAfter?: number | null }>,
-  fallback = 0,
-) {
-  const sorted = [...deals].sort((left, right) => {
-      const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
-      return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
-    });
+function deriveStartingBalanceFromDeal(deal: { balanceAfter?: number | null; profit?: number | null; commission?: number | null; swap?: number | null }) {
+  const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
+  if (!Number.isFinite(balanceAfter)) {
+    return 0;
+  }
 
+  return balanceAfter - dealNet(deal);
+}
+
+function getLatestDealBalance(deals: Array<{ time: Date | string; dealId?: string; balanceAfter?: number | null }>, fallback = 0) {
   let latestBalance = fallback;
-  for (const deal of sorted) {
+
+  for (const deal of sortDeals(deals)) {
     const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
     if (Number.isFinite(balanceAfter)) {
       latestBalance = balanceAfter;
@@ -456,139 +231,48 @@ function getSinceDate(timeframe: StandaloneTimeframe, reportTime: Date) {
 }
 
 function getAccountStatus(reportTimestamp: Date, activeWindowMinutes = 15) {
+  if (reportTimestamp.getTime() > Date.now() + MAX_FUTURE_SKEW_MS) {
+    return "Inactive";
+  }
+
   return Date.now() - reportTimestamp.getTime() <= activeWindowMinutes * 60_000 ? "Active" : "Inactive";
 }
 
-function buildBalanceEquityCurve(
-  deals: Array<{ time: Date | string; type?: string | null; profit?: number | null; commission?: number | null; swap?: number | null; balanceAfter?: number | null; dealId?: string }>,
-) {
+function buildBalanceCurve(deals: DealRow[]) {
   let lastKnownBalance: number | null = null;
 
-  return [...deals]
-    .sort((left, right) => {
-      const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
-      return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
-    })
-    .map((deal) => {
-      const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
-      if (Number.isFinite(parsedBalance)) {
-        lastKnownBalance = parsedBalance;
-      }
+  return sortDeals(deals).flatMap((deal) => {
+    const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
+    if (Number.isFinite(parsedBalance)) {
+      lastKnownBalance = parsedBalance;
+    }
 
-      if (!Number.isFinite(lastKnownBalance ?? Number.NaN)) {
-        return null;
-      }
-
-      const balance = Number(lastKnownBalance);
-      return {
-        time: deal.time,
-        balance,
-        equity: balance,
-        eventType: deal.type ?? null,
-        eventDelta: dealNet(deal),
-      };
-    })
-    .filter((point): point is { time: Date | string; balance: number; equity: number; eventType: string | null; eventDelta: number } => point !== null);
-}
-
-function buildUnitDrawdownCurve(
-  deals: Array<{
-    time: Date | string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-    dealId?: string;
-  }>,
-) {
-  const sorted = [...deals]
-    .filter((deal) => isTradingDeal(deal.type))
-    .sort((left, right) => {
-      const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
-      return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
-    });
-
-  if (!sorted.length) {
-    return [] as Array<{
-      time: Date;
-      equity: number;
-      drawdownPercent: number;
-    }>;
-  }
-
-  let highWaterMark = Number.NEGATIVE_INFINITY;
-
-  return sorted.flatMap((deal) => {
-    const equity = Number(deal.balanceAfter ?? Number.NaN);
-    if (!Number.isFinite(equity)) {
+    if (!Number.isFinite(lastKnownBalance ?? Number.NaN)) {
       return [];
     }
 
-    if (!Number.isFinite(highWaterMark)) {
-      highWaterMark = equity;
-    }
-
-    highWaterMark = Math.max(highWaterMark, equity);
-    const drawdownPercent = highWaterMark > 0 ? ((highWaterMark - equity) / highWaterMark) * 100 : 0;
-
     return [{
-      time: new Date(deal.time),
-      equity,
-      drawdownPercent,
+      time: deal.time,
+      balance: Number(lastKnownBalance),
     }];
   });
 }
 
-function calculateMaxDrawdown(
-  deals: Array<{
-    time: Date | string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-    dealId?: string;
-  }>,
-) {
-  return buildUnitDrawdownCurve(deals).reduce((maximum, point) => Math.max(maximum, point.drawdownPercent), 0);
-}
-
-function deriveStartingBalanceFromDeal(deal: {
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-  }) {
-  return Number(deal.balanceAfter ?? Number.NaN) - dealNet(deal);
-}
-
 function collectDealWindow(
-  deals: Array<{
-    time: Date | string;
-    dealId?: string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-  }>,
+  deals: DealRow[],
   start: Date | null,
   end: Date | null = null,
 ) {
-  const sorted = [...deals].sort((left, right) => {
-    const delta = new Date(left.time).getTime() - new Date(right.time).getTime();
-    return delta !== 0 ? delta : String(left.dealId ?? "").localeCompare(String(right.dealId ?? ""));
-  });
+  const sorted = sortDeals(deals);
   if (!sorted.length) {
-    return { window: [] as typeof deals, startBalance: 0, endBalance: 0 };
+    return { window: [] as DealRow[], startBalance: 0, endBalance: 0 };
   }
 
   const startTimestamp = start ? start.getTime() : null;
   const endTimestamp = end ? end.getTime() : null;
   let runningBalance = deriveStartingBalanceFromDeal(sorted[0]);
   let startBalance = runningBalance;
-  const window: typeof deals = [];
+  const window: DealRow[] = [];
 
   for (const deal of sorted) {
     const timestamp = new Date(deal.time).getTime();
@@ -616,19 +300,7 @@ function collectDealWindow(
   return { window, startBalance, endBalance: Number.isFinite(endBalance) ? endBalance : startBalance };
 }
 
-function computeCompoundedGrowth(
-  deals: Array<{
-    time: Date | string;
-    dealId?: string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-  }>,
-  start: Date | null,
-  end: Date | null = null,
-) {
+function computeCompoundedGrowth(deals: DealRow[], start: Date | null, end: Date | null = null) {
   const { window, startBalance } = collectDealWindow(deals, start, end);
   if (!window.length || !Number.isFinite(startBalance)) {
     return 0;
@@ -648,7 +320,6 @@ function computeCompoundedGrowth(
       if (periodStartBalance > 0) {
         growthFactor *= previousBalance / periodStartBalance;
       }
-
       periodStartBalance = balanceAfter;
     }
 
@@ -663,25 +334,13 @@ function computeCompoundedGrowth(
   return Number.isFinite(growth) ? growth : 0;
 }
 
-function computeAbsoluteGain(
-  deals: Array<{
-    time: Date | string;
-    dealId?: string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-  }>,
-  start: Date | null,
-  end: Date | null = null,
-) {
+function computeAbsoluteGain(deals: DealRow[], start: Date | null, end: Date | null = null) {
   const { window, startBalance, endBalance } = collectDealWindow(deals, start, end);
   if (!window.length) {
     return 0;
   }
 
-  const fundingDelta = window.reduce((total, deal) => isFundingDeal(deal.type) ? total + dealNet(deal) : total, 0);
+  const fundingDelta = window.reduce((total, deal) => (isFundingDeal(deal.type) ? total + dealNet(deal) : total), 0);
   const deposited = window.reduce((total, deal) => {
     if (!isFundingDeal(deal.type)) {
       return total;
@@ -701,107 +360,32 @@ function computeAbsoluteGain(
   return Number.isFinite(absoluteGain) ? absoluteGain : 0;
 }
 
-function computeStreaks(values: number[]) {
-  let bestWinStreak = 0;
-  let worstLossStreak = 0;
-  let currentWins = 0;
-  let currentLosses = 0;
-
-  for (const value of values) {
-    if (value > 0) {
-      currentWins += 1;
-      currentLosses = 0;
-    } else if (value < 0) {
-      currentLosses += 1;
-      currentWins = 0;
-    } else {
-      currentWins = 0;
-      currentLosses = 0;
-    }
-
-    bestWinStreak = Math.max(bestWinStreak, currentWins);
-    worstLossStreak = Math.max(worstLossStreak, currentLosses);
-  }
-
-  return { bestWinStreak, worstLossStreak };
-}
-
-function computeTradesPerWeek(timeframe: StandaloneTimeframe, totalTrades: number, recentDeals: Array<{ time: Date }>) {
-  let weeks: number | null;
-  switch (timeframe) {
-    case "day":
-      weeks = 1 / 7;
-      break;
-    case "week":
-      weeks = 1;
-      break;
-    case "month":
-      weeks = 4.35;
-      break;
-    case "year":
-      weeks = 52;
-      break;
-    case "all-time": {
-      weeks = null;
-      break;
-    }
-  }
-
-  return weeks ? totalTrades / weeks : null;
-}
-
-function computeBalanceDrawdown(
-  deals: Array<{
-    time: Date | string;
-    type?: string | null;
-    profit?: number | null;
-    commission?: number | null;
-    swap?: number | null;
-    balanceAfter?: number | null;
-  }>,
-  endingAdjustedBalance: number,
-) {
-  if (!deals.length) {
-    return {
-      amount: 0,
-      percent: 0,
-      peakBalance: endingAdjustedBalance,
-      troughBalance: endingAdjustedBalance,
-    };
+function computeBalanceDrawdown(deals: DealRow[], endingBalance: number) {
+  const tradingDeals = sortDeals(deals).filter((deal) => isTradingDeal(deal.type));
+  if (!tradingDeals.length) {
+    return 0;
   }
 
   let runningPeak = Number.NEGATIVE_INFINITY;
-  let peakBalance = endingAdjustedBalance;
-  let troughBalance = endingAdjustedBalance;
-  let amount = 0;
-  let percent = 0;
+  let maxPercent = 0;
 
-  for (const deal of deals.filter((item) => isTradingDeal(item.type))) {
-    const adjustedBalance = Number(deal.balanceAfter ?? Number.NaN);
-    if (!Number.isFinite(adjustedBalance)) {
+  for (const deal of tradingDeals) {
+    const balance = Number(deal.balanceAfter ?? Number.NaN);
+    if (!Number.isFinite(balance)) {
       continue;
     }
 
-    if (!Number.isFinite(runningPeak) || adjustedBalance > runningPeak) {
-      runningPeak = adjustedBalance;
+    if (!Number.isFinite(runningPeak)) {
+      runningPeak = endingBalance || balance;
     }
 
-    const currentAmount = runningPeak - adjustedBalance;
-    const currentPercent = runningPeak > 0 ? (currentAmount / runningPeak) * 100 : 0;
-    if (currentPercent > percent) {
-      percent = currentPercent;
-      amount = currentAmount;
-      peakBalance = runningPeak;
-      troughBalance = adjustedBalance;
-    }
+    runningPeak = Math.max(runningPeak, balance);
+    const amount = runningPeak - balance;
+    const percent = runningPeak > 0 ? (amount / runningPeak) * 100 : 0;
+    maxPercent = Math.max(maxPercent, percent);
   }
 
-  return {
-    amount,
-    percent,
-    peakBalance,
-    troughBalance,
-  };
+  return maxPercent;
 }
 
 function displayName(ownerName: string, accountNumber: string) {
@@ -902,238 +486,23 @@ function buildGrowthSeries(report: ParsedReport): StandaloneGrowthSeries {
   };
 }
 
-function buildReportDetail(report: ParsedReport, fileName: string): StandaloneReportDetail {
-  const sortedDeals = [...report.dealLedger].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
-  const equityCurve = buildBalanceEquityCurve(sortedDeals).map((point) => ({
-    x: iso(point.time) ?? "",
-    equity: point.equity,
-    balance: point.balance,
-    eventType: point.eventType,
-    eventDelta: point.eventDelta,
-  }));
-
-  const results = buildTradingResults(report)
-    .sort((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime());
-  const chronologicalResults = [...results].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
-
-  const wins = results.filter((trade) => trade.net > 0).length;
-  const losses = results.filter((trade) => trade.net < 0).length;
-  const breakeven = results.length - wins - losses;
-  const netProfit = results.reduce((total, trade) => total + trade.net, 0);
-  const grossProfit = results.reduce((total, trade) => trade.net > 0 ? total + trade.net : total, 0);
-  const grossLoss = Math.abs(results.reduce((total, trade) => trade.net < 0 ? total + trade.net : total, 0));
-  const openVolume = report.openPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0);
-  const resultVolume = results.reduce((total, trade) => total + Number(trade.volume ?? 0), 0);
-  const commissionTotal = results.reduce((total, trade) => total + Number(trade.commission ?? 0), 0);
-  const swapTotal = results.reduce((total, trade) => total + Number(trade.swap ?? 0), 0);
-  const avgTradeNet = results.length ? netProfit / results.length : 0;
-  const avgWin = wins ? grossProfit / wins : 0;
-  const avgLoss = losses ? grossLoss / losses : 0;
-  const longTrades = results.filter((trade) => trade.side.toLowerCase() === "buy");
-  const shortTrades = results.filter((trade) => trade.side.toLowerCase() === "sell");
-  const longWins = longTrades.filter((trade) => trade.net > 0).length;
-  const shortWins = shortTrades.filter((trade) => trade.net > 0).length;
-  const streaks = computeStreaks(chronologicalResults.map((trade) => trade.net));
-  const endingAdjustedBalance = sortedDeals.reduce((state, deal) => {
-    const funding = isBalanceDeal(deal.type) ? state.funding + dealNet(deal) : state.funding;
-    const parsedBalance = Number(deal.balanceAfter ?? Number.NaN);
-    return {
-      funding,
-      adjustedBalance: Number.isFinite(parsedBalance) ? parsedBalance - funding : state.adjustedBalance,
-    };
-  }, {
-    funding: 0,
-    adjustedBalance: report.accountSummary.balance ?? 0,
-  }).adjustedBalance;
-
-  const balanceDrawdown = computeBalanceDrawdown(sortedDeals, endingAdjustedBalance);
-  const bestTrade = results.length ? Math.max(...results.map((trade) => trade.net)) : null;
-  const worstTrade = results.length ? Math.min(...results.map((trade) => trade.net)) : null;
-
-  return {
-    report: {
-      fileName,
-      reportTimestamp: report.metadata.report_timestamp.toISOString(),
-    },
-      summary: {
-      balance: report.accountSummary.balance ?? 0,
-      equity: report.accountSummary.equity ?? 0,
-      floatingProfit: report.accountSummary.floating_pl ?? 0,
-      margin: report.accountSummary.margin ?? 0,
-      freeMargin: report.accountSummary.free_margin ?? 0,
-      marginLevel: report.accountSummary.margin_level || null,
-      openCount: report.openPositions.length,
-      workingCount: report.workingOrders.length,
-      resultCount: results.length,
-      openVolume,
-      resultVolume,
-      grossProfit: report.reportResults?.gross_profit ?? grossProfit,
-      grossLoss: report.reportResults?.gross_loss ?? grossLoss,
-      netProfit: report.reportResults?.total_net_profit ?? netProfit,
-      commissionTotal: report.reportResults?.total_commission ?? commissionTotal,
-      swapTotal: report.reportResults?.total_swap ?? swapTotal,
-      winRate: results.length ? (wins / results.length) * 100 : 0,
-      bestTrade,
-      worstTrade,
-    },
-    balanceDrawdown,
-    tradeStats: {
-      totalTrades: results.length,
-      wins,
-      losses,
-      breakeven,
-      winRate: results.length ? (wins / results.length) * 100 : 0,
-      lossRate: results.length ? (losses / results.length) * 100 : 0,
-      totalVolume: resultVolume,
-      averageVolume: results.length ? resultVolume / results.length : 0,
-      avgTradeNet,
-      avgWin,
-      avgLoss,
-      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
-      expectancy: avgTradeNet,
-      bestTrade,
-      worstTrade,
-      bestWinStreak: streaks.bestWinStreak,
-      worstLossStreak: streaks.worstLossStreak,
-      longTrades: longTrades.length,
-      shortTrades: shortTrades.length,
-      longWinRate: longTrades.length ? (longWins / longTrades.length) * 100 : 0,
-      shortWinRate: shortTrades.length ? (shortWins / shortTrades.length) * 100 : 0,
-    },
-    equityCurve,
-    balanceOperations: sortedDeals
-      .filter((deal) => isBalanceDeal(deal.type))
-      .map((deal) => ({
-        time: deal.time.toISOString(),
-        type: deal.type,
-        delta: dealNet(deal),
-        balanceAfter: deal.balanceAfter ?? 0,
-      }))
-      .reverse(),
-    openPositions: report.openPositions.map((position) => ({
-      positionId: position.positionId,
-      openedAt: iso(position.openedAt),
-      symbol: position.symbol,
-      side: position.side,
-      volume: position.volume,
-      openPrice: position.openPrice,
-      sl: position.sl,
-      tp: position.tp,
-      marketPrice: position.marketPrice,
-      floatingProfit: position.floatingProfit,
-      swap: position.swap,
-      comment: position.comment || null,
-    })),
-    workingOrders: report.workingOrders.map((order) => ({
-      orderId: order.orderId,
-      openedAt: iso(order.openedAt),
-      symbol: order.symbol,
-      type: order.type,
-      volume: order.volumeFilled ?? order.volumeRequested ?? 0,
-      price: Number(order.price ?? 0),
-      sl: order.sl,
-      tp: order.tp,
-      marketPrice: order.marketPrice,
-      state: order.state,
-      comment: order.comment || null,
-    })),
-    results: results.map((trade) => ({
-      ...trade,
-      time: iso(trade.time) ?? "",
-    })),
-  };
-}
-
 function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): StandaloneFrame {
   const reportTime = report.metadata.report_timestamp;
   const since = getSinceDate(timeframe, reportTime);
   const deals = timeframe === "all-time" ? report.dealLedger : filterBySince(report.dealLedger, (deal) => deal.time, since);
-  const dealsForTimeframe = timeframe === "all-time"
-    ? buildTradingResults(report)
-    : filterBySince(buildTradingResults(report), (trade) => trade.time, since);
-  const curve = buildBalanceEquityCurve(deals).map((point) => ({
+  const tradingDeals = deals.filter((deal) => isTradingDeal(deal.type));
+  const wins = tradingDeals.filter((deal) => dealNet(deal) > 0).length;
+  const winPercent = tradingDeals.length ? (wins / tradingDeals.length) * 100 : 0;
+  const curve = buildBalanceCurve(deals).map((point) => ({
     x: iso(point.time) ?? "",
-    y: point.equity,
+    y: point.balance,
   }));
-  const unitDrawdownCurve = buildUnitDrawdownCurve(deals);
-
-  const netProfit = deals.reduce((total, deal) => total + (isTradingDeal(deal.type) ? dealNet(deal) : 0), 0);
-  const wins = dealsForTimeframe.filter((trade) => dealNet(trade) > 0);
-  const losses = dealsForTimeframe.filter((trade) => dealNet(trade) < 0);
-  const profitBySymbol = Array.from(
-    dealsForTimeframe.reduce<Map<string, { symbol: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-      const symbol = trade.symbol || "UNKNOWN";
-      const current = groups.get(symbol) ?? { symbol, trades: 0, wins: 0, netProfit: 0 };
-      current.trades += 1;
-      current.netProfit += dealNet(trade);
-      if (dealNet(trade) > 0) {
-        current.wins += 1;
-      }
-      groups.set(symbol, current);
-      return groups;
-    }, new Map()).values(),
-  )
-    .map((item) => ({
-      symbol: item.symbol,
-      trades: item.trades,
-      netProfit: item.netProfit,
-      avgTrade: item.trades ? item.netProfit / item.trades : 0,
-      winRate: item.trades ? (item.wins / item.trades) * 100 : 0,
-    }))
-    .sort((left, right) => right.netProfit - left.netProfit);
-
-  const bySide = Array.from(
-    dealsForTimeframe.reduce<Map<string, { side: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-      const side = trade.side || "UNKNOWN";
-      const current = groups.get(side) ?? { side, trades: 0, wins: 0, netProfit: 0 };
-      current.trades += 1;
-      current.netProfit += dealNet(trade);
-      if (dealNet(trade) > 0) {
-        current.wins += 1;
-      }
-      groups.set(side, current);
-      return groups;
-    }, new Map()).values(),
-  ).map((item) => ({
-    side: item.side,
-    trades: item.trades,
-    netProfit: item.netProfit,
-    winRate: item.trades ? (item.wins / item.trades) * 100 : 0,
-  }));
-
-  const recentDeals = [...dealsForTimeframe]
-    .sort((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime())
-    .slice(0, 30);
-
-  const tradesPerWeek = computeTradesPerWeek(timeframe, dealsForTimeframe.length, recentDeals);
-  const activityPercent = dealsForTimeframe.length + report.openPositions.length + report.workingOrders.length
-    ? ((report.openPositions.length + report.workingOrders.length) / (dealsForTimeframe.length + report.openPositions.length + report.workingOrders.length)) * 100
-    : 0;
-
-  const drawdown = report.reportResults?.balance_drawdown_maximal_pct
-    ?? report.reportResults?.balance_drawdown_relative_pct
-    ?? computeBalanceDrawdown(
-      deals,
-      getLatestDealBalance(deals, report.accountSummary.balance ?? 0),
-    ).percent;
-  const winPercent = report.reportResults?.profit_trades_count !== undefined || report.reportResults?.loss_trades_count !== undefined
-    ? (() => {
-        const winsCount = Number(report.reportResults?.profit_trades_count ?? 0);
-        const lossesCount = Number(report.reportResults?.loss_trades_count ?? 0);
-        const total = Number(report.reportResults?.total_trades ?? winsCount + lossesCount);
-        return total > 0 ? (winsCount / total) * 100 : 0;
-      })()
-    : dealsForTimeframe.length ? (wins.length / dealsForTimeframe.length) * 100 : 0;
+  const netProfit = tradingDeals.reduce((total, deal) => total + dealNet(deal), 0);
+  const drawdown = computeBalanceDrawdown(
+    deals,
+    getLatestDealBalance(deals, report.accountSummary.balance ?? 0),
+  );
   const meta = TIMEFRAME_META[timeframe];
-  const currentEquity = report.accountSummary.equity ?? 0;
-  const peakEquity = unitDrawdownCurve.length ? Math.max(...unitDrawdownCurve.map((point) => point.equity)) : currentEquity;
-  const outcomeSeries = [...dealsForTimeframe]
-    .sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime())
-    .slice(-30)
-    .map((trade) => ({
-      x: iso(trade.time) ?? "",
-      y: dealNet(trade),
-    }));
 
   return {
     timeframe,
@@ -1143,132 +512,15 @@ function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): Stand
       netProfit,
       drawdown,
       winPercent,
-      trades: dealsForTimeframe.length,
+      trades: tradingDeals.length,
       floatingPL: report.accountSummary.floating_pl ?? 0,
       openCount: report.openPositions.length,
     },
     curve,
-    panels: {
-      profit: {
-        eyebrow: meta.context,
-        title: "Profit detail",
-        summary: `${dealsForTimeframe.length} trades`,
-        metrics: [
-          { label: "Net", value: formatSignedCurrency(netProfit), tone: toneFromNumber(netProfit) },
-          { label: "Avg Trade", value: formatSignedCurrency(dealsForTimeframe.length ? netProfit / dealsForTimeframe.length : 0), tone: toneFromNumber(netProfit) },
-          { label: "Gross Profit", value: formatCurrency(wins.reduce((total, trade) => total + dealNet(trade), 0)), tone: "muted" },
-          {
-            label: "Profit Factor",
-            value: (() => {
-              const grossProfit = wins.reduce((total, trade) => total + dealNet(trade), 0);
-              const grossLoss = Math.abs(losses.reduce((total, trade) => total + dealNet(trade), 0));
-              return grossLoss > 0 ? grossProfit / grossLoss : null;
-            })()?.toFixed(2) ?? "-",
-            tone: toneFromNumber((() => {
-              const grossProfit = wins.reduce((total, trade) => total + dealNet(trade), 0);
-              const grossLoss = Math.abs(losses.reduce((total, trade) => total + dealNet(trade), 0));
-              return grossLoss > 0 ? grossProfit / grossLoss : null;
-            })() ?? null),
-          },
-        ],
-        rows: profitBySymbol.map((item) => ({
-          lead: item.symbol,
-          sub: `${item.trades} trades · ${formatPlainPercent(item.winRate)}`,
-          trail: formatSignedCurrency(item.netProfit),
-          trailSub: `Avg ${formatSignedCurrency(item.avgTrade)}`,
-          tone: toneFromNumber(item.netProfit),
-        })),
-        empty: "Profit detail will appear once the selected timeframe includes deal history.",
-      },
-      drawdown: {
-        eyebrow: meta.context,
-        title: "Risk & drawdown",
-        summary: `${formatPlainPercent(drawdown)} max DD`,
-        metrics: [
-          { label: "Max DD", value: formatPlainPercent(drawdown), tone: toneFromNumber(-drawdown) },
-          { label: "Current Equity", value: formatCurrency(currentEquity) },
-          { label: "Peak Equity", value: formatCurrency(peakEquity) },
-          { label: "Recovery", value: drawdown ? (netProfit / drawdown).toFixed(2) : "-", tone: toneFromNumber(drawdown ? netProfit / drawdown : null) },
-        ],
-        chart: unitDrawdownCurve.map((point) => ({ x: point.time.toISOString(), y: point.drawdownPercent })),
-        rows: buildBalanceEquityCurve(deals).slice(-4).reverse().map((point, index) => {
-          const deal = [...deals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime()).slice(-4).reverse()[index];
-          const delta = deal ? dealNet(deal) : 0;
-          return {
-            lead: isBalanceDeal(deal?.type) ? (delta >= 0 ? "Deposit" : "Withdrawal") : (deal?.type || "Balance"),
-            sub: iso(point.time)?.replace("T", " ").slice(0, 16) ?? "-",
-            trail: formatSignedCurrency(delta),
-            trailSub: `Eq. ${formatCurrency(point.equity)}`,
-            tone: toneFromNumber(delta),
-          };
-        }),
-        empty: "Risk detail will appear once the selected timeframe has balance events.",
-      },
-      win: {
-        eyebrow: meta.context,
-        title: "Win statistics",
-        summary: `${formatPlainPercent(dealsForTimeframe.length ? (wins.length / dealsForTimeframe.length) * 100 : 0)} win rate`,
-        metrics: [
-          { label: "Wins", value: String(wins.length), tone: "positive" },
-          { label: "Losses", value: String(losses.length), tone: "negative" },
-          { label: "Expectancy", value: formatSignedCurrency(dealsForTimeframe.length ? netProfit / dealsForTimeframe.length : 0), tone: toneFromNumber(netProfit) },
-          { label: "Sharpe*", value: outcomeSeries.length > 1 ? (() => {
-            const values = outcomeSeries.map((point) => point.y);
-            const average = values.reduce((total, value) => total + value, 0) / values.length;
-            const deviation = Math.sqrt(values.reduce((total, value) => total + (value - average) ** 2, 0) / (values.length - 1));
-            return deviation ? (average / deviation).toFixed(2) : "-";
-          })() : "-", tone: "muted" },
-        ],
-        chart: outcomeSeries,
-        rows: bySide.map((item) => ({
-          lead: item.side,
-          sub: `${item.trades} trades`,
-          trail: formatPlainPercent(item.winRate),
-          trailSub: formatSignedCurrency(item.netProfit),
-          tone: toneFromRate(item.winRate),
-        })),
-        empty: "Win statistics will appear once the selected timeframe includes closed trades.",
-      },
-      trades: {
-        eyebrow: meta.context,
-        title: "Trades",
-        summary: `${dealsForTimeframe.length} deals`,
-        metrics: [
-          { label: "Deals", value: String(dealsForTimeframe.length) },
-          { label: "Open", value: String(report.openPositions.length) },
-          { label: "Working", value: String(report.workingOrders.length) },
-          { label: "Trades/Week", value: Number.isFinite(tradesPerWeek) ? tradesPerWeek!.toFixed(1) : "-", tone: toneFromNumber(tradesPerWeek) },
-        ],
-        rows: recentDeals.slice(0, 4).map((trade) => ({
-          side: trade.side,
-          lead: trade.symbol,
-          sub: iso(trade.time)?.replace("T", " ").slice(0, 16) ?? "-",
-          trail: formatSignedCurrency(dealNet(trade)),
-          trailSub: `${trade.volume.toFixed(2)} lot`,
-          tone: toneFromNumber(dealNet(trade)),
-        })),
-        footnote: `${formatPlainPercent(activityPercent)} of tracked rows are still pending or open.`,
-        empty: "The latest report has no deals, open positions, or working orders to summarize here.",
-      },
-      openPositions: {
-        eyebrow: "Live snapshot",
-        title: "Open positions",
-        summary: `${formatSignedCurrency(report.accountSummary.floating_pl ?? 0)} float`,
-        rows: report.openPositions.map((position) => ({
-          side: position.side,
-          lead: position.symbol,
-          sub: `${position.volume.toFixed(2)} lot`,
-          trail: formatSignedCurrency(position.floatingProfit),
-          trailSub: `${position.openPrice.toFixed(5)} -> ${position.marketPrice.toFixed(5)}`,
-          tone: toneFromNumber(position.floatingProfit),
-        })),
-        empty: "There are no live positions in the latest imported snapshot.",
-      },
-    },
   };
 }
 
-export function buildStandaloneAccountModel(report: ParsedReport, fileName: string): StandaloneAccountModel {
+export function buildStandaloneAccountModel(report: ParsedReport, _fileName: string): StandaloneAccountModel {
   const reportTime = report.metadata.report_timestamp;
   const frames = {
     day: buildFrame(report, "day"),
@@ -1285,13 +537,13 @@ export function buildStandaloneAccountModel(report: ParsedReport, fileName: stri
     currency: report.metadata.currency || "USD",
     server: report.metadata.server || "UNKNOWN",
     status: getAccountStatus(reportTime),
+    reportTimestamp: reportTime.toISOString(),
     balance: getLatestDealBalance(report.dealLedger, report.accountSummary.balance ?? 0),
     equity: report.accountSummary.equity ?? 0,
     floatingProfit: report.accountSummary.floating_pl ?? 0,
     marginLevel: report.accountSummary.margin_level || null,
     frames,
     growth: buildGrowthSeries(report),
-    detail: buildReportDetail(report, fileName),
   };
 }
 

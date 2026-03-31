@@ -1,4 +1,4 @@
-export type Timeframe = "day" | "week" | "month" | "year" | "all-time";
+export type Timeframe = "1d" | "5d" | "1m" | "3m" | "6m" | "1y" | "all";
 
 export interface SerializedAccount {
   id: string;
@@ -19,9 +19,8 @@ export interface ChartPoint {
   y: number;
 }
 
-export interface EquityEventPoint extends ChartPoint {
+export interface BalanceEventPoint extends ChartPoint {
   balance: number;
-  equity: number;
   eventType: string | null;
   eventDelta: number | null;
 }
@@ -30,17 +29,19 @@ export interface AccountOverviewResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   kpis: {
+    periodGrowth: number;
     netProfit: number;
     drawdown: number;
+    absoluteDrawdown: number;
     winPercent: number;
     trades: number;
     floatingPL: number;
     openCount: number;
   };
-  equityCurve: ChartPoint[];
+  balanceCurve: BalanceEventPoint[];
 }
 
-export interface EquityDetailResponse {
+export interface BalanceDetailResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
@@ -48,9 +49,17 @@ export interface EquityDetailResponse {
     relativeDrawdownPct: number | null;
     maximalDrawdownAmount: number | null;
     maximalDrawdownPct: number | null;
+    averageLossTrade: number | null;
     maximalDepositLoad: number | null;
+    maximumConsecutiveLossAmount: number | null;
   };
-  equityCurve: EquityEventPoint[];
+  mfeMae: {
+    available: boolean;
+    reason: string;
+    mfe: null;
+    mae: null;
+  };
+  balanceCurve: BalanceEventPoint[];
   drawdownCurve: ChartPoint[];
 }
 
@@ -62,6 +71,7 @@ export interface GrowthResponse {
     ytdGrowth: number;
     allTimeGrowth: number;
     absoluteGain: number;
+    periodLabel: string;
   };
   series: {
     monthly: Array<{ month: string; value: number }>;
@@ -79,9 +89,18 @@ export interface PositionsResponse {
   account: SerializedAccount;
   summary: {
     dealCount: number;
+    totalTrades: number;
+    tradeActivityPercent: number | null;
     tradesPerWeek: number | null;
     longTradeWin: number | null;
     shortTradeWin: number | null;
+    averageHoldHours: number | null;
+    profitFactor: number | null;
+    recoveryFactor: number | null;
+    sharpeRatio: number | null;
+    expectedPayoff: number | null;
+    maxConsecutiveProfitAmount: number | null;
+    maxConsecutiveLossAmount: number | null;
     symbolTradePercent: Array<{
       symbol: string;
       percent: number;
@@ -138,6 +157,12 @@ export interface ProfitDetailResponse {
   account: SerializedAccount;
   summary: {
     netProfit: number;
+    grossProfit: number;
+    grossLoss: number;
+    totalCommission: number;
+    totalSwap: number;
+    totalDeposit: number;
+    totalWithdrawal: number;
     profitFactor: number | null;
     dailyProfit: Array<{
       date: string;
@@ -169,10 +194,17 @@ export interface WinDetailResponse {
     winRate: number;
     wins: number;
     losses: number;
+    longTradeWin: number | null;
+    shortTradeWin: number | null;
+    largestProfitTrade: number | null;
+    largestLossTrade: number | null;
     sharpeRatio: number | null;
     profitFactor: number | null;
     recoveryFactor: number | null;
     expectedPayoff: number | null;
+    maximumConsecutiveWins: number | null;
+    maximumConsecutiveLosses: number | null;
+    maximumConsecutiveProfitAmount: number | null;
     averageConsecutiveWins: number | null;
     averageConsecutiveLosses: number | null;
   };
@@ -189,109 +221,4 @@ export interface WinDetailResponse {
     winRate: number;
   }>;
   outcomeSeries: ChartPoint[];
-}
-
-export interface ReportDetailResponse {
-  account: SerializedAccount;
-  report: {
-    fileName: string;
-    reportTimestamp: Date;
-  };
-  summary: {
-    balance: number;
-    equity: number;
-    floatingProfit: number;
-    margin: number;
-    freeMargin: number;
-    marginLevel: number | null;
-    openCount: number;
-    workingCount: number;
-    resultCount: number;
-    openVolume: number;
-    resultVolume: number;
-    grossProfit: number;
-    grossLoss: number;
-    netProfit: number;
-    commissionTotal: number;
-    swapTotal: number;
-    winRate: number;
-    bestTrade: number | null;
-    worstTrade: number | null;
-  };
-  balanceDrawdown: {
-    amount: number;
-    percent: number;
-    peakBalance: number;
-    troughBalance: number;
-  };
-  tradeStats: {
-    totalTrades: number;
-    wins: number;
-    losses: number;
-    breakeven: number;
-    winRate: number;
-    lossRate: number;
-    totalVolume: number;
-    averageVolume: number;
-    avgTradeNet: number;
-    avgWin: number;
-    avgLoss: number;
-    profitFactor: number | null;
-    expectancy: number;
-    bestTrade: number | null;
-    worstTrade: number | null;
-    bestWinStreak: number;
-    worstLossStreak: number;
-    longTrades: number;
-    shortTrades: number;
-    longWinRate: number;
-    shortWinRate: number;
-  };
-  equityCurve: EquityEventPoint[];
-  balanceOperations: Array<{
-    time: Date;
-    type: string | null;
-    delta: number;
-    balanceAfter: number;
-  }>;
-  openPositions: Array<{
-    positionId: string;
-    openedAt: Date | null;
-    symbol: string;
-    side: string;
-    volume: number;
-    openPrice: number;
-    sl: number | null;
-    tp: number | null;
-    marketPrice: number;
-    floatingProfit: number;
-    swap: number;
-    comment: string | null;
-  }>;
-  workingOrders: Array<{
-    orderId: string;
-    openedAt: Date | null;
-    symbol: string;
-    type: string;
-    volume: number;
-    price: number;
-    sl: number | null;
-    tp: number | null;
-    marketPrice: number | null;
-    state: string;
-    comment: string | null;
-  }>;
-  results: Array<{
-    dealId: string;
-    symbol: string;
-    side: string;
-    volume: number;
-    time: Date;
-    price: number | null;
-    profit: number;
-    swap: number;
-    commission: number;
-    net: number;
-    comment: string | null;
-  }>;
 }
