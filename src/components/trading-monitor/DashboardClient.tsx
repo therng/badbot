@@ -190,7 +190,10 @@ function DashboardCard({
                 <strong>{displayedGrowth}</strong>
               </div>
 
-              <div className="sp-balance" aria-label={`Balance ${displayedBalanceLabel}`}>
+              <div
+                className={active && highlightedBalance === null ? "sp-balance is-current-live" : "sp-balance"}
+                aria-label={`Balance ${displayedBalanceLabel}`}
+              >
                 <strong>{displayedBalanceLabel}</strong>
               </div>
             </div>
@@ -256,14 +259,20 @@ export default function DashboardClient() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
+  const [activeAccountIndex, setActiveAccountIndex] = useState(0);
+  const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const accountsSectionRef = useRef<HTMLElement | null>(null);
   const pullStartYRef = useRef<number | null>(null);
+  const pullStartXRef = useRef<number | null>(null);
   const pullActiveRef = useRef(false);
   const activeRefreshKeyRef = useRef<number | null>(null);
   const refreshStartedAtRef = useRef(0);
   const refreshingRef = useRef(false);
+  const indicatorHideTimerRef = useRef<number | null>(null);
 
   const handleRequestStateChange = useCallback(({ loading, refreshKey: requestRefreshKey }: { loading: boolean; refreshKey: number }) => {
     if (!refreshingRef.current || requestRefreshKey !== activeRefreshKeyRef.current) {
@@ -284,9 +293,26 @@ export default function DashboardClient() {
 
   const finishPull = useCallback(() => {
     pullStartYRef.current = null;
+    pullStartXRef.current = null;
     pullActiveRef.current = false;
     setIsPulling(false);
   }, []);
+
+  const revealPageIndicator = useCallback(() => {
+    if (!isLandscapeCarousel || (accounts.data?.length ?? 0) < 2) {
+      setShowPageIndicator(false);
+      return;
+    }
+
+    setShowPageIndicator(true);
+    if (indicatorHideTimerRef.current !== null) {
+      window.clearTimeout(indicatorHideTimerRef.current);
+    }
+    indicatorHideTimerRef.current = window.setTimeout(() => {
+      setShowPageIndicator(false);
+      indicatorHideTimerRef.current = null;
+    }, 1400);
+  }, [accounts.data?.length, isLandscapeCarousel]);
 
   const triggerRefresh = useCallback(() => {
     if (refreshingRef.current) {
@@ -308,6 +334,86 @@ export default function DashboardClient() {
   }, []);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(orientation: landscape) and (max-width: 1180px)");
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsLandscapeCarousel(event.matches);
+    };
+
+    handleChange(mediaQuery);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (indicatorHideTimerRef.current !== null) {
+        window.clearTimeout(indicatorHideTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isLandscapeCarousel) {
+      setShowPageIndicator(false);
+      setActiveAccountIndex(0);
+      return;
+    }
+
+    if ((accounts.data?.length ?? 0) > 1) {
+      revealPageIndicator();
+    }
+  }, [accounts.data?.length, isLandscapeCarousel, revealPageIndicator]);
+
+  useEffect(() => {
+    const section = accountsSectionRef.current;
+    if (!section || !isLandscapeCarousel) {
+      return;
+    }
+
+    const resolveActiveIndex = () => {
+      const cards = Array.from(section.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+      if (!cards.length) {
+        setActiveAccountIndex(0);
+        return;
+      }
+
+      const viewportCenter = section.scrollLeft + section.clientWidth / 2;
+      let nextIndex = 0;
+      let smallestDistance = Number.POSITIVE_INFINITY;
+
+      cards.forEach((card, index) => {
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const distance = Math.abs(cardCenter - viewportCenter);
+        if (distance < smallestDistance) {
+          smallestDistance = distance;
+          nextIndex = index;
+        }
+      });
+
+      setActiveAccountIndex(nextIndex);
+    };
+
+    const handleScroll = () => {
+      resolveActiveIndex();
+      revealPageIndicator();
+    };
+
+    resolveActiveIndex();
+    section.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      section.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [isLandscapeCarousel, revealPageIndicator]);
+
+  useEffect(() => {
     if (!isRefreshing || !hasSeenRefreshRequest || pendingRefreshRequests > 0) {
       return;
     }
@@ -325,11 +431,13 @@ export default function DashboardClient() {
   const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
     if (refreshingRef.current || (scrollRef.current?.scrollTop ?? 0) > 0) {
       pullStartYRef.current = null;
+      pullStartXRef.current = null;
       pullActiveRef.current = false;
       return;
     }
 
     pullStartYRef.current = event.touches[0]?.clientY ?? null;
+    pullStartXRef.current = event.touches[0]?.clientX ?? null;
     pullActiveRef.current = false;
   }, []);
 
@@ -339,14 +447,25 @@ export default function DashboardClient() {
     }
 
     const startY = pullStartYRef.current;
+    const startX = pullStartXRef.current;
     const currentY = event.touches[0]?.clientY;
+    const currentX = event.touches[0]?.clientX;
     const scrollTop = scrollRef.current?.scrollTop ?? 0;
 
-    if (startY == null || currentY == null) {
+    if (startY == null || startX == null || currentY == null || currentX == null) {
       return;
     }
 
     const delta = currentY - startY;
+    const deltaX = currentX - startX;
+    if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(delta)) {
+      finishPull();
+      if (!refreshingRef.current) {
+        setPullDistance(0);
+      }
+      return;
+    }
+
     if (delta <= 0 || scrollTop > 0) {
       if (!pullActiveRef.current) {
         return;
@@ -385,6 +504,8 @@ export default function DashboardClient() {
     transform: `translate3d(0, ${pullDistance}px, 0)`,
     transition: isPulling ? "none" : "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
   };
+  const accountCount = accounts.data?.length ?? 0;
+  const shouldRenderIndicators = isLandscapeCarousel && accountCount > 1;
 
   return (
     <main className="monitor-page">
@@ -412,14 +533,22 @@ export default function DashboardClient() {
         </div>
         <div
           ref={scrollRef}
-          className={isRefreshing ? "app-scroll dashboard-scroll is-refreshing" : "app-scroll dashboard-scroll"}
+          className={
+            isRefreshing
+              ? `app-scroll dashboard-scroll is-refreshing${isLandscapeCarousel ? " is-carousel" : ""}`
+              : `app-scroll dashboard-scroll${isLandscapeCarousel ? " is-carousel" : ""}`
+          }
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
           style={scrollStyle}
         >
-          <section className="dashboard-section" aria-label="Trading accounts">
+          <section
+            ref={accountsSectionRef}
+            className={isLandscapeCarousel ? "dashboard-section dashboard-section--carousel" : "dashboard-section"}
+            aria-label="Trading accounts"
+          >
             {accounts.error ? (
               <div className="card">
                 <InlineState tone="error" title="Accounts unavailable" message={accounts.error} />
@@ -452,6 +581,16 @@ export default function DashboardClient() {
             )}
           </section>
         </div>
+        {shouldRenderIndicators ? (
+          <div className={showPageIndicator ? "account-pages is-visible" : "account-pages"} aria-hidden="true">
+            {Array.from({ length: accountCount }).map((_, index) => (
+              <span
+                key={index}
+                className={index === activeAccountIndex ? "account-pages__dot is-active" : "account-pages__dot"}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </main>
   );

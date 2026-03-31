@@ -301,11 +301,11 @@ export function SparklineChart({
   const currentPoint = sparklinePoints[lastIndex];
   const activeIndex = highlightedIndex ?? lastIndex;
   const activePoint = sparklinePoints[activeIndex] ?? sparklinePoints[lastIndex];
-  const statusPointColor = active ? "var(--positive)" : "rgba(5, 8, 12, 0.96)";
+  const statusPointColor = active ? "var(--account-homebrew, #00ff41)" : "rgba(5, 8, 12, 0.96)";
   const showActiveMarker = Boolean(activePoint);
-  const showPulseDot = active && Boolean(currentPoint);
+  const showCurrentDot = active && Boolean(currentPoint);
   const beaconStyle =
-    currentPoint && showPulseDot
+    currentPoint && showCurrentDot
       ? {
           left: `${(currentPoint.x / chartWidth) * 100}%`,
           top: `${(currentPoint.y / chartHeight) * 100}%`,
@@ -323,13 +323,13 @@ export function SparklineChart({
     stroke: strokeByTone[tone],
     areaTop:
       tone === "positive"
-        ? "rgba(90, 160, 112, 0.22)"
+        ? "rgba(90, 160, 112, 0.12)"
         : tone === "negative"
-          ? "rgba(196, 99, 96, 0.2)"
+          ? "rgba(196, 99, 96, 0.11)"
           : active
-            ? "rgba(83, 119, 165, 0.24)"
-            : "rgba(125, 143, 166, 0.18)",
-    areaBottom: "rgba(255, 255, 255, 0.02)",
+            ? "rgba(83, 119, 165, 0.12)"
+            : "rgba(125, 143, 166, 0.09)",
+    areaBottom: "rgba(255, 255, 255, 0)",
   };
 
   if (!sparklinePoints.length) {
@@ -383,8 +383,8 @@ export function SparklineChart({
         <path
           d={linePath}
           fill="none"
-          stroke="rgba(255, 255, 255, 0.16)"
-          strokeWidth="3.8"
+          stroke="rgba(255, 255, 255, 0.1)"
+          strokeWidth="3.1"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -397,7 +397,7 @@ export function SparklineChart({
             strokeWidth="2.35"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={showPulseDot ? "sparkline-segment sparkline-segment--live" : "sparkline-segment"}
+            className="sparkline-segment"
           />
         ))}
         {sparklinePoints.map((point, index) => (
@@ -416,7 +416,7 @@ export function SparklineChart({
             onBlur={() => setHighlightedBalance(null)}
           />
         ))}
-        {currentPoint && showPulseDot ? (
+        {currentPoint && showCurrentDot ? (
           <circle
             cx={currentPoint.x}
             cy={currentPoint.y}
@@ -427,7 +427,7 @@ export function SparklineChart({
             className="sparkline-live-dot__core"
           />
         ) : null}
-        {activePoint && showActiveMarker && (!showPulseDot || activeIndex !== lastIndex) ? (
+        {activePoint && showActiveMarker && (!showCurrentDot || activeIndex !== lastIndex) ? (
           <circle
             cx={activePoint.x}
             cy={activePoint.y}
@@ -441,8 +441,9 @@ export function SparklineChart({
       </svg>
       {beaconStyle ? (
         <span className="sparkline-live-beacon" style={beaconStyle} aria-hidden="true">
-          <span className="sparkline-live-beacon__halo" />
-          <span className="sparkline-live-beacon__halo sparkline-live-beacon__halo--outer" />
+          <span className="sparkline-live-beacon__ambient" />
+          <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--one" />
+          <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--two" />
         </span>
       ) : null}
     </div>
@@ -678,10 +679,6 @@ export function TradingMonitorSharedStyles() {
         opacity: 1;
       }
 
-      .sparkline-segment--live {
-        filter: drop-shadow(0 0 2px rgba(90, 160, 112, 0.2)) drop-shadow(0 0 12px rgba(90, 160, 112, 0.08));
-      }
-
       .sparkline-chart-shell {
         position: relative;
         width: 100%;
@@ -689,79 +686,88 @@ export function TradingMonitorSharedStyles() {
       }
 
       .sparkline-live-beacon {
+        --core-size: 8px;
+        --pulse-base-size: 14px;
+        --max-scale: 2.8;
+        --pulse-duration: 3.2s;
+        --pulse-delay: 1.6s;
+        --stroke-color: color-mix(in srgb, currentColor 76%, white 24%);
+        --fill-color: color-mix(in srgb, currentColor 16%, transparent);
+        --bg-glow: color-mix(in srgb, currentColor 10%, transparent);
+        --shadow-glow: color-mix(in srgb, currentColor 25%, transparent);
         position: absolute;
         pointer-events: none;
         isolation: isolate;
+        width: 0;
+        height: 0;
       }
 
-      .sparkline-live-beacon__halo {
+      .sparkline-live-beacon__ambient {
         position: absolute;
         left: 0;
         top: 0;
-        width: 9px;
-        height: 9px;
+        width: 18px;
+        height: 18px;
+        transform: translate(-50%, -50%);
         border-radius: 999px;
-        background: currentColor;
-        opacity: 0.24;
-        filter: blur(0.45px);
-        animation: trading-monitor-live-halo 1.55s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+        background: var(--bg-glow);
+        box-shadow: 0 0 14px var(--shadow-glow);
+        z-index: -1;
       }
 
-      .sparkline-live-beacon__halo--outer {
-        width: 15px;
-        height: 15px;
-        margin-left: -3px;
-        margin-top: -3px;
-        opacity: 0.12;
-        animation-duration: 2.1s;
+      .sparkline-live-beacon__pulse {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: var(--pulse-base-size);
+        height: var(--pulse-base-size);
+        transform: translate(-50%, -50%) scale(1);
+        transform-origin: center;
+        border-radius: 999px;
+        background: var(--fill-color);
+        border: 1px solid var(--stroke-color);
+        opacity: 0;
+      }
+
+      .sparkline-live-beacon__pulse--one {
+        animation: trading-monitor-pulse-ring var(--pulse-duration) ease-out infinite;
+      }
+
+      .sparkline-live-beacon__pulse--two {
+        animation: trading-monitor-pulse-ring var(--pulse-duration) ease-out var(--pulse-delay) infinite;
       }
 
       .sparkline-live-dot__core {
-        filter: drop-shadow(0 0 12px rgba(90, 160, 112, 0.34));
-        animation: trading-monitor-live-core 1.55s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-        transform-box: fill-box;
-        transform-origin: center;
+        filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 80%, transparent));
       }
 
       .sparkline-dot__active {
-        filter: drop-shadow(0 0 8px rgba(83, 119, 165, 0.28));
+        filter: none;
       }
 
       .detail-chart-dot--active {
         filter: drop-shadow(0 0 12px rgba(83, 119, 165, 0.22));
       }
 
-      @keyframes trading-monitor-live-halo {
+      @keyframes trading-monitor-pulse-ring {
         0% {
-          opacity: 0.24;
           transform: translate(-50%, -50%) scale(1);
-        }
-        70% {
           opacity: 0;
-          transform: translate(-50%, -50%) scale(2.6);
         }
+        5% {
+          opacity: 1;
+        }
+        45%,
         100% {
+          transform: translate(-50%, -50%) scale(var(--max-scale));
           opacity: 0;
-          transform: translate(-50%, -50%) scale(2.6);
-        }
-      }
-
-      @keyframes trading-monitor-live-core {
-        0% {
-          transform: scale(1);
-        }
-        35% {
-          transform: scale(1.08);
-        }
-        100% {
-          transform: scale(1);
         }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .sparkline-live-beacon__halo,
-        .sparkline-live-dot__core {
+        .sparkline-live-beacon__pulse {
           animation: none;
+          opacity: 0;
         }
       }
     `}</style>

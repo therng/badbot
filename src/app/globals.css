@@ -23,6 +23,19 @@
   --serif: "IBM Plex Sans", "Segoe UI", "Trebuchet MS", sans-serif;
   --sans: "IBM Plex Sans", "Segoe UI", "Trebuchet MS", sans-serif;
   --mono: "JetBrains Mono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
+
+@supports (padding: constant(safe-area-inset-top)) {
+  :root {
+    --safe-area-top: constant(safe-area-inset-top);
+    --safe-area-right: constant(safe-area-inset-right);
+    --safe-area-bottom: constant(safe-area-inset-bottom);
+    --safe-area-left: constant(safe-area-inset-left);
+  }
 }
 
 * {
@@ -3086,5 +3099,658 @@ body::after {
   .dashboard-roster__row > div:last-child {
     justify-items: start;
     text-align: left;
+  }
+}
+
+/* Compact account card rollback */
+.dashboard-section > .account-card {
+  --account-paper: #f4f0e6;
+  --account-paper-shadow: rgba(42, 35, 21, 0.18);
+  --account-ink: #2e2f31;
+  --account-muted: #9c988e;
+  --account-homebrew: #00ff41;
+  --account-border: rgba(92, 82, 62, 0.14);
+  --account-chart: #2c5d9d;
+  --account-chart-muted: #97a3b1;
+  --account-chip: rgba(255, 255, 255, 0.48);
+  padding: 20px 20px 18px;
+  gap: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--account-border);
+  color: var(--account-ink);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.68), transparent 34%),
+    linear-gradient(180deg, #f7f3e8 0%, var(--account-paper) 100%);
+  box-shadow: 0 18px 42px var(--account-paper-shadow);
+}
+
+.dashboard-section > .account-card:hover {
+  transform: none;
+  border-color: rgba(92, 82, 62, 0.18);
+  box-shadow: 0 20px 48px rgba(42, 35, 21, 0.22);
+}
+
+.dashboard-section > .account-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 0 transparent;
+  transition: box-shadow 180ms ease;
+}
+
+.dashboard-section > .account-card.account-card--active::after {
+  box-shadow: inset 0 0 0 2px rgba(90, 160, 112, 0.42);
+}
+
+.dashboard-section > .account-card .sp-wrap {
+  margin-bottom: 6px;
+}
+
+.dashboard-section > .account-card .sp-header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.dashboard-section > .account-card .sp-top,
+.dashboard-section > .account-card .sp-top--compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.dashboard-section > .account-card .sp-identity,
+.dashboard-section > .account-card .sp-identity--header {
+  min-width: min(60%, 240px);
+  display: grid;
+  gap: 5px;
+  margin-bottom: 0;
+}
+
+.dashboard-section > .account-card .sp-name {
+  min-width: 0;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: clamp(18px, 2.7vw, 28px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--account-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-section > .account-card .sp-account {
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--account-muted);
+}
+
+.dashboard-section > .account-card .sp-side {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: max-content;
+}
+
+.dashboard-section > .account-card .sp-growth,
+.dashboard-section > .account-card .sp-balance {
+  display: grid;
+  justify-items: end;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: right;
+}
+
+.dashboard-section > .account-card .sp-growth {
+  font-family: "Manrope", var(--sans);
+  font-size: clamp(18px, 2.4vw, 22px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.dashboard-section > .account-card .sp-growth span,
+.dashboard-section > .account-card .sp-balance span {
+  display: none;
+}
+
+.dashboard-section > .account-card .sp-growth strong {
+  font: inherit;
+}
+
+.dashboard-section > .account-card .sp-balance strong {
+  font-family: "Manrope", var(--sans);
+  font-size: clamp(24px, 3.3vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  color: var(--account-ink);
+}
+
+.dashboard-section > .account-card .sp-balance.is-current-live strong {
+  color: var(--account-homebrew);
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.14);
+}
+
+.dashboard-section > .account-card .sp-wrap .section-state,
+.dashboard-section > .account-card .account-card__chart-skeleton,
+.dashboard-section > .account-card .sp-canvas {
+  margin-top: 2px;
+}
+
+.dashboard-section > .account-card .sp-growth.tone-positive {
+  color: #5aa070;
+}
+
+.dashboard-section > .account-card .sp-growth.tone-negative {
+  color: #c46360;
+}
+
+.dashboard-section > .account-card .sp-growth.tone-neutral {
+  color: #5377a5;
+}
+
+.dashboard-section > .account-card .sp-growth.tone-muted {
+  color: var(--account-muted);
+}
+
+.dashboard-section > .account-card .sp-canvas {
+  display: block;
+  height: 176px;
+  padding: 8px 0 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-section > .account-card .sp-canvas .sparkline-chart,
+.dashboard-section > .account-card .account-card__chart-skeleton {
+  width: 100%;
+  height: 176px;
+  overflow: visible;
+}
+
+.dashboard-section > .account-card .tf-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.dashboard-section > .account-card .tf-row .timeframe-strip {
+  gap: 3px;
+  min-width: max-content;
+  padding-bottom: 2px;
+}
+
+.dashboard-section > .account-card .timeframe-pill {
+  min-width: 0;
+  min-height: auto;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(46, 47, 49, 0.56);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+
+.dashboard-section > .account-card .timeframe-pill:hover,
+.dashboard-section > .account-card .timeframe-pill:focus-visible {
+  transform: none;
+  border-color: rgba(44, 93, 157, 0.18);
+  color: rgba(46, 47, 49, 0.84);
+}
+
+.dashboard-section > .account-card .timeframe-pill.is-active {
+  border-color: rgba(44, 93, 157, 0.16);
+  background: rgba(44, 93, 157, 0.08);
+  color: var(--account-chart);
+}
+
+.dashboard-section > .account-card .kgrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(92, 82, 62, 0.1);
+}
+
+.dashboard-section > .account-card .kchip {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-width: 0;
+  width: 100%;
+  min-height: auto;
+  padding: 8px 8px 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(92, 82, 62, 0.06);
+  background: var(--account-chip);
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  box-shadow: none;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.dashboard-section > .account-card .kchip:hover,
+.dashboard-section > .account-card .kchip:focus-visible {
+  border-color: rgba(44, 93, 157, 0.14);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.dashboard-section > .account-card .kl {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: rgba(46, 47, 49, 0.44);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-section > .account-card .kv {
+  font-family: var(--mono);
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-section > .account-card .kchip__meta {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: rgba(46, 47, 49, 0.5);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dashboard-section > .account-card .tone-positive {
+  color: #5aa070;
+}
+
+.dashboard-section > .account-card .tone-negative {
+  color: #c46360;
+}
+
+.dashboard-section > .account-card .tone-warning {
+  color: #bd8d3f;
+}
+
+.dashboard-section > .account-card .tone-neutral {
+  color: #5377a5;
+}
+
+.dashboard-section > .account-card .tone-muted {
+  color: var(--account-muted);
+}
+
+.dashboard-section > .account-card .sparkline-live-beacon {
+  display: block;
+}
+
+@media (max-width: 820px) {
+  .dashboard-section > .account-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .dashboard-section > .account-card .sp-canvas,
+  .dashboard-section > .account-card .sp-canvas .sparkline-chart,
+  .dashboard-section > .account-card .account-card__chart-skeleton {
+    height: 156px;
+  }
+
+  .dashboard-section > .account-card .kgrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-section > .account-card .sp-canvas,
+  .dashboard-section > .account-card .sp-canvas .sparkline-chart,
+  .dashboard-section > .account-card .account-card__chart-skeleton {
+    height: 144px;
+  }
+
+  .dashboard-section > .account-card .kgrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .dashboard-section > .account-card .kv {
+    font-size: 13px;
+  }
+}
+
+@supports (height: 100dvh) {
+  body,
+  .monitor-page {
+    min-height: 100dvh;
+  }
+
+  .monitor-shell.app-shell {
+    height: calc(100dvh - 32px);
+  }
+
+  @media (max-width: 820px) {
+    .monitor-shell.app-shell {
+      height: 100dvh;
+    }
+  }
+
+  @media (orientation: landscape) and (max-width: 1180px) {
+    .monitor-shell.app-shell {
+      height: 100dvh;
+    }
+  }
+}
+
+.monitor-page {
+  padding:
+    calc(12px + var(--safe-area-top))
+    calc(12px + var(--safe-area-right))
+    calc(12px + var(--safe-area-bottom))
+    calc(12px + var(--safe-area-left));
+}
+
+.monitor-shell.app-shell {
+  height: calc(100vh - 24px - var(--safe-area-top) - var(--safe-area-bottom));
+}
+
+.pull-refresh {
+  top: calc(12px + var(--safe-area-top));
+}
+
+.app-scroll {
+  padding:
+    calc(16px + var(--safe-area-top))
+    calc(14px + var(--safe-area-right))
+    calc(18px + var(--safe-area-bottom))
+    calc(14px + var(--safe-area-left));
+}
+
+@media (min-width: 920px) {
+  .monitor-page {
+    padding:
+      calc(16px + var(--safe-area-top))
+      calc(16px + var(--safe-area-right))
+      calc(16px + var(--safe-area-bottom))
+      calc(16px + var(--safe-area-left));
+  }
+
+  .monitor-shell.app-shell {
+    height: calc(100vh - 32px - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  .dashboard-scroll {
+    padding:
+      calc(22px + var(--safe-area-top))
+      calc(22px + var(--safe-area-right))
+      calc(22px + var(--safe-area-bottom))
+      calc(22px + var(--safe-area-left));
+  }
+}
+
+@media (max-width: 820px) {
+  .monitor-page {
+    padding: 0;
+  }
+
+  .monitor-shell.app-shell {
+    height: 100vh;
+  }
+
+  .app-scroll {
+    padding:
+      calc(18px + var(--safe-area-top))
+      calc(16px + var(--safe-area-right))
+      calc(22px + var(--safe-area-bottom))
+      calc(16px + var(--safe-area-left));
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1180px) {
+  .monitor-page {
+    padding: 0;
+  }
+
+  .monitor-shell.app-shell {
+    height: 100vh;
+  }
+
+  .app-scroll {
+    padding:
+      calc(18px + var(--safe-area-top))
+      calc(18px + var(--safe-area-right))
+      calc(18px + var(--safe-area-bottom))
+      calc(18px + var(--safe-area-left));
+  }
+}
+
+@supports (height: 100dvh) {
+  .monitor-shell.app-shell {
+    height: calc(100dvh - 24px - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  @media (min-width: 920px) {
+    .monitor-shell.app-shell {
+      height: calc(100dvh - 32px - var(--safe-area-top) - var(--safe-area-bottom));
+    }
+  }
+
+  @media (max-width: 820px) {
+    .monitor-shell.app-shell {
+      height: 100dvh;
+    }
+  }
+
+  @media (orientation: landscape) and (max-width: 1180px) {
+    .monitor-shell.app-shell {
+      height: 100dvh;
+    }
+  }
+}
+
+.account-pages {
+  position: absolute;
+  left: 50%;
+  bottom: calc(10px + var(--safe-area-bottom));
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(13, 17, 22, 0.76);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.account-pages.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.account-pages__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 201, 100, 0.92);
+  background: rgba(23, 201, 100, 0.16);
+  transition: width 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.account-pages__dot.is-active {
+  width: 16px;
+  border-color: rgba(83, 240, 143, 0.98);
+  background: rgba(23, 201, 100, 0.92);
+}
+
+@media (orientation: landscape) and (max-width: 1180px) {
+  .dashboard-scroll.is-carousel {
+    overflow-y: hidden;
+  }
+
+  .dashboard-section.dashboard-section--carousel {
+    height: 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 100%;
+    gap: 16px;
+    align-content: stretch;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .dashboard-section.dashboard-section--carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card {
+    height: 100%;
+    min-height: 0;
+    padding: 18px 18px 16px;
+    display: grid;
+    grid-template-columns: minmax(300px, 1.26fr) minmax(250px, 0.9fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "header header"
+      "chart stats"
+      "timeframe stats";
+    gap: 12px 18px;
+    align-content: stretch;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-wrap {
+    display: contents;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-header {
+    grid-area: header;
+    gap: 8px;
+    margin: 0;
+    min-width: 0;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-top,
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-top--compact {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-identity,
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-identity--header {
+    min-width: 0;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-side {
+    gap: 4px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-growth,
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-balance {
+    justify-items: end;
+    text-align: right;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-balance strong {
+    font-size: clamp(24px, 2.9vw, 36px);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-wrap .section-state,
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__chart-skeleton,
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas {
+    grid-area: chart;
+    height: 100%;
+    min-height: 228px;
+    margin: 0;
+    align-self: stretch;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas {
+    padding: 4px 0 0;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas .sparkline-chart,
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__chart-skeleton {
+    height: 100%;
+    min-height: 228px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .tf-row {
+    grid-area: timeframe;
+    justify-content: flex-end;
+    align-self: end;
+    margin: 0;
+    padding-right: 2px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kgrid {
+    grid-area: stats;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 0;
+    border-top: 0;
+    border-left: 1px solid rgba(92, 82, 62, 0.1);
+    padding-left: 16px;
+    align-self: stretch;
+    align-content: start;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kchip {
+    min-height: 68px;
+    padding: 10px 10px 9px;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 840px) {
+  .dashboard-section.dashboard-section--carousel > .account-card {
+    grid-template-columns: minmax(268px, 1.16fr) minmax(212px, 0.92fr);
+    gap: 12px 14px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-balance strong {
+    font-size: clamp(22px, 2.8vw, 30px);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kgrid {
+    padding-left: 12px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kchip {
+    min-height: 62px;
+    padding: 8px;
   }
 }
