@@ -894,7 +894,8 @@ export function BalanceEventChart({
   const anchorTimestamp =
     getTimestampValue(reportTimestamp)
     ?? getTimestampValue(resolvedPoints[resolvedPoints.length - 1]?.x)
-    ?? Date.now();
+    ?? getTimestampValue(resolvedPoints[0]?.x)
+    ?? 0;
   const dayStart = startOfDayWindow(anchorTimestamp);
   const dayEnd = endOfDayWindow(anchorTimestamp);
 

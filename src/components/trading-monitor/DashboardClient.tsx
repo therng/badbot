@@ -138,8 +138,10 @@ function DashboardCard({
   isLandscapeCarousel: boolean;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("all");
-  const [highlightedBalance, setHighlightedBalance] = useState<number | null>(null);
-  const [expandedKpi, setExpandedKpi] = useState<ExpandableKpiKey | null>(null);
+  const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
+  const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
+  const expandedKpiScope = `${account.id}:${timeframe}`;
+  const expandedKpi = expandedKpiState?.scope === expandedKpiScope ? expandedKpiState.value : null;
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
     refreshKey,
     onRequestStateChange,
@@ -174,6 +176,9 @@ function DashboardCard({
   );
   const accountSource = overview.data?.account ?? account;
   const active = accountSource.status === "Active";
+  const highlightedBalanceScope = `${account.id}:${timeframe}:${refreshKey}:${accountSource.balance ?? ""}`;
+  const highlightedBalance =
+    highlightedBalanceState?.scope === highlightedBalanceScope ? highlightedBalanceState.value : null;
   const sparklinePoints = overview.data?.balanceCurve.length
     ? overview.data.balanceCurve
     : [{ x: "0", y: 0 }];
@@ -386,21 +391,14 @@ function DashboardCard({
                 ]
             : [];
 
-  useEffect(() => {
-    setHighlightedBalance(null);
-  }, [timeframe, refreshKey, overview.data?.account.balance]);
-
-  useEffect(() => {
-    setExpandedKpi(null);
-  }, [account.id, timeframe]);
-
   const handleChipToggle = (key: ExpandableKpiKey) => {
-    setExpandedKpi((current) => {
-      if (current === key) {
-        return null;
-      }
+    setExpandedKpiState((current) => {
+      const currentValue = current?.scope === expandedKpiScope ? current.value : null;
 
-      return key;
+      return {
+        scope: expandedKpiScope,
+        value: currentValue === key ? null : key,
+      };
     });
   };
 
@@ -466,7 +464,12 @@ function DashboardCard({
                   points={sparklinePoints}
                   active={active}
                   tone="neutral"
-                  onHighlightBalanceChange={setHighlightedBalance}
+                  onHighlightBalanceChange={(value) => {
+                    setHighlightedBalanceState({
+                      scope: highlightedBalanceScope,
+                      value,
+                    });
+                  }}
                   timeframe={timeframe}
                   liveTimestamp={accountSource.last_updated}
                   liveBalance={accountSource.balance}
@@ -685,8 +688,6 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!isLandscapeCarousel) {
-      setShowPageIndicator(false);
-      setActiveAccountIndex(0);
       lastLandscapeAccountOrderRef.current = "";
       wasLandscapeCarouselRef.current = false;
       return;
@@ -701,7 +702,10 @@ export default function DashboardClient() {
     }
 
     if ((accounts.data?.length ?? 0) > 1) {
-      revealPageIndicator();
+      const frameId = window.requestAnimationFrame(() => {
+        revealPageIndicator();
+      });
+      return () => window.cancelAnimationFrame(frameId);
     }
   }, [accounts.data?.length, isLandscapeCarousel, revealPageIndicator, scrollToAccountIndex]);
 
@@ -867,6 +871,7 @@ export default function DashboardClient() {
   };
   const accountCount = accounts.data?.length ?? 0;
   const shouldRenderIndicators = isLandscapeCarousel && accountCount > 1;
+  const visiblePageIndicator = shouldRenderIndicators && showPageIndicator;
   const canGoPreviousAccount = shouldRenderIndicators && activeAccountIndex > 0;
   const canGoNextAccount = shouldRenderIndicators && activeAccountIndex < accountCount - 1;
 
@@ -947,7 +952,7 @@ export default function DashboardClient() {
         </div>
         {shouldRenderIndicators ? (
           <div
-            className={showPageIndicator ? "account-carousel-nav is-visible" : "account-carousel-nav"}
+            className={visiblePageIndicator ? "account-carousel-nav is-visible" : "account-carousel-nav"}
             aria-label="Account navigation"
           >
             <button
@@ -971,7 +976,7 @@ export default function DashboardClient() {
           </div>
         ) : null}
         {shouldRenderIndicators ? (
-          <div className={showPageIndicator ? "account-pages is-visible" : "account-pages"} aria-hidden="true">
+          <div className={visiblePageIndicator ? "account-pages is-visible" : "account-pages"} aria-hidden="true">
             {Array.from({ length: accountCount }).map((_, index) => (
               <span
                 key={index}

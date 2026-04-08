@@ -48,7 +48,6 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
 
   useEffect(() => {
     if (!url) {
-      setState({ data: null, error: null, loading: false });
       return;
     }
 
@@ -69,12 +68,18 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
       notifyRequestState(false);
     };
 
-    setState((current) => ({
-      data: current.data,
-      error: null,
-      loading: true,
-    }));
-    notifyRequestState(true);
+    queueMicrotask(() => {
+      if (!active || controller.signal.aborted) {
+        return;
+      }
+
+      setState({
+        data: null,
+        error: null,
+        loading: true,
+      });
+      notifyRequestState(true);
+    });
 
     fetch(url, {
       cache: "no-store",
@@ -120,6 +125,10 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
       settleRequest();
     };
   }, [onRequestStateChange, refreshKey, refreshTick, url]);
+
+  if (!url) {
+    return { data: null, error: null, loading: false };
+  }
 
   return state;
 }

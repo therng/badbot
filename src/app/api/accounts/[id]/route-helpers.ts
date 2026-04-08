@@ -7,6 +7,7 @@ import {
 } from "@/lib/trading/preaggregated-cache";
 
 type RouteHandler = () => Promise<NextResponse> | NextResponse;
+export type AccountRouteContext = { params: Promise<{ id: string }> };
 
 export function jsonApiError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
