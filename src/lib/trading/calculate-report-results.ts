@@ -1,18 +1,26 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { computeSharpeRatio, summarizeClosedPositions } from "@/lib/trading/analytics";
+import { computeBalanceDrawdown, computeSharpeRatio, summarizeClosedPositions } from "@/lib/trading/analytics";
 
 type NumericLike = number | Prisma.Decimal | null | undefined;
 
 type PositionLike = {
+  positionNo?: string | null;
+  openTime?: Date | string | null;
   closeTime?: Date | string | null;
   type?: string | null;
+  direction?: string | null;
   profit?: NumericLike;
+  commission?: NumericLike;
+  swap?: NumericLike;
 };
 
 type DealLike = {
+  dealNo?: string;
   time: Date | string;
+  type?: string | null;
+  comment?: string | null;
   profit?: NumericLike;
   commission?: NumericLike;
   swap?: NumericLike;
@@ -20,92 +28,38 @@ type DealLike = {
 };
 
 const prismaClient = prisma as any;
+const DECIMAL_28_8_MAX_ABS = 1e20;
 
 function toNumber(value: NumericLike) {
   const numeric = Number(value ?? Number.NaN);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-function toDecimalOrNull(value: number | null) {
+function toFiniteFloatOrNull(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+function toDecimalOrNull(value: number | null, fieldName: string) {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (Math.abs(value) >= DECIMAL_28_8_MAX_ABS) {
+    console.warn(
+      `Skipping account report metric ${fieldName}: ${value} exceeds DECIMAL(28,8) range.`,
+    );
     return null;
   }
 
   return new Prisma.Decimal(value);
 }
 
-function compareTimes(left: Date | string, right: Date | string) {
-  return new Date(left).getTime() - new Date(right).getTime();
-}
-
 function sumNumbers(values: Array<number | null>) {
   return values.reduce<number>((total, value) => total + (value ?? 0), 0);
-}
-
-function calculateBalanceDrawdownMetrics(deals: DealLike[]) {
-  const orderedBalances = [...deals]
-    .sort((left, right) => compareTimes(left.time, right.time))
-    .map((deal) => ({
-      time: deal.time,
-      balance: toNumber(deal.balance),
-    }))
-    .filter((deal): deal is { time: Date | string; balance: number } => deal.balance !== null);
-
-  if (orderedBalances.length < 2) {
-    return {
-      balanceDrawdownAbsolute: null,
-      balanceDrawdownMaximal: null,
-      balanceDrawdownMaximalPct: null,
-      balanceDrawdownRelativePct: null,
-      balanceDrawdownRelative: null,
-    };
-  }
-
-  const firstBalance = orderedBalances[0]?.balance ?? null;
-  if (!Number.isFinite(firstBalance)) {
-    return {
-      balanceDrawdownAbsolute: null,
-      balanceDrawdownMaximal: null,
-      balanceDrawdownMaximalPct: null,
-      balanceDrawdownRelativePct: null,
-      balanceDrawdownRelative: null,
-    };
-  }
-
-  let minimumBalance = firstBalance;
-  let runningPeak = firstBalance;
-  let maximalAmount = 0;
-  let maximalPctAtAmount = 0;
-  let relativeAmount = 0;
-  let relativePct = 0;
-
-  for (const point of orderedBalances) {
-    minimumBalance = Math.min(minimumBalance, point.balance);
-    runningPeak = Math.max(runningPeak, point.balance);
-
-    const amount = runningPeak - point.balance;
-    const pct = runningPeak > 0 ? (amount / runningPeak) * 100 : 0;
-
-    if (amount > maximalAmount) {
-      maximalAmount = amount;
-      maximalPctAtAmount = pct;
-    }
-
-    if (pct > relativePct) {
-      relativePct = pct;
-      relativeAmount = amount;
-    }
-  }
-
-  const absolute = Math.max(0, firstBalance - minimumBalance);
-
-  return {
-    balanceDrawdownAbsolute: absolute > 0 ? absolute : 0,
-    balanceDrawdownMaximal: maximalAmount > 0 ? maximalAmount : 0,
-    balanceDrawdownMaximalPct: maximalAmount > 0 ? maximalPctAtAmount : 0,
-    balanceDrawdownRelativePct: relativePct > 0 ? relativePct : 0,
-    balanceDrawdownRelative: relativeAmount > 0 ? relativeAmount : 0,
-  };
 }
 
 export function calculateReportResults(params: {
@@ -116,31 +70,28 @@ export function calculateReportResults(params: {
   const positionSummary = summarizeClosedPositions(positions);
   const totalCommission = sumNumbers(deals.map((deal) => toNumber(deal.commission)));
   const totalSwap = sumNumbers(deals.map((deal) => toNumber(deal.swap)));
-  const drawdown = calculateBalanceDrawdownMetrics(deals);
-  const sharpeRatio = computeSharpeRatio(
-    positions
-      .map((position) => toNumber(position.profit))
-      .filter((value): value is number => value !== null),
-  );
+  const drawdown = computeBalanceDrawdown(deals);
+  const sharpeRatio = computeSharpeRatio(positionSummary.netValues);
 
   return {
-    totalCommission: toDecimalOrNull(totalCommission),
-    totalSwap: toDecimalOrNull(totalSwap),
-    totalNetProfit: toDecimalOrNull(positionSummary.totalNetProfit),
-    grossProfit: toDecimalOrNull(positionSummary.grossProfit),
-    grossLoss: toDecimalOrNull(positionSummary.grossLoss),
-    profitFactor: positionSummary.profitFactor,
-    expectedPayoff: toDecimalOrNull(positionSummary.expectedPayoff),
-    recoveryFactor:
-      Number(drawdown.balanceDrawdownMaximal ?? 0) > 0
-        ? positionSummary.totalNetProfit / Number(drawdown.balanceDrawdownMaximal)
+    totalCommission: toDecimalOrNull(totalCommission, "totalCommission"),
+    totalSwap: toDecimalOrNull(totalSwap, "totalSwap"),
+    totalNetProfit: toDecimalOrNull(positionSummary.totalNetProfit, "totalNetProfit"),
+    grossProfit: toDecimalOrNull(positionSummary.grossProfit, "grossProfit"),
+    grossLoss: toDecimalOrNull(positionSummary.grossLoss, "grossLoss"),
+    profitFactor: toFiniteFloatOrNull(positionSummary.profitFactor),
+    expectedPayoff: toDecimalOrNull(positionSummary.expectedPayoff, "expectedPayoff"),
+    recoveryFactor: toFiniteFloatOrNull(
+      Number(drawdown.maximalAmount ?? 0) > 0
+        ? positionSummary.totalNetProfit / Number(drawdown.maximalAmount)
         : null,
-    sharpeRatio,
-    balanceDrawdownAbsolute: toDecimalOrNull(drawdown.balanceDrawdownAbsolute),
-    balanceDrawdownMaximal: toDecimalOrNull(drawdown.balanceDrawdownMaximal),
-    balanceDrawdownMaximalPct: drawdown.balanceDrawdownMaximalPct,
-    balanceDrawdownRelativePct: drawdown.balanceDrawdownRelativePct,
-    balanceDrawdownRelative: toDecimalOrNull(drawdown.balanceDrawdownRelative),
+    ),
+    sharpeRatio: toFiniteFloatOrNull(sharpeRatio),
+    balanceDrawdownAbsolute: toDecimalOrNull(drawdown.absoluteAmount, "balanceDrawdownAbsolute"),
+    balanceDrawdownMaximal: toDecimalOrNull(drawdown.maximalAmount, "balanceDrawdownMaximal"),
+    balanceDrawdownMaximalPct: toFiniteFloatOrNull(drawdown.maximalPercent),
+    balanceDrawdownRelativePct: toFiniteFloatOrNull(drawdown.relativePercent),
+    balanceDrawdownRelative: toDecimalOrNull(drawdown.relativeAmount, "balanceDrawdownRelative"),
     totalTrades: positionSummary.totalTrades,
     shortTradesWon: positionSummary.shortTradesWon,
     shortTradesTotal: positionSummary.shortTradesTotal,
@@ -148,10 +99,10 @@ export function calculateReportResults(params: {
     longTradesTotal: positionSummary.longTradesTotal,
     profitTradesCount: positionSummary.profitTradesCount,
     lossTradesCount: positionSummary.lossTradesCount,
-    largestProfitTrade: toDecimalOrNull(positionSummary.largestProfitTrade),
-    largestLossTrade: toDecimalOrNull(positionSummary.largestLossTrade),
-    averageProfitTrade: toDecimalOrNull(positionSummary.averageProfitTrade),
-    averageLossTrade: toDecimalOrNull(positionSummary.averageLossTrade),
+    largestProfitTrade: toDecimalOrNull(positionSummary.largestProfitTrade, "largestProfitTrade"),
+    largestLossTrade: toDecimalOrNull(positionSummary.largestLossTrade, "largestLossTrade"),
+    averageProfitTrade: toDecimalOrNull(positionSummary.averageProfitTrade, "averageProfitTrade"),
+    averageLossTrade: toDecimalOrNull(positionSummary.averageLossTrade, "averageLossTrade"),
     maximumConsecutiveWins: positionSummary.maximumConsecutiveWins,
     maximumConsecutiveLosses: positionSummary.maximumConsecutiveLosses,
   };
@@ -162,8 +113,12 @@ export async function recomputeAccountReportResult(accountId: string, sourceRepo
     prismaClient.position.findMany({
       where: { tradingAccountId: accountId },
       select: {
+        positionNo: true,
+        openTime: true,
         closeTime: true,
         type: true,
+        commission: true,
+        swap: true,
         profit: true,
       },
       orderBy: [{ closeTime: "asc" }, { positionNo: "asc" }],
@@ -171,7 +126,10 @@ export async function recomputeAccountReportResult(accountId: string, sourceRepo
     prismaClient.deal.findMany({
       where: { tradingAccountId: accountId },
       select: {
+        dealNo: true,
         time: true,
+        type: true,
+        comment: true,
         profit: true,
         commission: true,
         swap: true,

@@ -20,6 +20,7 @@ export {
   computeBalanceDrawdown,
   computeCompoundedGrowth,
   computeConsecutiveRunAmounts,
+  computeDepositLoadPercent,
   computeSharpeRatio,
   computeStreaks,
   computeYearGrowth,
@@ -36,6 +37,7 @@ export {
   isTradingDeal,
   normalizeTradeSide,
   parseTimeframe,
+  positionNetPnl,
   positionProfit,
   sanitizeOptionalText,
   summarizeClosedPositions,
@@ -47,6 +49,7 @@ export {
 
 const accountInclude = {
   accountSnapshot: true,
+  accountReportResult: true,
   openPositions: {
     orderBy: [{ symbol: "asc" }, { positionNo: "asc" }],
   },

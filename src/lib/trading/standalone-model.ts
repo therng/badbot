@@ -1,4 +1,5 @@
 import type { ParsedReport } from "../parser";
+import { computeBalanceDrawdown as computeSharedBalanceDrawdown, summarizeClosedPositions } from "./analytics";
 
 export type StandaloneTimeframe = "day" | "week" | "month" | "year" | "all-time";
 
@@ -9,7 +10,7 @@ export interface StandaloneFrame {
   overview: {
     netProfit: number;
     drawdown: number;
-    winPercent: number;
+    winPercent: number | null;
     trades: number;
     floatingPL: number;
     openCount: number;
@@ -113,6 +114,17 @@ export interface StandaloneMonitorData {
 type DealRow = ParsedReport["dealLedger"][number];
 
 const MAX_FUTURE_SKEW_MS = 5 * 60_000;
+const GENERIC_BALANCE_OPERATION_KEYWORDS = [
+  "credit",
+  "correction",
+  "bonus",
+  "fee",
+  "charge",
+  "interest",
+  "tax",
+  "agent",
+  "dividend",
+];
 
 const TIMEFRAME_META: Record<StandaloneTimeframe, { label: string; context: string }> = {
   day: { label: "D", context: "Today" },
@@ -151,32 +163,43 @@ function normalizeDealType(type: string | null | undefined) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
 }
 
+function normalizeDealComment(comment: string | null | undefined) {
+  return typeof comment === "string" ? comment.replace(/\s+/g, " ").trim().toLowerCase() : "";
+}
+
 function dealNet(row: { profit?: number | null; commission?: number | null; swap?: number | null }) {
   return Number(row.profit ?? 0) + Number(row.commission ?? 0) + Number(row.swap ?? 0);
 }
 
-function isFundingDeal(type: string | null | undefined) {
+function isFundingDeal(type: string | null | undefined, comment: string | null | undefined = null, delta: number | null = null) {
   const normalized = normalizeDealType(type);
-  if (!normalized) {
+  const normalizedComment = normalizeDealComment(comment);
+  const searchText = [normalized, normalizedComment].filter(Boolean).join(" ");
+
+  if (!normalized && !normalizedComment) {
     return false;
   }
 
-  return [
-    "balance",
-    "deposit",
-    "withdraw",
-    "withdrawal",
-    "credit",
-    "bonus",
-    "commission",
-    "fee",
-    "charge",
-    "correction",
-    "interest",
-    "tax",
-    "agent",
-    "dividend",
-  ].some((token) => normalized.includes(token));
+  if (searchText.includes("deposit") || searchText.includes("withdraw")) {
+    return true;
+  }
+
+  if (
+    searchText.includes("balance adjustment")
+    || (normalized === "balance" && normalizedComment.includes("adjustment"))
+  ) {
+    return true;
+  }
+
+  if (GENERIC_BALANCE_OPERATION_KEYWORDS.some((token) => searchText.includes(token))) {
+    return true;
+  }
+
+  if (normalized === "balance") {
+    return delta !== 0 || normalizedComment.length > 0;
+  }
+
+  return false;
 }
 
 function isTradingDeal(type: string | null | undefined) {
@@ -195,6 +218,53 @@ function deriveStartingBalanceFromDeal(deal: { balanceAfter?: number | null; pro
   }
 
   return balanceAfter - dealNet(deal);
+}
+
+function resolveGrowthBalanceAfter(
+  deal: DealRow,
+  previousBalance: number | null,
+) {
+  const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
+  if (Number.isFinite(balanceAfter)) {
+    return balanceAfter;
+  }
+
+  if (previousBalance === null || !Number.isFinite(previousBalance)) {
+    return null;
+  }
+
+  const nextBalance = previousBalance + dealNet(deal);
+  return Number.isFinite(nextBalance) ? nextBalance : null;
+}
+
+function resolveInitialGrowthBalance(sortedDeals: DealRow[]) {
+  if (!sortedDeals.length) {
+    return 0;
+  }
+
+  let runningBalance = deriveStartingBalanceFromDeal(sortedDeals[0]);
+  if (!Number.isFinite(runningBalance)) {
+    runningBalance = 0;
+  }
+
+  for (const deal of sortedDeals) {
+    const balanceAfter = resolveGrowthBalanceAfter(deal, runningBalance);
+    if (balanceAfter !== null) {
+      runningBalance = balanceAfter;
+    }
+
+    if (isFundingDeal(deal.type, deal.comment, dealNet(deal)) && Number.isFinite(runningBalance) && runningBalance !== 0) {
+      return runningBalance;
+    }
+  }
+
+  const startingBalance = deriveStartingBalanceFromDeal(sortedDeals[0]);
+  if (Number.isFinite(startingBalance) && startingBalance > 0) {
+    return startingBalance;
+  }
+
+  const firstKnownBalance = resolveGrowthBalanceAfter(sortedDeals[0], null);
+  return Number.isFinite(firstKnownBalance) ? Math.max(0, Number(firstKnownBalance)) : 0;
 }
 
 function getLatestDealBalance(deals: Array<{ time: Date | string; dealId?: string; balanceAfter?: number | null }>, fallback = 0) {
@@ -270,17 +340,26 @@ function collectDealWindow(
 
   const startTimestamp = start ? start.getTime() : null;
   const endTimestamp = end ? end.getTime() : null;
-  let runningBalance = deriveStartingBalanceFromDeal(sorted[0]);
+  let runningBalance = startTimestamp === null ? resolveInitialGrowthBalance(sorted) : deriveStartingBalanceFromDeal(sorted[0]);
+  if (!Number.isFinite(runningBalance)) {
+    runningBalance = 0;
+  }
   let startBalance = runningBalance;
   const window: DealRow[] = [];
 
   for (const deal of sorted) {
     const timestamp = new Date(deal.time).getTime();
-    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    const balanceAfter = resolveGrowthBalanceAfter(deal, runningBalance);
 
     if (startTimestamp !== null && timestamp < startTimestamp) {
-      runningBalance = Number.isFinite(balanceAfter) ? balanceAfter : runningBalance;
-      startBalance = runningBalance;
+      if (balanceAfter !== null) {
+        runningBalance = balanceAfter;
+        startBalance = runningBalance;
+      }
       continue;
     }
 
@@ -293,11 +372,12 @@ function collectDealWindow(
     }
 
     window.push(deal);
-    runningBalance = Number.isFinite(balanceAfter) ? balanceAfter : runningBalance;
+    if (balanceAfter !== null) {
+      runningBalance = balanceAfter;
+    }
   }
 
-  const endBalance = window.length ? Number(window[window.length - 1].balanceAfter ?? runningBalance) : startBalance;
-  return { window, startBalance, endBalance: Number.isFinite(endBalance) ? endBalance : startBalance };
+  return { window, startBalance, endBalance: Number.isFinite(runningBalance) ? runningBalance : startBalance };
 }
 
 function computeCompoundedGrowth(deals: DealRow[], start: Date | null, end: Date | null = null) {
@@ -307,27 +387,54 @@ function computeCompoundedGrowth(deals: DealRow[], start: Date | null, end: Date
   }
 
   let growthFactor = 1;
-  let periodStartBalance = startBalance;
+  let currentSegmentOpeningBalance = startBalance;
   let previousBalance = startBalance;
+  let hasBalanceOperation = false;
+  let invalidSegmentCount = 0;
 
   for (const deal of window) {
-    const balanceAfter = Number(deal.balanceAfter ?? Number.NaN);
-    if (!Number.isFinite(balanceAfter)) {
+    const balanceAfter = resolveGrowthBalanceAfter(deal, previousBalance);
+
+    if (isFundingDeal(deal.type, deal.comment, dealNet(deal))) {
+      hasBalanceOperation = true;
+
+      if (Number.isFinite(currentSegmentOpeningBalance) && currentSegmentOpeningBalance > 0) {
+        growthFactor *= previousBalance / currentSegmentOpeningBalance;
+      } else if (Number.isFinite(previousBalance) && previousBalance !== currentSegmentOpeningBalance) {
+        invalidSegmentCount += 1;
+      }
+
+      if (balanceAfter !== null) {
+        currentSegmentOpeningBalance = balanceAfter;
+        previousBalance = balanceAfter;
+      }
+
       continue;
     }
 
-    if (isFundingDeal(deal.type)) {
-      if (periodStartBalance > 0) {
-        growthFactor *= previousBalance / periodStartBalance;
-      }
-      periodStartBalance = balanceAfter;
+    if (balanceAfter !== null) {
+      previousBalance = balanceAfter;
     }
-
-    previousBalance = balanceAfter;
   }
 
-  if (periodStartBalance > 0) {
-    growthFactor *= previousBalance / periodStartBalance;
+  if (hasBalanceOperation) {
+    if (Number.isFinite(currentSegmentOpeningBalance) && currentSegmentOpeningBalance > 0) {
+      growthFactor *= previousBalance / currentSegmentOpeningBalance;
+    } else if (Number.isFinite(previousBalance) && previousBalance !== currentSegmentOpeningBalance) {
+      invalidSegmentCount += 1;
+    }
+  } else if (startBalance > 0) {
+    growthFactor = previousBalance / startBalance;
+  } else {
+    invalidSegmentCount += 1;
+  }
+
+  if (invalidSegmentCount > 0) {
+    console.warn("Skipped invalid standalone growth segment(s) with zero opening balance.", {
+      end: end?.toISOString() ?? null,
+      invalidSegmentCount,
+      start: start?.toISOString() ?? null,
+    });
   }
 
   const growth = (growthFactor - 1) * 100;
@@ -358,34 +465,6 @@ function computeAbsoluteGain(deals: DealRow[], start: Date | null, end: Date | n
 
   const absoluteGain = (profit / capitalBase) * 100;
   return Number.isFinite(absoluteGain) ? absoluteGain : 0;
-}
-
-function computeBalanceDrawdown(deals: DealRow[], endingBalance: number) {
-  const tradingDeals = sortDeals(deals).filter((deal) => isTradingDeal(deal.type));
-  if (!tradingDeals.length) {
-    return 0;
-  }
-
-  let runningPeak = Number.NEGATIVE_INFINITY;
-  let maxPercent = 0;
-
-  for (const deal of tradingDeals) {
-    const balance = Number(deal.balanceAfter ?? Number.NaN);
-    if (!Number.isFinite(balance)) {
-      continue;
-    }
-
-    if (!Number.isFinite(runningPeak)) {
-      runningPeak = endingBalance || balance;
-    }
-
-    runningPeak = Math.max(runningPeak, balance);
-    const amount = runningPeak - balance;
-    const percent = runningPeak > 0 ? (amount / runningPeak) * 100 : 0;
-    maxPercent = Math.max(maxPercent, percent);
-  }
-
-  return maxPercent;
 }
 
 function displayName(ownerName: string, accountNumber: string) {
@@ -490,18 +569,23 @@ function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): Stand
   const reportTime = report.metadata.report_timestamp;
   const since = getSinceDate(timeframe, reportTime);
   const deals = timeframe === "all-time" ? report.dealLedger : filterBySince(report.dealLedger, (deal) => deal.time, since);
+  const positions = timeframe === "all-time"
+    ? report.positions
+    : report.positions.filter((position) => {
+      if (!position.closeTime || !since) {
+        return false;
+      }
+
+      return position.closeTime.getTime() >= since.getTime();
+    });
+  const positionSummary = summarizeClosedPositions(positions);
   const tradingDeals = deals.filter((deal) => isTradingDeal(deal.type));
-  const wins = tradingDeals.filter((deal) => dealNet(deal) > 0).length;
-  const winPercent = tradingDeals.length ? (wins / tradingDeals.length) * 100 : 0;
   const curve = buildBalanceCurve(deals).map((point) => ({
     x: iso(point.time) ?? "",
     y: point.balance,
   }));
   const netProfit = tradingDeals.reduce((total, deal) => total + dealNet(deal), 0);
-  const drawdown = computeBalanceDrawdown(
-    deals,
-    getLatestDealBalance(deals, report.accountSummary.balance ?? 0),
-  );
+  const drawdown = computeSharedBalanceDrawdown(deals, since, null).relativePercent;
   const meta = TIMEFRAME_META[timeframe];
 
   return {
@@ -511,8 +595,8 @@ function buildFrame(report: ParsedReport, timeframe: StandaloneTimeframe): Stand
     overview: {
       netProfit,
       drawdown,
-      winPercent,
-      trades: tradingDeals.length,
+      winPercent: positionSummary.winPercent,
+      trades: positionSummary.totalTrades,
       floatingPL: report.accountSummary.floating_pl ?? 0,
       openCount: report.openPositions.length,
     },

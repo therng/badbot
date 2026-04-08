@@ -11,6 +11,7 @@ type TimedRow = {
 type BalanceRow = TimedRow & {
   type?: string | null;
   direction?: string | null;
+  comment?: string | null;
   profit?: NumericLike;
   commission?: NumericLike;
   swap?: NumericLike;
@@ -18,11 +19,29 @@ type BalanceRow = TimedRow & {
   balance?: NumericLike;
 };
 
+type PositionMetricRow = {
+  closeTime?: Date | string | null;
+  outTime?: Date | string | null;
+  openTime?: Date | string | null;
+  inTime?: Date | string | null;
+  positionNo?: string | null;
+  positionId?: string | null;
+  type?: string | null;
+  direction?: string | null;
+  profit?: NumericLike;
+  commission?: NumericLike;
+  swap?: NumericLike;
+};
+
 const EMPTY_TEXT_VALUES = new Set(["unknown", "n/a", "na", "--"]);
 const MAX_FUTURE_SKEW_MS = 5 * 60_000;
 
 function getDealSortKey(row: { dealId?: string; dealNo?: string }) {
   return String(row.dealId ?? row.dealNo ?? "");
+}
+
+function getPositionSortKey(row: { positionNo?: string | null; positionId?: string | null }) {
+  return String(row.positionNo ?? row.positionId ?? "");
 }
 
 function sortDeals<T extends TimedRow>(deals: T[]) {
@@ -51,31 +70,290 @@ function deriveStartingBalanceFromDeal(deal: BalanceRow) {
   return Number.isFinite(starting) ? starting : 0;
 }
 
-function collectDealWindow(deals: BalanceRow[], start: Date | null, end: Date | null = null) {
-  const sorted = sortDeals(deals);
-  if (!sorted.length) {
+type TradingBalancePoint = {
+  time: Date | string;
+  balance: number;
+  delta: number;
+  type: string | null;
+  comment: string | null;
+};
+
+type BalanceOperationKind = "deposit" | "withdrawal" | "balance-adjustment" | "balance";
+
+const GENERIC_BALANCE_OPERATION_KEYWORDS = [
+  "credit",
+  "correction",
+  "bonus",
+  "fee",
+  "charge",
+  "interest",
+  "tax",
+  "agent",
+  "dividend",
+];
+
+function normalizeDealComment(comment: string | null | undefined) {
+  return typeof comment === "string" ? comment.replace(/\s+/g, " ").trim().toLowerCase() : "";
+}
+
+function buildDealSearchText(type: string | null | undefined, comment: string | null | undefined) {
+  return [normalizeDealType(type), normalizeDealComment(comment)].filter(Boolean).join(" ");
+}
+
+function classifyBalanceOperation(
+  type: string | null | undefined,
+  comment: string | null | undefined,
+  delta: number | null = null,
+): BalanceOperationKind | null {
+  const normalizedType = normalizeDealType(type);
+  const normalizedComment = normalizeDealComment(comment);
+  const searchText = buildDealSearchText(type, comment);
+
+  if (!normalizedType && !normalizedComment) {
+    return null;
+  }
+
+  if (searchText.includes("deposit")) {
+    return "deposit";
+  }
+
+  if (searchText.includes("withdraw")) {
+    return "withdrawal";
+  }
+
+  if (
+    searchText.includes("balance adjustment")
+    || (normalizedType === "balance" && normalizedComment.includes("adjustment"))
+  ) {
+    return "balance-adjustment";
+  }
+
+  if (GENERIC_BALANCE_OPERATION_KEYWORDS.some((token) => searchText.includes(token))) {
+    return "balance";
+  }
+
+  if (normalizedType === "balance") {
+    if ((delta ?? 0) > 0) {
+      return "deposit";
+    }
+
+    if ((delta ?? 0) < 0) {
+      return "withdrawal";
+    }
+
+    return "balance";
+  }
+
+  return null;
+}
+
+function isTradeMetricDeal(type: string | null | undefined, comment: string | null | undefined) {
+  return Boolean(normalizeDealType(type) || normalizeDealComment(comment))
+    && classifyBalanceOperation(type, comment) === null;
+}
+
+function resolveInitialDeposit(sortedDeals: BalanceRow[]) {
+  for (const deal of sortedDeals) {
+    const delta = dealNet(deal);
+    if (classifyBalanceOperation(deal.type, deal.comment, delta) === "deposit" && delta > 0) {
+      return delta;
+    }
+  }
+
+  const firstTradeMetricDeal = sortedDeals.find((deal) => isTradeMetricDeal(deal.type, deal.comment));
+  if (firstTradeMetricDeal) {
+    return Math.max(0, deriveStartingBalanceFromDeal(firstTradeMetricDeal));
+  }
+
+  const firstKnownBalance = sortedDeals.find((deal) => getDealBalanceValue(deal) !== null);
+  return Math.max(0, firstKnownBalance ? Number(getDealBalanceValue(firstKnownBalance) ?? 0) : 0);
+}
+
+function resolveGrowthBalanceAfter(
+  deal: BalanceRow,
+  previousBalance: number | null,
+) {
+  const balanceAfter = getDealBalanceValue(deal);
+  if (balanceAfter !== null) {
+    return balanceAfter;
+  }
+
+  if (previousBalance === null || !Number.isFinite(previousBalance)) {
+    return null;
+  }
+
+  const nextBalance = previousBalance + dealNet(deal);
+  return Number.isFinite(nextBalance) ? nextBalance : null;
+}
+
+function resolveGrowthOpeningBalance(sortedDeals: BalanceRow[]) {
+  if (!sortedDeals.length) {
+    return 0;
+  }
+
+  let runningBalance = deriveStartingBalanceFromDeal(sortedDeals[0]!);
+  if (!Number.isFinite(runningBalance)) {
+    runningBalance = 0;
+  }
+
+  for (const deal of sortedDeals) {
+    const balanceAfter = resolveGrowthBalanceAfter(deal, runningBalance);
+    if (balanceAfter !== null) {
+      runningBalance = balanceAfter;
+    }
+
+    if (isBalanceDeal(deal.type, deal.comment, dealNet(deal)) && Number.isFinite(runningBalance) && runningBalance !== 0) {
+      return runningBalance;
+    }
+  }
+
+  const startingBalance = deriveStartingBalanceFromDeal(sortedDeals[0]!);
+  if (Number.isFinite(startingBalance) && startingBalance > 0) {
+    return startingBalance;
+  }
+
+  const firstKnownBalance = resolveGrowthBalanceAfter(sortedDeals[0]!, null);
+  return Number.isFinite(firstKnownBalance) ? Number(firstKnownBalance) : 0;
+}
+
+function buildTradeMetricBalanceTimeline(deals: BalanceRow[]) {
+  const sortedDeals = sortDeals(deals);
+  const sortedTradeMetricDeals = sortedDeals.filter((deal) => isTradeMetricDeal(deal.type, deal.comment));
+  const initialDeposit = resolveInitialDeposit(sortedDeals);
+  let runningBalance = initialDeposit;
+
+  const points = sortedTradeMetricDeals.reduce<TradingBalancePoint[]>((timeline, deal) => {
+    const delta = dealNet(deal);
+    if (!Number.isFinite(delta)) {
+      return timeline;
+    }
+
+    runningBalance += delta;
+    timeline.push({
+      time: deal.time,
+      balance: runningBalance,
+      delta,
+      type: deal.type ?? null,
+      comment: deal.comment ?? null,
+    });
+    return timeline;
+  }, []);
+
+  return {
+    initialDeposit,
+    points,
+  };
+}
+
+function collectTradeMetricWindow(deals: BalanceRow[], start: Date | null, end: Date | null = null) {
+  const sortedDeals = sortDeals(deals);
+  const { initialDeposit, points } = buildTradeMetricBalanceTimeline(sortedDeals);
+  if (!points.length) {
+    const totalDeposits = sortedDeals.reduce((total, deal) => {
+      const timestamp = new Date(deal.time).getTime();
+      if (!Number.isFinite(timestamp)) {
+        return total;
+      }
+
+      if (end && timestamp > end.getTime()) {
+        return total;
+      }
+
+      const delta = dealNet(deal);
+      const operation = classifyBalanceOperation(deal.type, deal.comment, delta);
+      return operation === "deposit" && delta > 0 ? total + delta : total;
+    }, 0);
+
     return {
-      sorted,
-      window: [] as BalanceRow[],
-      startBalance: 0,
-      endBalance: 0,
+      points: [] as TradingBalancePoint[],
+      initialDeposit,
+      totalDeposits: totalDeposits > 0 ? totalDeposits : initialDeposit,
+      startBalance: initialDeposit,
+      endBalance: initialDeposit,
     };
   }
 
   const startTimestamp = start ? start.getTime() : null;
   const endTimestamp = end ? end.getTime() : null;
+  let startBalance = initialDeposit;
+  const window: TradingBalancePoint[] = [];
+  let totalDeposits = 0;
 
-  let runningBalance = deriveStartingBalanceFromDeal(sorted[0]);
+  for (const deal of sortedDeals) {
+    const timestamp = new Date(deal.time).getTime();
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    if (endTimestamp !== null && timestamp > endTimestamp) {
+      break;
+    }
+
+    const delta = dealNet(deal);
+    const operation = classifyBalanceOperation(deal.type, deal.comment, delta);
+    if (operation === "deposit" && delta > 0) {
+      totalDeposits += delta;
+    }
+  }
+
+  for (const point of points) {
+    const timestamp = new Date(point.time).getTime();
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    if (startTimestamp !== null && timestamp < startTimestamp) {
+      startBalance = point.balance;
+      continue;
+    }
+
+    if (endTimestamp !== null && timestamp > endTimestamp) {
+      break;
+    }
+
+    window.push(point);
+  }
+
+  const endBalance = window.length ? window[window.length - 1]?.balance ?? startBalance : startBalance;
+
+  return {
+    points: window,
+    initialDeposit,
+    totalDeposits: totalDeposits > 0 ? totalDeposits : initialDeposit,
+    startBalance,
+    endBalance,
+  };
+}
+
+function collectGrowthWindow(deals: BalanceRow[], start: Date | null, end: Date | null = null) {
+  const sorted = sortDeals(deals);
+  if (!sorted.length) {
+    return { window: [] as BalanceRow[], startBalance: 0, endBalance: 0 };
+  }
+
+  const startTimestamp = start ? start.getTime() : null;
+  const endTimestamp = end ? end.getTime() : null;
+  let runningBalance = startTimestamp === null ? resolveGrowthOpeningBalance(sorted) : deriveStartingBalanceFromDeal(sorted[0]!);
+  if (!Number.isFinite(runningBalance)) {
+    runningBalance = 0;
+  }
+
   let startBalance = runningBalance;
   const window: BalanceRow[] = [];
 
   for (const deal of sorted) {
     const timestamp = new Date(deal.time).getTime();
-    const balanceAfter = getDealBalanceValue(deal);
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    const balanceAfter = resolveGrowthBalanceAfter(deal, runningBalance);
 
     if (startTimestamp !== null && timestamp < startTimestamp) {
-      runningBalance = balanceAfter ?? runningBalance;
-      startBalance = runningBalance;
+      if (balanceAfter !== null) {
+        runningBalance = balanceAfter;
+        startBalance = runningBalance;
+      }
       continue;
     }
 
@@ -88,18 +366,15 @@ function collectDealWindow(deals: BalanceRow[], start: Date | null, end: Date | 
     }
 
     window.push(deal);
-    runningBalance = balanceAfter ?? runningBalance;
+    if (balanceAfter !== null) {
+      runningBalance = balanceAfter;
+    }
   }
 
-  const endBalance = window.length
-    ? getDealBalanceValue(window[window.length - 1]) ?? runningBalance
-    : startBalance;
-
   return {
-    sorted,
     window,
     startBalance,
-    endBalance: Number.isFinite(endBalance) ? endBalance : startBalance,
+    endBalance: Number.isFinite(runningBalance) ? runningBalance : startBalance,
   };
 }
 
@@ -114,6 +389,14 @@ function toIsoDay(value: Date | string) {
 
 function normalizeDealType(type: string | null | undefined) {
   return typeof type === "string" ? type.trim().toLowerCase() : "";
+}
+
+function getPositionCloseTime(row: { closeTime?: Date | string | null; outTime?: Date | string | null }) {
+  return row.outTime ?? row.closeTime ?? null;
+}
+
+function getPositionOpenTime(row: { openTime?: Date | string | null; inTime?: Date | string | null }) {
+  return row.inTime ?? row.openTime ?? null;
 }
 
 export function sanitizeOptionalText(value: string | null | undefined) {
@@ -134,19 +417,25 @@ export function parseTimeframe(value: string | null): Timeframe {
     case "1d":
     case "day":
       return "1d";
+    case "1w":
+    case "w":
     case "5d":
     case "week":
-      return "5d";
+      return "1w";
     case "1m":
+    case "m":
     case "month":
       return "1m";
+    case "ytd":
+    case "year-to-date":
+    case "year_to_date":
     case "3m":
-      return "3m";
     case "6m":
-      return "6m";
+      return "ytd";
     case "1y":
     case "year":
       return "1y";
+    case "a":
     case "all":
     case "all-time":
       return "all";
@@ -167,17 +456,15 @@ export function getSinceDate(timeframe: Timeframe, now = new Date()) {
   switch (timeframe) {
     case "1d":
       return startOfDay(now);
-    case "5d": {
+    case "1w": {
       const start = startOfDay(now);
-      start.setDate(start.getDate() - 4);
+      start.setDate(start.getDate() - 6);
       return start;
     }
     case "1m":
       return startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30));
-    case "3m":
-      return startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90));
-    case "6m":
-      return startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 180));
+    case "ytd":
+      return startOfDay(new Date(now.getFullYear(), 0, 1));
     case "1y":
       return startOfDay(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
     default:
@@ -188,19 +475,17 @@ export function getSinceDate(timeframe: Timeframe, now = new Date()) {
 export function getTimeframeLabel(timeframe: Timeframe) {
   switch (timeframe) {
     case "1d":
-      return "1D";
-    case "5d":
-      return "5D";
+      return "D";
+    case "1w":
+      return "W";
     case "1m":
-      return "1M";
-    case "3m":
-      return "3M";
-    case "6m":
-      return "6M";
+      return "M";
+    case "ytd":
+      return "YTD";
     case "1y":
       return "1Y";
     default:
-      return "ALL";
+      return "A";
   }
 }
 
@@ -268,6 +553,10 @@ export function dealNet(row: { profit?: NumericLike; commission?: NumericLike; s
   return Number(row.profit ?? 0) + Number(row.commission ?? 0) + Number(row.swap ?? 0);
 }
 
+export function positionNetPnl(row: { profit?: NumericLike; commission?: NumericLike; swap?: NumericLike }) {
+  return dealNet(row);
+}
+
 export function normalizeTradeSide(type: string | null | undefined, direction: string | null | undefined) {
   const normalizedType = normalizeDealType(type);
   if (normalizedType === "buy" || normalizedType === "sell") {
@@ -282,32 +571,12 @@ export function normalizeTradeSide(type: string | null | undefined, direction: s
   return normalizedType || normalizedDirection || "unknown";
 }
 
-export function isBalanceDeal(type: string | null | undefined) {
-  return normalizeDealType(type).includes("balance");
+export function isBalanceDeal(type: string | null | undefined, comment?: string | null, delta?: number | null) {
+  return classifyBalanceOperation(type, comment, delta ?? null) !== null;
 }
 
-export function isFundingDeal(type: string | null | undefined) {
-  const normalized = normalizeDealType(type);
-  if (!normalized) {
-    return false;
-  }
-
-  return [
-    "balance",
-    "deposit",
-    "withdraw",
-    "withdrawal",
-    "credit",
-    "bonus",
-    "commission",
-    "fee",
-    "charge",
-    "correction",
-    "interest",
-    "tax",
-    "agent",
-    "dividend",
-  ].some((token) => normalized.includes(token));
+export function isFundingDeal(type: string | null | undefined, comment?: string | null, delta?: number | null) {
+  return isBalanceDeal(type, comment, delta ?? null);
 }
 
 export function isTradingDeal(type: string | null | undefined) {
@@ -336,34 +605,62 @@ export function computeCompoundedGrowth(
   start: Date | null,
   end: Date | null = null,
 ) {
-  const { window, startBalance } = collectDealWindow(deals, start, end);
+  const { window, startBalance, endBalance } = collectGrowthWindow(deals, start, end);
   if (!window.length || !Number.isFinite(startBalance)) {
     return 0;
   }
 
   let growthFactor = 1;
-  let periodStartBalance = startBalance;
+  let currentSegmentOpeningBalance = startBalance;
   let previousBalance = startBalance;
+  let hasBalanceOperation = false;
+  let invalidSegmentCount = 0;
 
   for (const deal of window) {
-    const balanceAfter = getDealBalanceValue(deal);
-    if (balanceAfter === null) {
+    const delta = dealNet(deal);
+    const balanceAfter = resolveGrowthBalanceAfter(deal, previousBalance);
+    const operation = classifyBalanceOperation(deal.type, deal.comment, delta);
+
+    if (operation !== null) {
+      hasBalanceOperation = true;
+
+      if (Number.isFinite(currentSegmentOpeningBalance) && currentSegmentOpeningBalance > 0) {
+        growthFactor *= previousBalance / currentSegmentOpeningBalance;
+      } else if (Number.isFinite(previousBalance) && previousBalance !== currentSegmentOpeningBalance) {
+        invalidSegmentCount += 1;
+      }
+
+      if (balanceAfter !== null) {
+        currentSegmentOpeningBalance = balanceAfter;
+        previousBalance = balanceAfter;
+      }
+
       continue;
     }
 
-    if (isFundingDeal(deal.type)) {
-      if (periodStartBalance > 0) {
-        growthFactor *= previousBalance / periodStartBalance;
-      }
-
-      periodStartBalance = balanceAfter;
+    if (balanceAfter !== null) {
+      previousBalance = balanceAfter;
     }
-
-    previousBalance = balanceAfter;
   }
 
-  if (periodStartBalance > 0) {
-    growthFactor *= previousBalance / periodStartBalance;
+  if (hasBalanceOperation) {
+    if (Number.isFinite(currentSegmentOpeningBalance) && currentSegmentOpeningBalance > 0) {
+      growthFactor *= endBalance / currentSegmentOpeningBalance;
+    } else if (Number.isFinite(endBalance) && endBalance !== currentSegmentOpeningBalance) {
+      invalidSegmentCount += 1;
+    }
+  } else if (startBalance > 0) {
+    growthFactor = endBalance / startBalance;
+  } else {
+    invalidSegmentCount += 1;
+  }
+
+  if (invalidSegmentCount > 0) {
+    console.warn("Skipped invalid growth segment(s) with zero opening balance.", {
+      end: end?.toISOString() ?? null,
+      invalidSegmentCount,
+      start: start?.toISOString() ?? null,
+    });
   }
 
   const growth = (growthFactor - 1) * 100;
@@ -375,30 +672,13 @@ export function computeAbsoluteGain(
   start: Date | null,
   end: Date | null = null,
 ) {
-  const { window, startBalance, endBalance } = collectDealWindow(deals, start, end);
-  if (!window.length) {
+  const { points, initialDeposit, startBalance, endBalance } = collectTradeMetricWindow(deals, start, end);
+  if (!points.length) {
     return 0;
   }
 
-  const fundingDelta = window.reduce((total, deal) => {
-    if (!isFundingDeal(deal.type)) {
-      return total;
-    }
-
-    return total + dealNet(deal);
-  }, 0);
-
-  const deposited = window.reduce((total, deal) => {
-    if (!isFundingDeal(deal.type)) {
-      return total;
-    }
-
-    const delta = dealNet(deal);
-    return delta > 0 ? total + delta : total;
-  }, 0);
-
-  const profit = endBalance - startBalance - fundingDelta;
-  const capitalBase = deposited > 0 ? deposited : startBalance > 0 ? startBalance : 0;
+  const profit = endBalance - startBalance;
+  const capitalBase = startBalance > 0 ? startBalance : initialDeposit > 0 ? initialDeposit : 0;
   if (capitalBase <= 0) {
     return 0;
   }
@@ -424,16 +704,23 @@ export function computeSharpeRatio(values: number[]) {
 }
 
 export function computeAverageHoldHours(
-  rows: Array<{ openTime?: Date | string | null; closeTime?: Date | string | null }>,
+  rows: Array<{
+    openTime?: Date | string | null;
+    inTime?: Date | string | null;
+    closeTime?: Date | string | null;
+    outTime?: Date | string | null;
+  }>,
 ) {
   const spans = rows
     .map((row) => {
-      if (!row.openTime || !row.closeTime) {
+      const openTime = getPositionOpenTime(row);
+      const closeTime = getPositionCloseTime(row);
+      if (!openTime || !closeTime) {
         return null;
       }
 
-      const opened = new Date(row.openTime).getTime();
-      const closed = new Date(row.closeTime).getTime();
+      const opened = new Date(openTime).getTime();
+      const closed = new Date(closeTime).getTime();
       if (!Number.isFinite(opened) || !Number.isFinite(closed) || closed <= opened) {
         return null;
       }
@@ -503,43 +790,31 @@ export function computeStreaks(values: number[]) {
   return { bestWinStreak, worstLossStreak };
 }
 
-export function isClosedPosition(row: { closeTime?: Date | string | null }) {
-  if (!row.closeTime) {
+export function isClosedPosition(row: { closeTime?: Date | string | null; outTime?: Date | string | null }) {
+  const closeTime = getPositionCloseTime(row);
+  if (!closeTime) {
     return false;
   }
 
-  return Number.isFinite(new Date(row.closeTime).getTime());
+  return Number.isFinite(new Date(closeTime).getTime());
 }
 
-export function positionProfit(row: { profit?: NumericLike }) {
-  const value = Number(row.profit ?? Number.NaN);
-  return Number.isFinite(value) ? value : null;
+export function positionProfit(row: { profit?: NumericLike; commission?: NumericLike; swap?: NumericLike }) {
+  return positionNetPnl(row);
 }
 
-export function summarizeClosedPositions(
-  rows: Array<{ closeTime?: Date | string | null; type?: string | null; profit?: NumericLike }>,
-) {
+export function summarizeClosedPositions(rows: PositionMetricRow[]) {
   const closedPositions = rows
     .filter((row) => isClosedPosition(row))
     .map((row) => ({
       ...row,
-      closeTimestamp: new Date(row.closeTime as Date | string).getTime(),
+      closeTimestamp: new Date(getPositionCloseTime(row) as Date | string).getTime(),
       profitValue: positionProfit(row),
-      side: normalizeTradeSide(row.type, row.type),
+      side: normalizeTradeSide(row.type, row.direction ?? row.type),
+      sortKey: getPositionSortKey(row),
     }))
-    .filter(
-      (
-        row,
-      ): row is {
-        closeTime?: Date | string | null;
-        type?: string | null;
-        profit?: NumericLike;
-        closeTimestamp: number;
-        profitValue: number;
-        side: string;
-      } => Number.isFinite(row.closeTimestamp) && row.profitValue !== null,
-    )
-    .sort((left, right) => left.closeTimestamp - right.closeTimestamp);
+    .filter((row) => Number.isFinite(row.closeTimestamp) && Number.isFinite(row.profitValue))
+    .sort((left, right) => left.closeTimestamp - right.closeTimestamp || left.sortKey.localeCompare(right.sortKey));
 
   const profits = closedPositions.map((row) => row.profitValue);
   const totalTrades = profits.length;
@@ -553,9 +828,10 @@ export function summarizeClosedPositions(
   const streaks = computeStreaks(profits);
 
   return {
+    netValues: profits,
     totalTrades,
     totalNetProfit,
-    winPercent: totalTrades ? (profitTradesCount / totalTrades) * 100 : 0,
+    winPercent: totalTrades > 0 ? (profitTradesCount / totalTrades) * 100 : null,
     profitTradesCount,
     lossTradesCount,
     grossProfit,
@@ -618,7 +894,14 @@ export function getShortTradeWinPercent(
 }
 
 export function buildDailyProfitSeries(
-  deals: Array<{ time: Date | string; type?: string | null; profit?: NumericLike; commission?: NumericLike; swap?: NumericLike }>,
+  deals: Array<{
+    time: Date | string;
+    type?: string | null;
+    comment?: string | null;
+    profit?: NumericLike;
+    commission?: NumericLike;
+    swap?: NumericLike;
+  }>,
   days = 5,
   now = new Date(),
 ) {
@@ -634,7 +917,7 @@ export function buildDailyProfitSeries(
 
   const totals = new Map(dayKeys.map((key) => [key, 0]));
   for (const deal of deals) {
-    if (!isTradingDeal(deal.type)) {
+    if (!isTradeMetricDeal(deal.type, deal.comment)) {
       continue;
     }
 
@@ -653,22 +936,25 @@ export function buildDailyProfitSeries(
 }
 
 export function buildFundingTotals(
-  deals: Array<{ type?: string | null; profit?: NumericLike; commission?: NumericLike; swap?: NumericLike }>,
+  deals: Array<{
+    type?: string | null;
+    comment?: string | null;
+    profit?: NumericLike;
+    commission?: NumericLike;
+    swap?: NumericLike;
+  }>,
 ) {
   return deals.reduce(
     (totals, deal) => {
-      if (!isFundingDeal(deal.type)) {
-        return totals;
-      }
-
       const delta = dealNet(deal);
       if (!Number.isFinite(delta) || delta === 0) {
         return totals;
       }
 
-      if (delta > 0) {
+      const operation = classifyBalanceOperation(deal.type, deal.comment, delta);
+      if (operation === "deposit" && delta > 0) {
         totals.totalDeposit += delta;
-      } else {
+      } else if (operation === "withdrawal" && delta < 0) {
         totals.totalWithdraw += Math.abs(delta);
       }
 
@@ -676,6 +962,24 @@ export function buildFundingTotals(
     },
     { totalDeposit: 0, totalWithdraw: 0 },
   );
+}
+
+export function computeDepositLoadPercent(params: {
+  totalDeposit: number | null | undefined;
+  margin: number | null | undefined;
+  floatingProfit: number | null | undefined;
+}) {
+  const totalDeposit = Number(params.totalDeposit ?? 0);
+  if (!Number.isFinite(totalDeposit) || totalDeposit <= 0) {
+    return null;
+  }
+
+  const margin = Math.max(0, Number(params.margin ?? 0));
+  const floatingProfit = Number(params.floatingProfit ?? 0);
+  const floatingLossOnly = Number.isFinite(floatingProfit) && floatingProfit < 0 ? Math.abs(floatingProfit) : 0;
+  const load = ((margin + floatingLossOnly) / totalDeposit) * 100;
+
+  return Number.isFinite(load) ? load : null;
 }
 
 export function buildSymbolTradePercent(
@@ -746,11 +1050,11 @@ export function buildBalanceCurve(
 
 export function buildUnitDrawdownCurve(
   deals: BalanceRow[],
-  _openPositions: Array<{ floatingProfit?: NumericLike; floating_profit?: NumericLike; profit?: NumericLike }>,
+  start: Date | null = null,
+  end: Date | null = null,
 ) {
-  const sorted = sortDeals(deals).filter((deal) => isTradingDeal(deal.type));
-
-  if (!sorted.length) {
+  const { points, startBalance } = collectTradeMetricWindow(deals, start, end);
+  if (!points.length) {
     return [];
   }
 
@@ -762,25 +1066,16 @@ export function buildUnitDrawdownCurve(
     drawdownPercent: number;
   }> = [];
 
-  let highWaterMark = Number.NEGATIVE_INFINITY;
+  let highWaterMark = startBalance;
 
-  sorted.forEach((deal) => {
-    const equity = getDealBalanceValue(deal);
-    if (equity === null) {
-      return;
-    }
-
-    if (!Number.isFinite(highWaterMark)) {
-      highWaterMark = equity;
-    }
-
-    highWaterMark = Math.max(highWaterMark, equity);
-    const drawdownPercent = highWaterMark > 0 ? ((highWaterMark - equity) / highWaterMark) * 100 : 0;
+  points.forEach((point) => {
+    highWaterMark = Math.max(highWaterMark, point.balance);
+    const drawdownPercent = highWaterMark > 0 ? ((highWaterMark - point.balance) / highWaterMark) * 100 : 0;
 
     output.push({
-      time: new Date(deal.time),
-      equity,
-      unitValue: equity,
+      time: new Date(point.time),
+      equity: point.balance,
+      unitValue: point.balance,
       highWaterMark,
       drawdownPercent,
     });
@@ -789,46 +1084,66 @@ export function buildUnitDrawdownCurve(
   return output;
 }
 
-export function computeBalanceDrawdown(deals: BalanceRow[], endingBalance: NumericLike) {
-  const resolvedEndingBalance = Number(endingBalance ?? 0);
-  if (!deals.length) {
+export function computeBalanceDrawdown(
+  deals: BalanceRow[],
+  start: Date | null = null,
+  end: Date | null = null,
+) {
+  const { points, initialDeposit, totalDeposits, startBalance } = collectTradeMetricWindow(deals, start, end);
+  const absoluteAmount = Math.max(0, totalDeposits - startBalance);
+
+  if (!points.length) {
     return {
-      amount: 0,
-      percent: 0,
-      peakBalance: resolvedEndingBalance,
-      troughBalance: resolvedEndingBalance,
+      initialDeposit,
+      totalDeposits,
+      minimalBalance: startBalance,
+      absoluteAmount,
+      maximalAmount: 0,
+      maximalPercent: 0,
+      relativeAmount: 0,
+      relativePercent: 0,
+      peakBalance: startBalance,
+      troughBalance: startBalance,
     };
   }
 
-  let runningPeak = Number.NEGATIVE_INFINITY;
-  let peakBalance = resolvedEndingBalance;
-  let troughBalance = resolvedEndingBalance;
-  let amount = 0;
-  let percent = 0;
+  let runningPeak = startBalance;
+  let peakBalance = startBalance;
+  let troughBalance = startBalance;
+  let minimalBalance = startBalance;
+  let maximalAmount = 0;
+  let maximalPercent = 0;
+  let relativeAmount = 0;
+  let relativePercent = 0;
 
-  for (const deal of sortDeals(deals).filter((item) => isTradingDeal(item.type))) {
-    const balance = getDealBalanceValue(deal);
-    if (balance === null) {
-      continue;
-    }
+  for (const point of points) {
+    minimalBalance = Math.min(minimalBalance, point.balance);
+    runningPeak = Math.max(runningPeak, point.balance);
 
-    if (!Number.isFinite(runningPeak) || balance > runningPeak) {
-      runningPeak = balance;
-    }
-
-    const currentAmount = runningPeak - balance;
+    const currentAmount = runningPeak - point.balance;
     const currentPercent = runningPeak > 0 ? (currentAmount / runningPeak) * 100 : 0;
-    if (currentPercent > percent) {
-      percent = currentPercent;
-      amount = currentAmount;
+    if (currentAmount > maximalAmount || (currentAmount === maximalAmount && currentPercent > maximalPercent)) {
+      maximalAmount = currentAmount;
+      maximalPercent = currentPercent;
       peakBalance = runningPeak;
-      troughBalance = balance;
+      troughBalance = point.balance;
+    }
+
+    if (currentPercent > relativePercent || (currentPercent === relativePercent && currentAmount > relativeAmount)) {
+      relativeAmount = currentAmount;
+      relativePercent = currentPercent;
     }
   }
 
   return {
-    amount,
-    percent,
+    initialDeposit,
+    totalDeposits,
+    minimalBalance,
+    absoluteAmount: Math.max(0, totalDeposits - minimalBalance),
+    maximalAmount,
+    maximalPercent,
+    relativeAmount,
+    relativePercent,
     peakBalance,
     troughBalance,
   };

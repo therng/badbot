@@ -2,21 +2,19 @@
 
 import { useId, useState } from "react";
 
-import type { BalanceEventPoint, ChartPoint, Timeframe } from "@/lib/trading/types";
+import type {
+  BalanceEventPoint,
+  ChartPoint,
+  Timeframe,
+  TradeExecutionDistribution,
+} from "@/lib/trading/types";
 
 import {
   TIMEFRAME_OPTIONS,
-  buildSmoothPath,
-  buildSmoothSegmentPath,
-  buildSparkline,
-  clamp,
   drawdownTone,
   formatCurrency,
-  formatDateTime,
-  formatNumber,
   formatPercent,
   formatSignedCurrency,
-  labelBalanceEvent,
 } from "@/components/trading-monitor/formatters";
 
 export function TimeframeStrip({
@@ -158,6 +156,45 @@ export function PairBar({
   );
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+const EMPTY_TEXT_VALUES = new Set(["unknown", "n/a", "na", ""]);
+
+function stripTrailingZero(value: string) {
+  return value.includes(".") ? value.replace(/\.0+(?=[A-Za-z%]|$)|(\.\d*?[1-9])0+(?=[A-Za-z%]|$)/g, "$1") : value;
+}
+
+function roundHalfUp(value: number, digits = 0) {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+
+  const normalizedDigits = Math.max(0, digits);
+  const absolute = Math.abs(value);
+  const rounded = Number(`${Math.round(Number(`${absolute}e${normalizedDigits}`))}e-${normalizedDigits}`);
+  return Math.sign(value) * rounded;
+}
+
+function formatRoundedNumber(value: number, digits: number, fixedDigits = false) {
+  const rounded = roundHalfUp(value, digits);
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: fixedDigits ? digits : 0,
+    maximumFractionDigits: digits,
+  }).format(rounded);
+
+  return fixedDigits ? formatted : stripTrailingZero(formatted);
+}
+
+function formatNumber(value: number | null | undefined, digits = 2) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return formatRoundedNumber(value ?? 0, digits);
+}
+
 function getTimestampValue(value: Date | string | null | undefined) {
   if (!value) {
     return null;
@@ -169,11 +206,11 @@ function getTimestampValue(value: Date | string | null | undefined) {
 
 function startOfDayWindow(timestamp: number) {
   const date = new Date(timestamp);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 function endOfDayWindow(timestamp: number) {
-  return startOfDayWindow(timestamp) + 24 * 60 * 60 * 1000;
+  return startOfDayWindow(timestamp) + 23 * 60 * 60 * 1000;
 }
 
 function resolveBalanceValue(point: ChartPoint | BalanceEventPoint) {
@@ -183,6 +220,61 @@ function resolveBalanceValue(point: ChartPoint | BalanceEventPoint) {
   }
 
   return Number(point.y ?? 0);
+}
+
+function formatReportLocalDate(value: Date | string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatReportLocalTime(value: Date | string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function withLivePoint(
@@ -235,9 +327,20 @@ function buildDailyTimePoints(
     return { linePath: "", fillPath: "", points: [] as Array<{ x: number; y: number }> };
   }
 
-  const values = points.map((point) => Number(point.y ?? 0)).filter(Number.isFinite);
-  const minimum = Math.min(...values);
-  const range = Math.max(...values) - minimum || 1;
+  const values = points.map((point) => resolveBalanceValue(point)).filter(Number.isFinite);
+  const baselineBalance = resolveBalanceValue(points[0]!);
+  const maxDistanceFromBaseline = Math.max(
+    0,
+    ...values.map((value) => Math.abs(value - baselineBalance)),
+  );
+  const baselineOffset = Math.max(
+    maxDistanceFromBaseline * 0.1,
+    Math.abs(baselineBalance) * 0.0005,
+    1,
+  );
+  const minimum = Math.min(baselineBalance - baselineOffset, ...values);
+  const maximum = Math.max(baselineBalance + baselineOffset, ...values);
+  const range = maximum - minimum || 1;
   const horizontalInset = Math.min(6, width / 24);
   const topInset = Math.min(6, height / 10);
   const bottomInset = Math.min(14, height / 4.5);
@@ -255,7 +358,7 @@ function buildDailyTimePoints(
     const clampedTimestamp = clamp(timestamp, dayStart, dayEnd);
     return {
       x: Number((horizontalInset + ((clampedTimestamp - dayStart) / (dayEnd - dayStart)) * plotWidth).toFixed(2)),
-      y: Number((topInset + (1 - (Number(point.y ?? 0) - minimum) / range) * plotHeight).toFixed(2)),
+      y: Number((topInset + (1 - (resolveBalanceValue(point) - minimum) / range) * plotHeight).toFixed(2)),
     };
   });
 
@@ -265,6 +368,129 @@ function buildDailyTimePoints(
     linePath,
     fillPath: `${linePath} L ${width - horizontalInset} ${height} L ${horizontalInset} ${height} Z`,
   };
+}
+
+function buildSmoothPath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    return `M ${points[0]?.x ?? 0} ${points[0]?.y ?? 0}`;
+  }
+
+  const commands = [`M ${points[0]?.x ?? 0} ${points[0]?.y ?? 0}`];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[Math.max(0, index - 1)] ?? points[0]!;
+    const current = points[index]!;
+    const next = points[index + 1]!;
+    const following = points[Math.min(points.length - 1, index + 2)] ?? next;
+    const controlOneX = current.x + (next.x - previous.x) / 6;
+    const controlOneY = current.y + (next.y - previous.y) / 6;
+    const controlTwoX = next.x - (following.x - current.x) / 6;
+    const controlTwoY = next.y - (following.y - current.y) / 6;
+
+    commands.push(
+      `C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)} ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)} ${next.x} ${next.y}`,
+    );
+  }
+
+  return commands.join(" ");
+}
+
+function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>, startIndex: number) {
+  if (startIndex < 0 || startIndex >= points.length - 1) {
+    return "";
+  }
+
+  const previous = points[Math.max(0, startIndex - 1)] ?? points[0];
+  const current = points[startIndex];
+  const next = points[startIndex + 1];
+  const following = points[Math.min(points.length - 1, startIndex + 2)] ?? next;
+
+  if (!previous || !current || !next || !following) {
+    return "";
+  }
+
+  const controlOneX = current.x + (next.x - previous.x) / 6;
+  const controlOneY = current.y + (next.y - previous.y) / 6;
+  const controlTwoX = next.x - (following.x - current.x) / 6;
+  const controlTwoY = next.y - (following.y - current.y) / 6;
+
+  return [
+    `M ${current.x} ${current.y}`,
+    `C ${controlOneX.toFixed(2)} ${controlOneY.toFixed(2)} ${controlTwoX.toFixed(2)} ${controlTwoY.toFixed(2)} ${next.x} ${next.y}`,
+  ].join(" ");
+}
+
+function buildSparkline(values: number[], width: number, height: number) {
+  if (!values.length) {
+    return { linePath: "", fillPath: "", points: [] as Array<{ x: number; y: number }> };
+  }
+
+  const minimum = Math.min(...values);
+  const range = Math.max(...values) - minimum || 1;
+  const horizontalInset = Math.min(6, width / 24);
+  const plotWidth = Math.max(width - horizontalInset * 2, 1);
+  const gap = values.length > 1 ? plotWidth / (values.length - 1) : 0;
+  // Keep a bit more room below the line so the curve sits slightly higher in the frame.
+  const topInset = Math.min(6, height / 10);
+  const bottomInset = Math.min(14, height / 4.5);
+  const plotHeight = Math.max(height - topInset - bottomInset, 1);
+  const points = values.map((value, index) => ({
+    x: Number((horizontalInset + index * gap).toFixed(2)),
+    y: Number((topInset + (1 - (value - minimum) / range) * plotHeight).toFixed(2)),
+  }));
+  const linePath = buildSmoothPath(points);
+
+  return {
+    points,
+    linePath,
+    fillPath: `${linePath} L ${width - horizontalInset} ${height} L ${horizontalInset} ${height} Z`,
+  };
+}
+
+function buildEmptyTradeExecutionDistribution(): TradeExecutionDistribution {
+  return {
+    reportDate: "-",
+    reportTimestamp: "",
+    timezoneBasis: "report-local",
+    totalExecutions: 0,
+    buyExecutions: 0,
+    sellExecutions: 0,
+    excludedOutsideReportDate: 0,
+    excludedFutureSkew: 0,
+    hourly: Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      totalExecutions: 0,
+      buyExecutions: 0,
+      sellExecutions: 0,
+      totalVolume: 0,
+      totalProfit: 0,
+    })),
+  };
+}
+
+function formatExecutionHourRange(hour: number) {
+  const normalized = Math.max(0, Math.min(23, hour));
+  return `${String(normalized).padStart(2, "0")}:00-${String(normalized).padStart(2, "0")}:59`;
+}
+
+function labelBalanceEvent(type: string | null | undefined, delta: number | null | undefined) {
+  if ((type ?? "").toLowerCase().includes("balance")) {
+    if ((delta ?? 0) > 0) {
+      return "Deposit";
+    }
+
+    if ((delta ?? 0) < 0) {
+      return "Withdrawal";
+    }
+
+    return "Balance";
+  }
+
+  return type || "Trading";
 }
 
 export function SparklineChart({
@@ -301,7 +527,9 @@ export function SparklineChart({
   const currentPoint = sparklinePoints[lastIndex];
   const activeIndex = highlightedIndex ?? lastIndex;
   const activePoint = sparklinePoints[activeIndex] ?? sparklinePoints[lastIndex];
-  const statusPointColor = active ? "var(--account-homebrew, #00ff41)" : "rgba(5, 8, 12, 0.96)";
+  const activeDataPoint = resolvedPoints[activeIndex] ?? resolvedPoints[lastIndex];
+  const currentDotColor = "var(--account-homebrew, #00ff41)";
+  const statusPointColor = active ? currentDotColor : "var(--account-chart-muted, #97a3b1)";
   const showActiveMarker = Boolean(activePoint);
   const showCurrentDot = active && Boolean(currentPoint);
   const beaconStyle =
@@ -342,6 +570,14 @@ export function SparklineChart({
     const balance = point ? resolveBalanceValue(point) : null;
     onHighlightBalanceChange?.(balance);
   };
+  const handleActivatePoint = (index: number, toggle = false) => {
+    if (toggle && highlightedIndex === index) {
+      setHighlightedBalance(null);
+      return;
+    }
+
+    setHighlightedBalance(index);
+  };
 
   const segments = sparklinePoints.slice(1).map((point, index) => {
     const event = resolvedPoints[index + 1] as BalanceEventPoint | undefined;
@@ -363,8 +599,11 @@ export function SparklineChart({
   return (
     <div
       className="sparkline-chart-shell"
-      onMouseLeave={() => setHighlightedBalance(null)}
-      onTouchEnd={() => setHighlightedBalance(null)}
+      onMouseLeave={() => {
+        if (timeframe !== "1d") {
+          setHighlightedBalance(null);
+        }
+      }}
     >
       <svg
         className="sparkline-chart"
@@ -410,20 +649,30 @@ export function SparklineChart({
             fill="transparent"
             stroke="none"
             tabIndex={0}
-            onMouseEnter={() => setHighlightedBalance(index)}
+            onMouseEnter={() => {
+              if (timeframe !== "1d") {
+                setHighlightedBalance(index);
+              }
+            }}
             onFocus={() => setHighlightedBalance(index)}
-            onTouchStart={() => setHighlightedBalance(index)}
-            onBlur={() => setHighlightedBalance(null)}
+            onClick={() => handleActivatePoint(index, timeframe === "1d")}
+            onTouchStart={(event) => {
+              event.preventDefault();
+              handleActivatePoint(index, true);
+            }}
+            onBlur={() => {
+              if (timeframe !== "1d") {
+                setHighlightedBalance(null);
+              }
+            }}
           />
         ))}
         {currentPoint && showCurrentDot ? (
           <circle
             cx={currentPoint.x}
             cy={currentPoint.y}
-            r="4.2"
-            fill={statusPointColor}
-            stroke="rgba(255, 255, 255, 0.82)"
-            strokeWidth="3"
+            r="2"
+            fill={currentDotColor}
             className="sparkline-live-dot__core"
           />
         ) : null}
@@ -431,8 +680,8 @@ export function SparklineChart({
           <circle
             cx={activePoint.x}
             cy={activePoint.y}
-            r="3"
-            fill={statusPointColor}
+            r="2"
+            fill={currentDotColor}
             stroke="rgba(255, 255, 255, 0.52)"
             strokeWidth="1.1"
             className="sparkline-dot__active"
@@ -446,6 +695,165 @@ export function SparklineChart({
           <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--two" />
         </span>
       ) : null}
+      {timeframe === "1d" && highlightedIndex !== null && activeDataPoint ? (
+        <div className="sparkline-tooltip sparkline-tooltip--inset" role="status" aria-live="polite">
+          <span>{formatReportLocalDate(activeDataPoint.x)}</span>
+          <strong>{formatReportLocalTime(activeDataPoint.x)}</strong>
+          <span>{formatCurrency(resolveBalanceValue(activeDataPoint))}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function TradeExecutionsChart({
+  distribution,
+}: {
+  distribution: TradeExecutionDistribution | null | undefined;
+}) {
+  const [activeHour, setActiveHour] = useState<number | null>(null);
+  const gradientId = useId();
+  const currentDotColor = "var(--account-homebrew, #00ff41)";
+  const width = 320;
+  const height = 132;
+  const paddingX = 10;
+  const paddingTop = 10;
+  const paddingBottom = 10;
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingTop - paddingBottom;
+  const baselineY = paddingTop + plotHeight;
+  const slotWidth = plotWidth / Math.max(1, 24);
+  const resolvedDistribution = distribution ?? buildEmptyTradeExecutionDistribution();
+  const buckets = resolvedDistribution.hourly.length === 24
+    ? resolvedDistribution.hourly
+    : buildEmptyTradeExecutionDistribution().hourly;
+  const peakExecutions = Math.max(1, ...buckets.map((bucket) => bucket.totalExecutions));
+  const hasExecutions = resolvedDistribution.totalExecutions > 0;
+  const points = buckets.map((bucket, index) => ({
+    bucket,
+    x: paddingX + (index / Math.max(1, buckets.length - 1)) * plotWidth,
+    y: baselineY - (bucket.totalExecutions / peakExecutions) * plotHeight,
+  }));
+  const areaPath = points.length
+    ? `${buildSmoothPath(points.map(({ x, y }) => ({ x, y })))} L ${points[points.length - 1]?.x ?? width - paddingX} ${baselineY} L ${points[0]?.x ?? paddingX} ${baselineY} Z`
+    : "";
+  const linePath = buildSmoothPath(points.map(({ x, y }) => ({ x, y })));
+  const defaultActiveIndex = buckets.reduce((bestIndex, bucket, index, source) => (
+    bucket.totalExecutions > (source[bestIndex]?.totalExecutions ?? -1) ? index : bestIndex
+  ), 0);
+  const resolvedActiveIndex = activeHour ?? defaultActiveIndex;
+  const activePoint = points[resolvedActiveIndex] ?? points[0];
+  const focusBeaconStyle = hasExecutions && activePoint
+    ? {
+        left: `${(activePoint.x / width) * 100}%`,
+        top: `${(activePoint.y / height) * 100}%`,
+        color: currentDotColor,
+      }
+    : null;
+
+  return (
+    <div className="trade-executions-chart">
+      <div
+        className="trade-executions-chart__figure"
+        onMouseLeave={() => setActiveHour(null)}
+        onTouchEnd={() => setActiveHour(null)}
+      >
+        <svg
+          className="trade-executions-chart__svg"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Trade executions by hour"
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(44, 93, 157, 0.28)" />
+              <stop offset="70%" stopColor="rgba(44, 93, 157, 0.08)" />
+              <stop offset="100%" stopColor="rgba(44, 93, 157, 0.01)" />
+            </linearGradient>
+          </defs>
+          <g className="trade-executions-chart__grid" aria-hidden="true">
+            {Array.from({ length: 4 }, (_, index) => {
+              const y = paddingTop + (index / 3) * plotHeight;
+              return <line key={`y-${index}`} x1={paddingX} x2={width - paddingX} y1={y} y2={y} />;
+            })}
+            {Array.from({ length: 25 }, (_, index) => {
+              const x = paddingX + index * slotWidth;
+              return <line key={`x-${index}`} x1={x} x2={x} y1={paddingTop} y2={baselineY} />;
+            })}
+          </g>
+          {linePath ? (
+            <>
+              <path d={areaPath} fill={`url(#${gradientId})`} className="trade-executions-chart__area" />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="var(--account-chart)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="trade-executions-chart__line"
+              />
+            </>
+          ) : null}
+          {hasExecutions && activePoint ? (
+            <g aria-hidden="true">
+              <line
+                className="trade-executions-chart__focus-line"
+                x1={activePoint.x}
+                x2={activePoint.x}
+                y1={paddingTop}
+                y2={baselineY}
+              />
+              <circle
+                className="trade-executions-chart__focus-dot"
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r="4.2"
+              />
+            </g>
+          ) : null}
+          <g>
+            {buckets.map((bucket, index) => {
+              const x = paddingX + index * slotWidth;
+              return (
+                <rect
+                  key={`hit-${bucket.hour}`}
+                  className="trade-executions-chart__hit"
+                  x={x}
+                  y={paddingTop}
+                  width={slotWidth}
+                  height={plotHeight}
+                  tabIndex={0}
+                  aria-label={`${formatExecutionHourRange(bucket.hour)}: ${bucket.totalExecutions} executions`}
+                  onMouseEnter={() => setActiveHour(index)}
+                  onFocus={() => setActiveHour(index)}
+                  onTouchStart={() => setActiveHour(index)}
+                  onBlur={() => setActiveHour(null)}
+                />
+              );
+            })}
+          </g>
+        </svg>
+        {focusBeaconStyle ? (
+          <span className="sparkline-live-beacon trade-executions-chart__focus-beacon" style={focusBeaconStyle} aria-hidden="true">
+            <span className="sparkline-live-beacon__ambient" />
+            <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--one" />
+            <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--two" />
+          </span>
+        ) : null}
+        {!hasExecutions ? (
+          <div className="trade-executions-chart__empty">No trade executions for selected date</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -482,7 +890,7 @@ export function BalanceEventChart({
   const range = maxValue - minValue || 1;
   const plotHeight = height - paddingTop - paddingBottom;
   const showDailyAxis = timeframe === "1d";
-  const dailyAxisTicks = showDailyAxis ? Array.from({ length: 25 }, (_, index) => index) : [];
+  const dailyAxisTicks = showDailyAxis ? Array.from({ length: 24 }, (_, index) => index) : [];
   const anchorTimestamp =
     getTimestampValue(reportTimestamp)
     ?? getTimestampValue(resolvedPoints[resolvedPoints.length - 1]?.x)
@@ -521,7 +929,7 @@ export function BalanceEventChart({
             return <line key={index} x1={paddingX} x2={width - paddingX} y1={y} y2={y} />;
           })}
           {dailyAxisTicks.map((hour) => {
-            const x = paddingX + (hour / 24) * (width - paddingX * 2);
+            const x = paddingX + (hour / 23) * (width - paddingX * 2);
             return <line key={`x-${hour}`} x1={x} x2={x} y1={paddingTop} y2={paddingTop + plotHeight} />;
           })}
         </g>
@@ -579,7 +987,7 @@ export function BalanceEventChart({
         {showDailyAxis ? (
           <g className="chart-axis" aria-hidden="true">
             {dailyAxisTicks.map((hour) => {
-              const x = paddingX + (hour / 24) * (width - paddingX * 2);
+              const x = paddingX + (hour / 23) * (width - paddingX * 2);
               return (
                 <g key={`tick-${hour}`} transform={`translate(${x}, ${height - 16})`}>
                   {hour % 2 === 0 ? <text textAnchor="middle">{hour}</text> : null}
@@ -702,6 +1110,42 @@ export function TradingMonitorSharedStyles() {
         height: 0;
       }
 
+      .sparkline-tooltip {
+        position: absolute;
+        z-index: 3;
+        display: grid;
+        gap: 2px;
+        min-width: 112px;
+        padding: 8px 10px;
+        border: 1px solid rgba(114, 133, 153, 0.28);
+        border-radius: 10px;
+        background: rgba(7, 11, 15, 0.94);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(10px);
+        pointer-events: none;
+      }
+
+      .sparkline-tooltip--inset {
+        top: 10px;
+        right: 10px;
+        min-width: 124px;
+        transform: none;
+      }
+
+      .sparkline-tooltip strong {
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.1;
+      }
+
+      .sparkline-tooltip span {
+        color: var(--text-muted);
+        font-size: 10px;
+        line-height: 1.2;
+        letter-spacing: 0.04em;
+        font-family: var(--mono);
+      }
+
       .sparkline-live-beacon__ambient {
         position: absolute;
         left: 0;
@@ -747,6 +1191,68 @@ export function TradingMonitorSharedStyles() {
 
       .detail-chart-dot--active {
         filter: drop-shadow(0 0 12px rgba(83, 119, 165, 0.22));
+      }
+
+      .trade-executions-chart {
+        width: 100%;
+        height: 100%;
+      }
+
+      .trade-executions-chart__figure {
+        position: relative;
+        width: 100%;
+        min-height: 0;
+        height: 100%;
+      }
+
+      .trade-executions-chart__svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .trade-executions-chart__grid line {
+        stroke: rgba(92, 82, 62, 0.1);
+        stroke-width: 1;
+      }
+
+      .trade-executions-chart__area {
+        opacity: 1;
+      }
+
+      .trade-executions-chart__line {
+        filter: drop-shadow(0 8px 18px rgba(44, 93, 157, 0.12));
+      }
+
+      .trade-executions-chart__focus-line {
+        stroke: rgba(44, 93, 157, 0.2);
+        stroke-width: 1.2;
+        stroke-dasharray: 4 6;
+      }
+
+      .trade-executions-chart__focus-dot {
+        fill: var(--account-homebrew, #00ff41);
+        stroke: rgba(255, 255, 255, 0.76);
+        stroke-width: 1.5;
+        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--account-homebrew, #00ff41) 80%, transparent));
+      }
+
+      .trade-executions-chart__hit {
+        fill: transparent;
+        cursor: pointer;
+      }
+
+      .trade-executions-chart__empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 20px 18px;
+        text-align: center;
+        color: var(--account-muted);
+        font-family: "Manrope", var(--sans);
+        font-size: 12px;
+        font-weight: 600;
       }
 
       @keyframes trading-monitor-pulse-ring {

@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readdir, readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { Writable } from "node:stream";
 
 import { Client } from "basic-ftp";
@@ -15,6 +17,8 @@ const FTP_PORT = Number.parseInt(process.env.FTP_PORT || "21", 10);
 const FTP_USER = process.env.FTP_USER || "supachai";
 const FTP_PASS = process.env.FTP_PASS || "9717";
 const FTP_PATH = process.env.FTP_PATH || "usb1_1_1/Metatrader5";
+const REPORT_SOURCE = process.env.REPORT_SOURCE || "ftp";
+const LOCAL_REPORT_DIR = process.env.LOCAL_REPORT_DIR || path.join(process.cwd(), "data", "source-reports");
 const WORKER_POLL_MS = Number.parseInt(process.env.WORKER_POLL_MS || "150000", 10);
 const FILE_STABLE_MS = Number.parseInt(process.env.WORKER_FILE_STABLE_MS || "60000", 10);
 const MIN_FILE_SIZE_BYTES = Number.parseInt(process.env.WORKER_MIN_FILE_SIZE_BYTES || "1024", 10);
@@ -472,7 +476,102 @@ type ReportStats = {
   failed: number;
 };
 
+type ReportFile = {
+  name: string;
+  size?: number;
+  modifiedAt?: Date;
+};
+
+async function listLocalReportFiles() {
+  let entries;
+  try {
+    entries = await readdir(LOCAL_REPORT_DIR, {
+      withFileTypes: true,
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") {
+      console.warn(`Local report directory ${LOCAL_REPORT_DIR} does not exist yet. Nothing to import.`);
+      return [];
+    }
+    throw error;
+  }
+
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry) => {
+        const filePath = path.join(LOCAL_REPORT_DIR, entry.name);
+        const stats = await stat(filePath);
+        return {
+          name: entry.name,
+          size: stats.size,
+          modifiedAt: stats.mtime,
+        } satisfies ReportFile;
+      }),
+  );
+
+  return files.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function readLocalReportFile(fileName: string) {
+  const filePath = path.join(LOCAL_REPORT_DIR, fileName);
+  return readFile(filePath);
+}
+
 export async function processReports(): Promise<ReportStats | null> {
+  if (REPORT_SOURCE === "local") {
+    console.log(`Reading reports from local directory ${LOCAL_REPORT_DIR}...`);
+
+    let files: ReportFile[];
+    try {
+      files = await listLocalReportFiles();
+    } catch (error) {
+      console.error(`Could not read local report directory ${LOCAL_REPORT_DIR}:`, error);
+      return null;
+    }
+
+    const htmlFiles = files.filter(isHtmlReportFile);
+    const readyFiles = htmlFiles.filter(shouldReadFile);
+    const deferredFiles = htmlFiles.filter((file) => !shouldReadFile(file));
+
+    const stats = {
+      found: htmlFiles.length,
+      ready: readyFiles.length,
+      deferred: deferredFiles.length,
+      imported: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    console.log(
+      `Found ${htmlFiles.length} local HTML reports. Ready=${readyFiles.length} deferred=${deferredFiles.length} stableMs=${FILE_STABLE_MS}`,
+    );
+
+    if (deferredFiles.length > 0) {
+      console.log(`Deferring recent or incomplete local files: ${deferredFiles.map((file) => file.name).join(", ")}`);
+    }
+
+    for (const file of readyFiles) {
+      console.log(`Processing ${file.name}...`);
+
+      try {
+        const contentBuffer = await readLocalReportFile(file.name);
+        const htmlContent = decodeReportBuffer(contentBuffer);
+        const result = await importReport(file.name, htmlContent);
+        stats[result] += 1;
+      } catch (error) {
+        stats.failed += 1;
+        console.error(`Failed to process ${file.name}:`, error);
+      }
+    }
+
+    console.log(
+      `Local report pass complete. Found=${stats.found} ready=${stats.ready} deferred=${stats.deferred} imported=${stats.imported} skipped=${stats.skipped} failed=${stats.failed}`,
+    );
+
+    return stats;
+  }
+
   const client = new Client();
   client.ftp.verbose = false;
 
@@ -549,10 +648,16 @@ async function runWorker() {
   console.log("Starting ingestion worker...");
 
   if (RUN_ONCE) {
-    console.log(`Run-once mode enabled (force reimport: ${FORCE_REIMPORT ? "on" : "off"}).`);
+    console.log(
+      `Run-once mode enabled (force reimport: ${FORCE_REIMPORT ? "on" : "off"}, source: ${REPORT_SOURCE}).`,
+    );
     const result = await processReports();
     if (!result) {
-      console.log("Run-once import skipped because the FTP server could not be reached.");
+      if (REPORT_SOURCE === "local") {
+        console.log("Run-once import stopped because the local report source could not be read.");
+      } else {
+        console.log("Run-once import skipped because the FTP server could not be reached.");
+      }
     } else if (result.failed > 0) {
       throw new Error(`Run-once import finished with ${result.failed} failed report(s).`);
     }

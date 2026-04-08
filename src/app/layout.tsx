@@ -3,9 +3,15 @@ import type { Metadata, Viewport } from "next";
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "badBot",
+  title: "Analytic",
   description: "Dark-themed MT5 multi-account analytics with trading-only growth and balance-operation-aware performance.",
   manifest: "/site.webmanifest",
+  applicationName: "Analytic",
+  appleWebApp: {
+    capable: true,
+    title: "Analytic",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
@@ -14,6 +20,9 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -27,7 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <meta name="apple-mobile-web-app-title" content="badBot" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Analytic" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="theme-color" content="#06080b" />
       </head>
       <body>{children}</body>
     </html>

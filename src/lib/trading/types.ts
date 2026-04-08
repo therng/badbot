@@ -1,4 +1,4 @@
-export type Timeframe = "1d" | "5d" | "1m" | "3m" | "6m" | "1y" | "all";
+export type Timeframe = "1d" | "1w" | "1m" | "ytd" | "1y" | "all";
 
 export interface SerializedAccount {
   id: string;
@@ -25,20 +25,92 @@ export interface BalanceEventPoint extends ChartPoint {
   eventDelta: number | null;
 }
 
+export interface TradeExecutionHourBucket {
+  hour: number;
+  totalExecutions: number;
+  buyExecutions: number;
+  sellExecutions: number;
+  totalVolume: number;
+  totalProfit: number;
+}
+
+export interface TradeExecutionDistribution {
+  reportDate: string;
+  reportTimestamp: string;
+  timezoneBasis: "report-local";
+  totalExecutions: number;
+  buyExecutions: number;
+  sellExecutions: number;
+  excludedOutsideReportDate: number;
+  excludedFutureSkew: number;
+  hourly: TradeExecutionHourBucket[];
+}
+
+export interface CalendarMonthlyPerformanceCell {
+  month: number;
+  label: string;
+  growthPercent: number | null;
+  netAmount: number | null;
+}
+
+export interface CalendarMonthlyPerformanceYear {
+  year: number;
+  months: CalendarMonthlyPerformanceCell[];
+  totalGrowthPercent: number | null;
+  totalNetAmount: number | null;
+}
+
+export interface SerializedOpenPosition {
+  positionId: string;
+  openedAt: Date | null;
+  symbol: string;
+  side: string;
+  volume: number;
+  openPrice: number;
+  sl: number | null;
+  tp: number | null;
+  marketPrice: number;
+  floatingProfit: number;
+  swap: number;
+  comment: string | null;
+}
+
+export interface SerializedOpenSymbolExposure {
+  symbol: string;
+  count: number;
+  volume: number;
+  floatingProfit: number;
+}
+
 export interface AccountOverviewResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   kpis: {
     periodGrowth: number;
     netProfit: number;
+    grossLoss: number;
+    totalSwap: number;
+    totalCommission: number;
+    totalDeposit: number;
+    totalWithdrawal: number;
     drawdown: number;
     absoluteDrawdown: number;
-    winPercent: number;
+    winPercent: number | null;
     trades: number;
     floatingPL: number;
     openCount: number;
   };
+  openPositions: SerializedOpenPosition[];
+  openBySymbol: SerializedOpenSymbolExposure[];
+  monthlyPerformance: {
+    years: CalendarMonthlyPerformanceYear[];
+    summary: {
+      totalGrowthPercent: number | null;
+      totalNetAmount: number | null;
+    };
+  };
   balanceCurve: BalanceEventPoint[];
+  tradeExecutions: TradeExecutionDistribution;
 }
 
 export interface BalanceDetailResponse {
@@ -108,20 +180,7 @@ export interface PositionsResponse {
     openCount: number;
     floatingProfit: number;
   };
-  openPositions: Array<{
-    positionId: string;
-    openedAt: Date | null;
-    symbol: string;
-    side: string;
-    volume: number;
-    openPrice: number;
-    sl: number | null;
-    tp: number | null;
-    marketPrice: number;
-    floatingProfit: number;
-    swap: number;
-    comment: string | null;
-  }>;
+  openPositions: SerializedOpenPosition[];
   workingOrders: Array<{
     orderId: string;
     openedAt: Date | null;
@@ -135,11 +194,23 @@ export interface PositionsResponse {
     state: string;
     comment: string | null;
   }>;
-  openBySymbol: Array<{
+  openBySymbol: SerializedOpenSymbolExposure[];
+  historyPositions: Array<{
+    positionId: string;
     symbol: string;
-    count: number;
+    type: string;
     volume: number;
-    floatingProfit: number;
+    openedAt: Date | null;
+    closedAt: Date | null;
+    openPrice: number | null;
+    closePrice: number | null;
+    marketPrice: number | null;
+    profit: number;
+    sl: number | null;
+    tp: number | null;
+    swap: number | null;
+    commission: number | null;
+    comment: string | null;
   }>;
   recentDeals: Array<{
     dealId: string;
@@ -191,7 +262,7 @@ export interface WinDetailResponse {
   timeframe: Timeframe;
   account: SerializedAccount;
   summary: {
-    winRate: number;
+    winRate: number | null;
     wins: number;
     losses: number;
     longTradeWin: number | null;

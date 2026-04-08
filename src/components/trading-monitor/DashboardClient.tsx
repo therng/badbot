@@ -3,15 +3,25 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Touc
 
 import type {
   AccountOverviewResponse,
+  BalanceDetailResponse,
+  PositionsResponse,
+  ProfitDetailResponse,
   SerializedAccount,
   Timeframe,
+  WinDetailResponse,
 } from "@/lib/trading/types";
 
 import {
+  formatCompactCount,
+  drawdownTone,
   displayName,
+  formatCompactSignedNumber,
   formatCompactNumber,
   formatCurrency,
   formatPercent,
+  formatSignedCurrency,
+  formatWholeNumber,
+  type MetricTone,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
 import {
@@ -21,6 +31,10 @@ import {
   TimeframeStrip,
   TradingMonitorSharedStyles,
 } from "@/components/trading-monitor/shared";
+import { SummaryChip } from "@/components/trading-monitor/SummaryChip";
+import { OpenPositionsOverlay } from "@/components/trading-monitor/OpenPositionsOverlay";
+import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPanel";
+import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
 
 const PULL_THRESHOLD = 72;
@@ -28,6 +42,7 @@ const MAX_PULL_DISTANCE = 116;
 const REFRESH_HOLD_DISTANCE = 52;
 const MIN_REFRESH_VISIBLE_MS = 520;
 const SPINNER_CIRCUMFERENCE = 62.83;
+type ExpandableKpiKey = "gain" | "dd" | "win" | "trades" | "opens";
 
 function trimTrailingZeroDecimals(value: string) {
   return value
@@ -43,89 +58,63 @@ function formatPlainPercent(value: number | null | undefined, digits = 1) {
   return `${trimTrailingZeroDecimals(Math.abs(value ?? 0).toFixed(digits))}%`;
 }
 
-function formatSignedCompactKpiValue(value: number | null | undefined) {
+function formatPlainNumberValue(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
     return "-";
   }
 
-  const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  const absolute = Math.abs(numeric);
-
-  if (absolute < 1000) {
-    return `${sign}${new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 0,
-    }).format(absolute)}`;
-  }
-
-  const withTwoDigits = `${sign}${new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(absolute).toLowerCase()}`;
-
-  if (withTwoDigits.length <= 6) {
-    return trimTrailingZeroDecimals(withTwoDigits);
-  }
-
-  return trimTrailingZeroDecimals(`${sign}${new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(absolute).toLowerCase()}`);
+  return trimTrailingZeroDecimals(Number(value ?? 0).toFixed(digits));
 }
 
-function formatCompactCountKpi(value: number | null | undefined) {
+function formatRatioValue(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
     return "-";
   }
 
-  const numeric = Math.max(0, Math.round(value ?? 0));
-  if (numeric < 1000) {
-    return `${numeric}`;
-  }
-
-  return trimTrailingZeroDecimals(new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(numeric).toLowerCase());
+  return formatPlainNumberValue(value, digits);
 }
 
-function toneFromRate(value: number | null | undefined, benchmark = 50) {
+function formatAverageHoldTime(hours: number | null | undefined) {
+  if (!Number.isFinite(hours)) {
+    return "-";
+  }
+
+  const totalHours = Math.max(0, Number(hours ?? 0));
+  if (totalHours < 1) {
+    return `${Math.max(1, Math.round(totalHours * 60))}m`;
+  }
+
+  if (totalHours < 24) {
+    return `${formatPlainNumberValue(totalHours, 1)}h`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const remainder = totalHours - days * 24;
+  if (remainder < 0.1) {
+    return `${days}d`;
+  }
+
+  return `${days}d ${formatPlainNumberValue(remainder, 1)}h`;
+}
+
+function normalizeNegativeAmount(value: number | null | undefined) {
   if (!Number.isFinite(value)) {
-    return "muted";
+    return null;
   }
 
-  if ((value ?? 0) > benchmark) {
-    return "positive";
-  }
-
-  if ((value ?? 0) < benchmark) {
-    return "negative";
-  }
-
-  return "neutral";
+  return -Math.abs(value ?? 0);
 }
 
-function SummaryChip({
-  label,
-  value,
-  tone = "neutral",
-  meta,
-}: {
-  label: string;
-  value: string;
-  tone?: "positive" | "negative" | "warning" | "neutral" | "muted";
-  meta?: string;
-}) {
-  return (
-    <div className="kchip">
-      <>
-        <span className="kl">{label}</span>
-        <strong className={`kv tone-${tone}`}>{value}</strong>
-        {meta ? <span className="kchip__meta">{meta}</span> : null}
-      </>
-    </div>
-  );
-}
+
+
+
+
+
+
+
+
+
+
 
 function applyPullResistance(distance: number) {
   const dampenedDistance = distance * 0.5;
@@ -141,17 +130,48 @@ function DashboardCard({
   account,
   refreshKey,
   onRequestStateChange,
+  isLandscapeCarousel,
 }: {
   account: SerializedAccount;
   refreshKey: number;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
+  isLandscapeCarousel: boolean;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("all");
   const [highlightedBalance, setHighlightedBalance] = useState<number | null>(null);
+  const [expandedKpi, setExpandedKpi] = useState<ExpandableKpiKey | null>(null);
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
     refreshKey,
     onRequestStateChange,
   });
+  const profitDetail = useApiResource<ProfitDetailResponse>(
+    expandedKpi === "gain" ? `/api/accounts/${account.id}/profit-detail?timeframe=${timeframe}` : null,
+    {
+      refreshKey,
+      onRequestStateChange,
+    },
+  );
+  const balanceDetail = useApiResource<BalanceDetailResponse>(
+    expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
+    {
+      refreshKey,
+      onRequestStateChange,
+    },
+  );
+  const winDetail = useApiResource<WinDetailResponse>(
+    expandedKpi === "win" ? `/api/accounts/${account.id}/win-detail?timeframe=${timeframe}` : null,
+    {
+      refreshKey,
+      onRequestStateChange,
+    },
+  );
+  const positionsDetail = useApiResource<PositionsResponse>(
+    expandedKpi === "opens" || expandedKpi === "trades" ? `/api/accounts/${account.id}/positions?timeframe=${timeframe}` : null,
+    {
+      refreshKey,
+      onRequestStateChange,
+    },
+  );
   const accountSource = overview.data?.account ?? account;
   const active = accountSource.status === "Active";
   const sparklinePoints = overview.data?.balanceCurve.length
@@ -159,18 +179,230 @@ function DashboardCard({
     : [{ x: "0", y: 0 }];
   const growthTone = toneFromNumber(overview.data?.kpis.periodGrowth);
   const gainTone = toneFromNumber(overview.data?.kpis.netProfit);
-  const drawdownTone = toneFromNumber(-(overview.data?.kpis.drawdown ?? 0));
-  const winTone = toneFromRate(overview.data?.kpis.winPercent);
+  const relativeDrawdownTone = drawdownTone(overview.data?.kpis.drawdown);
+  const winTone = toneFromNumber((overview.data?.kpis.winPercent ?? 0) - 50);
   const openTone = (overview.data?.kpis.openCount ?? 0) > 0 ? "warning" : "muted";
   const accountLabel = accountSource.account_number ? `#${accountSource.account_number}` : "Unnumbered";
   const firstName = displayName(accountSource);
   const displayedBalance = highlightedBalance ?? accountSource.balance;
   const displayedGrowth = formatPercent(overview.data?.kpis.periodGrowth, 1);
   const displayedBalanceLabel = formatCurrency(displayedBalance, 2);
+  const drawdownMeta = Number.isFinite(overview.data?.kpis.absoluteDrawdown)
+    ? `Abs ${formatCompactNumber(overview.data?.kpis.absoluteDrawdown, 1)}`
+    : undefined;
+  const kpiItems: Array<{
+    key: ExpandableKpiKey | "trades";
+    expandKey?: ExpandableKpiKey;
+    label: string;
+    value: string;
+    tone: MetricTone;
+    meta?: string;
+    fullValue?: string;
+  }> = [
+    {
+      key: "gain",
+      expandKey: "gain",
+      label: "Gain",
+      value: formatCompactSignedNumber(overview.data?.kpis.netProfit, 1),
+      tone: gainTone,
+      fullValue: formatSignedCurrency(overview.data?.kpis.netProfit, 2),
+    },
+    {
+      key: "dd",
+      expandKey: "dd",
+      label: "DD",
+      value: formatPlainPercent(overview.data?.kpis.drawdown, 1),
+      tone: relativeDrawdownTone,
+      meta: drawdownMeta,
+    },
+    {
+      key: "win",
+      expandKey: "win",
+      label: "WIN%",
+      value: formatPlainPercent(overview.data?.kpis.winPercent, 1),
+      tone: winTone,
+    },
+    {
+      key: "trades",
+      expandKey: "trades",
+      label: "Trades",
+      value: formatCompactCount(overview.data?.kpis.trades, 1),
+      tone: "warning",
+      fullValue: formatWholeNumber(overview.data?.kpis.trades),
+    },
+    {
+      key: "opens",
+      expandKey: "opens",
+      label: "Opens",
+      value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
+      tone: openTone,
+    },
+  ];
+  const detailState =
+    expandedKpi === "gain"
+      ? profitDetail
+      : expandedKpi === "dd"
+        ? balanceDetail
+        : expandedKpi === "win"
+          ? winDetail
+          : expandedKpi === "opens" || expandedKpi === "trades"
+            ? positionsDetail
+            : null;
+  const isOpensExpanded = expandedKpi === "opens";
+  const isTradesExpanded = expandedKpi === "trades";
+
+  const detailRows: Array<{
+    label: string;
+    value: string;
+    tone: MetricTone;
+    meta?: string;
+    fullValue?: string;
+  }> =
+    expandedKpi === "gain"
+      ? [
+          {
+            label: "Commission",
+            value: formatCompactSignedNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 1),
+            tone: toneFromNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission)),
+            fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 2),
+          },
+          {
+            label: "Swap",
+            value: formatCompactSignedNumber(profitDetail.data?.summary.totalSwap, 1),
+            tone: toneFromNumber(profitDetail.data?.summary.totalSwap),
+            fullValue: formatSignedCurrency(profitDetail.data?.summary.totalSwap, 2),
+          },
+          {
+            label: "Deposits",
+            value: formatCompactSignedNumber(profitDetail.data?.summary.totalDeposit, 1),
+            tone: "positive",
+            fullValue: formatSignedCurrency(profitDetail.data?.summary.totalDeposit, 2),
+          },
+          {
+            label: "Withdrawals",
+            value: formatCompactSignedNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 1),
+            tone: "warning",
+            fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 2),
+          },
+        ]
+      : expandedKpi === "dd"
+        ? [
+            {
+              label: "ABS",
+              value: formatCompactNumber(balanceDetail.data?.summary.absoluteDrawdown, 1),
+              tone: drawdownTone(balanceDetail.data?.summary.absoluteDrawdown),
+              meta: "Balance absolute drawdown",
+              fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
+            },
+            {
+              label: "MAX",
+              value: formatCompactNumber(balanceDetail.data?.summary.maximalDrawdownAmount, 1),
+              tone: drawdownTone(balanceDetail.data?.summary.maximalDrawdownAmount),
+              meta: "Balance maximal drawdown",
+              fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
+            },
+            {
+              label: "LOAD",
+              value: formatPlainPercent(balanceDetail.data?.summary.maximalDepositLoad, 1),
+              tone: drawdownTone(balanceDetail.data?.summary.maximalDepositLoad),
+              meta: "Deposit load%",
+            },
+            {
+              label: "LOSS",
+              value: formatCompactSignedNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 1),
+              tone: toneFromNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount),
+              meta: "Consecutive loss",
+              fullValue: formatSignedCurrency(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 2),
+            },
+          ]
+        : expandedKpi === "win"
+          ? [
+              {
+                label: "SHARPE",
+                value: formatRatioValue(winDetail.data?.summary.sharpeRatio, 2),
+                tone: toneFromNumber(winDetail.data?.summary.sharpeRatio),
+              },
+              {
+                label: "PAYOFF",
+                value: formatCompactSignedNumber(winDetail.data?.summary.expectedPayoff, 1),
+                tone: toneFromNumber(winDetail.data?.summary.expectedPayoff),
+                meta: "Expected payoff",
+                fullValue: formatSignedCurrency(winDetail.data?.summary.expectedPayoff, 2),
+              },
+              {
+                label: "RECOV.",
+                value: formatRatioValue(winDetail.data?.summary.recoveryFactor, 2),
+                tone: toneFromNumber(winDetail.data?.summary.recoveryFactor),
+                meta: "Recovery factor",
+              },
+              {
+                label: "P.FACT",
+                value: formatRatioValue(winDetail.data?.summary.profitFactor, 2),
+                tone: toneFromNumber((winDetail.data?.summary.profitFactor ?? 0) - 1),
+                meta: "Profit factor",
+              },
+            ]
+          : expandedKpi === "trades"
+            ? [
+                {
+                  label: "ACTIVITY",
+                  value: formatPlainPercent(positionsDetail.data?.summary.tradeActivityPercent, 1),
+                  tone: toneFromNumber(positionsDetail.data?.summary.tradeActivityPercent),
+                  meta: "Activity%",
+                },
+                {
+                  label: "TR/WK",
+                  value: formatRatioValue(positionsDetail.data?.summary.tradesPerWeek, 1),
+                  tone: toneFromNumber(positionsDetail.data?.summary.tradesPerWeek),
+                  meta: "Trade per week",
+                },
+                {
+                  label: "HOLD",
+                  value: formatAverageHoldTime(positionsDetail.data?.summary.averageHoldHours),
+                  tone: "neutral",
+                  meta: "Average hold time",
+                },
+              ]
+          : expandedKpi === "opens"
+              ? [
+                  {
+                    label: "Profit",
+                    value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
+                    tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
+                    fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
+                  },
+                  {
+                    label: "Margin Level%",
+                    value: formatPlainPercent(accountSource.margin_level, 0),
+                    tone:
+                      accountSource.margin_level == null
+                        ? "muted"
+                        : accountSource.margin_level >= 300
+                          ? "positive"
+                          : accountSource.margin_level >= 150
+                            ? "warning"
+                            : "negative",
+                  },
+                ]
+            : [];
 
   useEffect(() => {
     setHighlightedBalance(null);
   }, [timeframe, refreshKey, overview.data?.account.balance]);
+
+  useEffect(() => {
+    setExpandedKpi(null);
+  }, [account.id, timeframe]);
+
+  const handleChipToggle = (key: ExpandableKpiKey) => {
+    setExpandedKpi((current) => {
+      if (current === key) {
+        return null;
+      }
+
+      return key;
+    });
+  };
 
   return (
     <article className={`card account-card ${active ? "account-card--active" : "account-card--inactive"}`}>
@@ -179,7 +411,13 @@ function DashboardCard({
           <div className="sp-top sp-top--compact">
             <div className="sp-identity sp-identity--header">
               <div className="sp-name">{firstName}</div>
-              <div className="sp-account">{accountLabel}</div>
+              <div className="sp-account">
+                <span>{accountLabel}</span>
+                <span
+                  className={`sp-account-status ${active ? "is-active" : "is-inactive"}`}
+                  aria-label={`Account status ${active ? "Active" : "Inactive"}`}
+                />
+              </div>
             </div>
 
             <div className="sp-side">
@@ -205,51 +443,110 @@ function DashboardCard({
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
         ) : (
-          <div className="sp-canvas">
-            <SparklineChart
-              points={sparklinePoints}
-              active={active}
-              tone="neutral"
-              onHighlightBalanceChange={setHighlightedBalance}
-              timeframe={timeframe}
-              liveTimestamp={accountSource.last_updated}
-              liveBalance={accountSource.balance}
-            />
+          <div className={isOpensExpanded ? "sp-canvas is-opens-expanded" : isTradesExpanded ? "sp-canvas is-trades-expanded" : "sp-canvas"}>
+            {isOpensExpanded ? (
+              positionsDetail.error ? (
+                <InlineState tone="error" title="Opens unavailable" message={positionsDetail.error} />
+              ) : positionsDetail.loading && !positionsDetail.data ? (
+                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+              ) : (
+                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
+              )
+            ) : isTradesExpanded ? (
+              positionsDetail.error ? (
+                <InlineState tone="error" title="Trades unavailable" message={positionsDetail.error} />
+              ) : positionsDetail.loading && !positionsDetail.data ? (
+                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+              ) : (
+                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+              )
+            ) : (
+              <div className="sp-canvas__chart">
+                <SparklineChart
+                  points={sparklinePoints}
+                  active={active}
+                  tone="neutral"
+                  onHighlightBalanceChange={setHighlightedBalance}
+                  timeframe={timeframe}
+                  liveTimestamp={accountSource.last_updated}
+                  liveBalance={accountSource.balance}
+                />
+                <OpenPositionsOverlay positions={overview.data?.openPositions} />
+              </div>
+            )}
           </div>
         )}
 
-        <div className="tf-row">
-          <TimeframeStrip active={timeframe} onChange={setTimeframe} />
-        </div>
+        {!isOpensExpanded && !isTradesExpanded ? (
+          <div className="tf-row">
+            <TimeframeStrip active={timeframe} onChange={setTimeframe} />
+          </div>
+        ) : null}
       </div>
 
-      <div className="kgrid">
-        <SummaryChip
-          label="Gain"
-          value={formatSignedCompactKpiValue(overview.data?.kpis.netProfit)}
-          tone={gainTone}
-        />
-        <SummaryChip
-          label="DD"
-          value={formatPlainPercent(overview.data?.kpis.drawdown, 1)}
-          tone={drawdownTone}
-        />
-        <SummaryChip
-          label="Win"
-          value={formatPlainPercent(overview.data?.kpis.winPercent, 1)}
-          tone={winTone}
-        />
-        <SummaryChip
-          label="Trades"
-          value={formatCompactCountKpi(overview.data?.kpis.trades)}
-          tone="warning"
-        />
-        <SummaryChip
-          label="Opens"
-          value={formatCompactCountKpi(overview.data?.kpis.openCount)}
-          tone={openTone}
-        />
+      <div className="kpi-stack">
+        <div className="kgrid">
+          {kpiItems.map((item) => {
+            const expandKey = item.expandKey;
+
+            if (!expandKey) {
+              return (
+                <SummaryChip
+                  key={item.key}
+                  label={item.label}
+                  value={item.value}
+                  tone={item.tone}
+                  meta={item.meta}
+                  fullValue={item.fullValue}
+                />
+              );
+            }
+
+            return (
+              <SummaryChip
+                key={item.key}
+                label={item.label}
+                value={item.value}
+                tone={item.tone}
+                meta={item.meta}
+                fullValue={item.fullValue}
+                onClick={() => handleChipToggle(expandKey)}
+                isSelected={expandedKpi === expandKey}
+              />
+            );
+          })}
+        </div>
+
       </div>
+
+      {expandedKpi && detailRows.length ? (
+        <section className="kpi-detail-panel" aria-label={`${kpiItems.find((item) => item.key === expandedKpi)?.label ?? "KPI"} details`}>
+          {detailState?.error ? (
+            <InlineState tone="error" title="KPI unavailable" message={detailState.error} />
+          ) : detailState?.loading && !detailState?.data ? (
+            <div className="kpi-detail-grid" aria-hidden="true">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="kpi-detail-grid">
+                {detailRows.map((row) => (
+                  <SummaryChip
+                    key={row.label}
+                    label={row.label}
+                    value={row.value}
+                    tone={row.tone}
+                    meta={row.meta}
+                    fullValue={row.fullValue}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
     </article>
   );
 }
@@ -273,6 +570,8 @@ export default function DashboardClient() {
   const refreshStartedAtRef = useRef(0);
   const refreshingRef = useRef(false);
   const indicatorHideTimerRef = useRef<number | null>(null);
+  const lastLandscapeAccountOrderRef = useRef("");
+  const wasLandscapeCarouselRef = useRef(false);
 
   const handleRequestStateChange = useCallback(({ loading, refreshKey: requestRefreshKey }: { loading: boolean; refreshKey: number }) => {
     if (!refreshingRef.current || requestRefreshKey !== activeRefreshKeyRef.current) {
@@ -290,6 +589,7 @@ export default function DashboardClient() {
     refreshKey,
     onRequestStateChange: handleRequestStateChange,
   });
+  const accountOrderKey = accounts.data?.map((account) => account.id).join("|") ?? "";
 
   const finishPull = useCallback(() => {
     pullStartYRef.current = null;
@@ -313,6 +613,32 @@ export default function DashboardClient() {
       indicatorHideTimerRef.current = null;
     }, 1400);
   }, [accounts.data?.length, isLandscapeCarousel]);
+
+  const scrollToAccountIndex = useCallback((targetIndex: number, behavior: ScrollBehavior = "smooth") => {
+    if (!isLandscapeCarousel) {
+      return;
+    }
+
+    const section = accountsSectionRef.current;
+    if (!section) {
+      return;
+    }
+
+    const cards = Array.from(section.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+    if (!cards.length) {
+      return;
+    }
+
+    const clampedIndex = Math.max(0, Math.min(targetIndex, cards.length - 1));
+    const targetCard = cards[clampedIndex];
+    section.scrollTo({
+      left: targetCard.offsetLeft,
+      top: 0,
+      behavior,
+    });
+    setActiveAccountIndex(clampedIndex);
+    revealPageIndicator();
+  }, [isLandscapeCarousel, revealPageIndicator]);
 
   const triggerRefresh = useCallback(() => {
     if (refreshingRef.current) {
@@ -361,13 +687,48 @@ export default function DashboardClient() {
     if (!isLandscapeCarousel) {
       setShowPageIndicator(false);
       setActiveAccountIndex(0);
+      lastLandscapeAccountOrderRef.current = "";
+      wasLandscapeCarouselRef.current = false;
       return;
+    }
+
+    if (!wasLandscapeCarouselRef.current) {
+      const frameId = window.requestAnimationFrame(() => {
+        scrollToAccountIndex(0, "auto");
+      });
+      wasLandscapeCarouselRef.current = true;
+      return () => window.cancelAnimationFrame(frameId);
     }
 
     if ((accounts.data?.length ?? 0) > 1) {
       revealPageIndicator();
     }
-  }, [accounts.data?.length, isLandscapeCarousel, revealPageIndicator]);
+  }, [accounts.data?.length, isLandscapeCarousel, revealPageIndicator, scrollToAccountIndex]);
+
+  useEffect(() => {
+    const section = accountsSectionRef.current;
+    if (!isLandscapeCarousel) {
+      lastLandscapeAccountOrderRef.current = "";
+      return;
+    }
+
+    if (!section || !accountOrderKey) {
+      return;
+    }
+
+    const shouldResetToFirstAccount = lastLandscapeAccountOrderRef.current !== accountOrderKey;
+    lastLandscapeAccountOrderRef.current = accountOrderKey;
+
+    if (!shouldResetToFirstAccount) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollToAccountIndex(0, "auto");
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [accountOrderKey, isLandscapeCarousel, scrollToAccountIndex]);
 
   useEffect(() => {
     const section = accountsSectionRef.current;
@@ -506,6 +867,8 @@ export default function DashboardClient() {
   };
   const accountCount = accounts.data?.length ?? 0;
   const shouldRenderIndicators = isLandscapeCarousel && accountCount > 1;
+  const canGoPreviousAccount = shouldRenderIndicators && activeAccountIndex > 0;
+  const canGoNextAccount = shouldRenderIndicators && activeAccountIndex < accountCount - 1;
 
   return (
     <main className="monitor-page">
@@ -568,6 +931,7 @@ export default function DashboardClient() {
                   account={account}
                   refreshKey={refreshKey}
                   onRequestStateChange={handleRequestStateChange}
+                  isLandscapeCarousel={isLandscapeCarousel}
                 />
               ))
             ) : (
@@ -581,6 +945,31 @@ export default function DashboardClient() {
             )}
           </section>
         </div>
+        {shouldRenderIndicators ? (
+          <div
+            className={showPageIndicator ? "account-carousel-nav is-visible" : "account-carousel-nav"}
+            aria-label="Account navigation"
+          >
+            <button
+              type="button"
+              className="account-carousel-nav__button account-carousel-nav__button--prev"
+              onClick={() => scrollToAccountIndex(activeAccountIndex - 1)}
+              disabled={!canGoPreviousAccount}
+              aria-label="Previous account"
+            >
+              <span className="account-carousel-nav__glyph" aria-hidden="true">‹</span>
+            </button>
+            <button
+              type="button"
+              className="account-carousel-nav__button account-carousel-nav__button--next"
+              onClick={() => scrollToAccountIndex(activeAccountIndex + 1)}
+              disabled={!canGoNextAccount}
+              aria-label="Next account"
+            >
+              <span className="account-carousel-nav__glyph" aria-hidden="true">›</span>
+            </button>
+          </div>
+        ) : null}
         {shouldRenderIndicators ? (
           <div className={showPageIndicator ? "account-pages is-visible" : "account-pages"} aria-hidden="true">
             {Array.from({ length: accountCount }).map((_, index) => (

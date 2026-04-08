@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- This migration directory was created before any Prisma schema change was committed.

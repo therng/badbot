@@ -181,6 +181,38 @@ function parseNumberMaybe(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseStrictNumberMaybe(value: string): number | null {
+  const text = cleanText(value);
+  if (!text || /[A-Za-z]/.test(text)) {
+    return null;
+  }
+
+  return parseNumberMaybe(text);
+}
+
+function parseStrictMetricCell(value: string) {
+  const text = cleanText(value);
+  if (!text) {
+    return {
+      valid: true,
+      value: 0,
+    };
+  }
+
+  const parsed = parseStrictNumberMaybe(text);
+  if (parsed === null) {
+    return {
+      valid: false,
+      value: 0,
+    };
+  }
+
+  return {
+    valid: true,
+    value: parsed,
+  };
+}
+
 function parseIntegerMaybe(value: string): number | null {
   const parsed = parseNumberMaybe(value);
   if (parsed === null) {
@@ -788,6 +820,10 @@ function parseOpenPositionRow(cells: string[], headerMap: HeaderMap | null): Ope
 }
 
 function parsePositionRow(cells: string[], headerMap: HeaderMap | null): PositionRow | null {
+  if (!headerMap) {
+    return null;
+  }
+
   const openTime = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "open time"], "first"), 0]);
   if (!openTime) {
     return null;
@@ -795,6 +831,45 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
 
   const positionNo = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["position", "ticket", "id"], "first"), 1)));
   if (!positionNo) {
+    return null;
+  }
+
+  const openPrice = parseStrictNumberMaybe(
+    getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "open price"], "first"), 5)),
+  );
+  const closeTime = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "close time"], "last"), 8]);
+  const closePrice = parseStrictNumberMaybe(
+    getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "close price"], "last"), 9)),
+  );
+  const commissionIndex = findColumnIndex(headerMap, ["commission"], "first");
+  const swapIndex = findColumnIndex(headerMap, ["swap"], "first");
+  const profitIndex = findColumnIndex(headerMap, ["profit", "p/l"], "first");
+
+  // Closed-position rows with missing/zero prices are parser noise in current MT5 reports and
+  // end up turning comment text into fake commission/swap values via fallback indexes.
+  if (!closeTime || !Number.isFinite(openPrice ?? Number.NaN) || !Number.isFinite(closePrice ?? Number.NaN)) {
+    return null;
+  }
+
+  if ((openPrice ?? 0) <= 0 || (closePrice ?? 0) <= 0) {
+    return null;
+  }
+
+  if (commissionIndex < 0 || swapIndex < 0 || profitIndex < 0) {
+    return null;
+  }
+
+  const commission = parseStrictMetricCell(
+    getCell(cells, commissionIndex),
+  );
+  const swap = parseStrictMetricCell(
+    getCell(cells, swapIndex),
+  );
+  const profit = parseStrictMetricCell(
+    getCell(cells, profitIndex),
+  );
+
+  if (!commission.valid || !swap.valid || !profit.valid) {
     return null;
   }
 
@@ -806,14 +881,14 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
       "UNKNOWN",
     volume: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4))),
     openTime,
-    openPrice: parseNumberMaybe(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "open price"], "first"), 5))),
+    openPrice,
     sl: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["s/l", "sl"], "first"))),
     tp: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["t/p", "tp"], "first"))),
-    closeTime: findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "close time"], "last"), 8]),
-    closePrice: parseNumberMaybe(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "close price"], "last"), 9))),
-    commission: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["commission"], "first"), 10))),
-    swap: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["swap"], "first"), 11))),
-    profit: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "p/l"], "first"), 12))),
+    closeTime,
+    closePrice,
+    commission: commission.value,
+    swap: swap.value,
+    profit: profit.value,
     comment: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), cells.length - 1))) || null,
   };
 }

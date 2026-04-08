@@ -1,0 +1,148 @@
+import type {
+  CalendarMonthlyPerformanceCell,
+} from "@/lib/trading/types";
+
+import {
+  toneFromNumber,
+} from "@/components/trading-monitor/formatters";
+
+export type MonthlyDisplayMode = "percent" | "amount";
+export type ExpandableKpiKey = "gain" | "dd" | "win" | "trades" | "opens";
+
+export function trimTrailingZeroDecimals(value: string) {
+  return value
+    .replace(/(\.\d*?[1-9])0+(?=[a-z%]|$)/gi, "$1")
+    .replace(/\.0+(?=[a-z%]|$)/gi, "");
+}
+
+export function formatPlainPercent(value: number | null | undefined, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${trimTrailingZeroDecimals(Math.abs(value ?? 0).toFixed(digits))}%`;
+}
+
+export function formatSignedPlainPercent(value: number | null | undefined, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  const numeric = value ?? 0;
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}%`;
+}
+
+export function formatPlainAmount(value: number, digits = 1) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+export function formatPlainNumberValue(value: number | null | undefined, digits = 2) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return trimTrailingZeroDecimals(Number(value ?? 0).toFixed(digits));
+}
+
+export function formatSignedPlainAmountKpiValue(value: number | null | undefined, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  const numeric = value ?? 0;
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${formatPlainAmount(Math.abs(numeric), digits)}`;
+}
+
+export function formatPositionSide(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (normalized.includes("buy")) {
+    return "Buy";
+  }
+
+  if (normalized.includes("sell")) {
+    return "Sell";
+  }
+
+  if (!normalized) {
+    return "-";
+  }
+
+  return normalized.slice(0, 1).toUpperCase() + normalized.slice(1);
+}
+
+export function formatTradePrice(value: number | null | undefined) {
+  if (!Number.isFinite(value)) {
+    return "Mkt";
+  }
+
+  return formatPlainNumberValue(value, 5);
+}
+
+export function formatTradeHistoryDateTime(value: Date | string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  const seconds = String(parsed.getSeconds()).padStart(2, "0");
+
+  return `${year}.${month}.${day} ${hours}:${minutes}:${seconds}`;
+}
+
+export function positionHistoryNetPnl(position: {
+  profit?: number | null;
+  swap?: number | null;
+  commission?: number | null;
+}) {
+  return Number(position.profit ?? 0) + Number(position.swap ?? 0) + Number(position.commission ?? 0);
+}
+
+export function normalizeNegativeAmount(value: number | null | undefined) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return -Math.abs(value ?? 0);
+}
+
+export function toneFromMonthlyValue(value: number | null | undefined, mode: MonthlyDisplayMode) {
+  if (!Number.isFinite(value)) {
+    return "muted";
+  }
+
+  if (mode === "amount") {
+    return toneFromNumber(value);
+  }
+
+  return toneFromNumber(value);
+}
+
+export function formatMonthlyCellValue(cell: CalendarMonthlyPerformanceCell, mode: MonthlyDisplayMode) {
+  if (mode === "amount") {
+    return formatSignedPlainAmountKpiValue(cell.netAmount);
+  }
+
+  return formatSignedPlainPercent(cell.growthPercent, 1);
+}
+
+export function formatMonthlySummaryValue(value: number | null | undefined, mode: MonthlyDisplayMode) {
+  if (mode === "amount") {
+    return formatSignedPlainAmountKpiValue(value);
+  }
+
+  return formatSignedPlainPercent(value, 1);
+}
