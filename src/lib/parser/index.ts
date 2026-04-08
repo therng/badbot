@@ -446,6 +446,15 @@ function getCell(cells: string[], index: number): string {
   return index >= 0 && index < cells.length ? cleanText(cells[index]) : "";
 }
 
+function getOptionalCommentCell(cells: string[], headerMap: HeaderMap | null): string | null {
+  const commentIndex = findColumnIndex(headerMap, ["comment"], "first");
+  if (commentIndex < 0) {
+    return null;
+  }
+
+  return cleanText(getCell(cells, commentIndex)) || null;
+}
+
 function findFirstValidDate(cells: string[], indexes: number[]): Date | null {
   for (const index of indexes) {
     const parsed = parseDate(getCell(cells, index));
@@ -782,9 +791,7 @@ function parseDealRow(cells: string[], headerMap: HeaderMap | null): DealLedgerR
     swap: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["swap"], "first"), 9))),
     profit: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "p/l"], "first"), 10))),
     balanceAfter: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["balance", "balance after"], "first"))),
-    comment: cleanText(
-      getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), cells.length - 1)),
-    ),
+    comment: getOptionalCommentCell(cells, headerMap),
   };
 }
 
@@ -815,7 +822,7 @@ function parseOpenPositionRow(cells: string[], headerMap: HeaderMap | null): Ope
     floatingProfit: parseNumber(
       getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "floating p/l", "floating pl", "p/l"], "first"), 10)),
     ),
-    comment: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), 11))),
+    comment: getOptionalCommentCell(cells, headerMap),
   };
 }
 
@@ -889,7 +896,7 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
     commission: commission.value,
     swap: swap.value,
     profit: profit.value,
-    comment: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), cells.length - 1))) || null,
+    comment: getOptionalCommentCell(cells, headerMap),
   };
 }
 
@@ -924,7 +931,7 @@ function parseWorkingOrderRow(cells: string[], headerMap: HeaderMap | null): Wor
       getCell(cells, findColumnIndex(headerMap, ["market price", "market", "price"], "last")),
     ),
     state: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["state", "status"], "first"), 9))) || "Working",
-    comment: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["comment"], "first"), 10))),
+    comment: getOptionalCommentCell(cells, headerMap),
   };
 }
 

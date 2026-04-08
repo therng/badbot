@@ -87,3 +87,45 @@ test("parseReport rejects headerless malformed position rows when fallback cells
 
   assert.equal(report.positions.length, 0);
 });
+
+test("parseReport keeps closed-position comment null when the positions table has no comment column", () => {
+  const report = parseReport(
+    renderTable([
+      ["Positions"],
+      [
+        "Time",
+        "Position",
+        "Symbol",
+        "Type",
+        "Volume",
+        "Price",
+        "S/L",
+        "T/P",
+        "Time",
+        "Price",
+        "Commission",
+        "Swap",
+        "Profit",
+      ],
+      [
+        "2026.04.07 10:00:00",
+        "1003",
+        "EURUSD",
+        "buy",
+        "1.00",
+        "1.1000",
+        "",
+        "",
+        "2026.04.07 12:00:00",
+        "1.1050",
+        "-2.5",
+        "-0.3",
+        "25",
+      ],
+    ]),
+  );
+
+  assert.equal(report.positions.length, 1);
+  assert.equal(report.positions[0]?.comment, null);
+  assert.equal(report.positions[0]?.profit, 25);
+});

@@ -36,6 +36,7 @@ export function TradeHistoryPanel({
           const isExpanded = expandedRowKey === rowKey;
           const comment = position.comment?.trim() || "-";
           const sideLabel = formatPositionSide(position.type);
+          const volumeLabel = `${formatPlainNumberValue(position.volume, 2)} lot`;
           const rowNetPnl = positionHistoryNetPnl(position);
           const normalizedSide = sideLabel.toLowerCase();
           const sideToneClass =
@@ -55,7 +56,7 @@ export function TradeHistoryPanel({
                   <div className="trade-history-row__instrument">
                     <strong>{position.symbol}</strong>
                     <span className={`trade-history-row__side ${sideToneClass}`}>{sideLabel}</span>
-                    <span className={`trade-history-row__volume ${sideToneClass}`}>{formatPlainNumberValue(position.volume, 2)}</span>
+                    <span className={`trade-history-row__volume ${sideToneClass}`}>{volumeLabel}</span>
                   </div>
                   <div className={`trade-history-row__trail ${pnlToneClass}`}>
                     <strong>{formatSignedPlainAmountKpiValue(rowNetPnl, 2)}</strong>
@@ -63,8 +64,8 @@ export function TradeHistoryPanel({
                 </div>
                 <div className="trade-history-row__line trade-history-row__line--secondary">
                   <div className="trade-history-row__prices">
+                    <span className="trade-history-row__comment trade-history-row__comment--secondary">{comment}</span>
                     <span>{`${formatTradePrice(position.openPrice)} -> ${formatTradePrice(position.closePrice)}`}</span>
-                    <span className="trade-history-row__comment">{comment}</span>
                   </div>
                   <div className="trade-history-row__trail trade-history-row__trail--secondary">
                     <span>{formatTradeHistoryDateTime(position.closedAt)}</span>

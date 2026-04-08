@@ -17,6 +17,7 @@
     "db:clean": "node --import tsx scripts/cleanup.ts",
     "db:backfill-report-results": "node --import tsx scripts/backfill-report-results.ts",
     "db:remediate-positions": "node --import tsx scripts/remediate-corrupt-positions.ts",
+    "db:remediate-position-comments": "node --import tsx scripts/remediate-position-comments.ts",
     "test:formatters": "node --import tsx --test src/components/trading-monitor/formatters.test.ts"
   },
   "dependencies": {

@@ -122,6 +122,28 @@ function getReportLocalDateKey(value: Date | string | null | undefined) {
   return `${parsed.getUTCFullYear()}-${padTwo(parsed.getUTCMonth() + 1)}-${padTwo(parsed.getUTCDate())}`;
 }
 
+function sanitizeHistoryPositionComment(comment: string | null | undefined, profit: number | null | undefined) {
+  const normalizedComment = comment?.trim();
+  if (!normalizedComment) {
+    return null;
+  }
+
+  if (/^-?\d+(?:\.\d+)?$/.test(normalizedComment)) {
+    return null;
+  }
+
+  const numericComment = Number(normalizedComment.replace(/,/g, ""));
+  if (Number.isFinite(numericComment) && Number.isFinite(profit ?? Number.NaN)) {
+    const roundedComment = Math.round(numericComment * 100) / 100;
+    const roundedProfit = Math.round(Number(profit) * 100) / 100;
+    if (roundedComment === roundedProfit) {
+      return null;
+    }
+  }
+
+  return normalizedComment;
+}
+
 function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): TradeExecutionDistribution {
   const reportDate = getReportLocalDateKey(reportTime) ?? reportTime.toISOString().slice(0, 10);
   const hourly = Array.from({ length: 24 }, (_, hour) => ({
@@ -791,7 +813,7 @@ function buildTimeframeView(params: {
       tp: position.tp == null ? null : Number(position.tp),
       swap: position.swap == null ? null : Number(position.swap),
       commission: position.commission == null ? null : Number(position.commission),
-      comment: position.comment ?? null,
+      comment: sanitizeHistoryPositionComment(position.comment ?? null, position.profit == null ? null : Number(position.profit)),
     }));
   const scopedPositionTrades = orderedScopedPositions.map((position) => ({
     dealId: position.positionNo ?? "",

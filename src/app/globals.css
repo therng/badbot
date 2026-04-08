@@ -2075,6 +2075,7 @@ body::after {
 .trade-history-row__instrument {
   display: flex;
   align-items: baseline;
+  min-width: 0;
   gap: 10px;
 }
 
@@ -2131,10 +2132,15 @@ body::after {
 }
 
 .trade-history-row__comment {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: rgba(46, 47, 49, 0.46);
+}
+
+.trade-history-row__comment--secondary {
+  flex: 1 1 120px;
 }
 
 .trade-history-row__trail--secondary span,
