@@ -87,7 +87,6 @@ test("parseReport rejects headerless malformed position rows when fallback cells
 
   assert.equal(report.positions.length, 0);
 });
-
 test("parseReport keeps closed-position comment null when the positions table has no comment column", () => {
   const report = parseReport(
     renderTable([

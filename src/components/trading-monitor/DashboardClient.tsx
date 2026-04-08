@@ -402,6 +402,10 @@ function DashboardCard({
     });
   };
 
+  useEffect(() => {
+    setExpandedKpiState(null); // Changed from setExpandedKpi(null);
+  }, [account.id, timeframe]);
+
   return (
     <article className={`card account-card ${active ? "account-card--active" : "account-card--inactive"}`}>
       <div className="sp-wrap">
@@ -688,6 +692,8 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!isLandscapeCarousel) {
+      setShowPageIndicator(false);
+      setActiveAccountIndex(0);
       lastLandscapeAccountOrderRef.current = "";
       wasLandscapeCarouselRef.current = false;
       return;
