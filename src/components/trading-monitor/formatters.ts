@@ -57,6 +57,12 @@ function formatCompactAbsolute(value: number, digits = 1) {
   let suffixIndex = COMPACT_SUFFIXES.findIndex((entry) => value >= entry.value);
 
   if (suffixIndex === -1) {
+    const rounded = roundHalfUp(value, digits);
+    if (rounded >= 1000) {
+      const threshold = COMPACT_SUFFIXES[COMPACT_SUFFIXES.length - 1]!;
+      return `${formatRoundedNumber(roundHalfUp(value / threshold.value, digits), digits)}${threshold.suffix}`;
+    }
+
     return formatRoundedNumber(value, digits);
   }
 
