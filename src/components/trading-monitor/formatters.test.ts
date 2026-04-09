@@ -31,6 +31,7 @@ test("compact view uses uppercase suffixes with no currency symbol", () => {
 });
 
 test("compact threshold edge cases round only at render time", () => {
+  assert.equal(formatCompactNumber(999.95), "1K");
   assert.equal(formatCompactNumber(999_500), "999.5K");
   assert.equal(formatCompactNumber(999_950), "1M");
   assert.equal(formatCompactNumber(1_000_000), "1M");
