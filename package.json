@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
-    "basic-ftp": "^5.2.1",
+    "basic-ftp": "^5.2.2",
     "cheerio": "^1.2.0",
     "next": "^15.5.14",
     "react": "^18.2.0",
