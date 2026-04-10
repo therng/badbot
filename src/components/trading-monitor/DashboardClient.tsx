@@ -1,14 +1,16 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type TouchEvent as ReactTouchEvent } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type TouchEvent as ReactTouchEvent } from "react";
+import { usePathname } from "next/navigation";
+import { trackAccountSwipe, trackKpiExpand, trackRefresh, trackTimeframeChange, trackEvent } from "@/lib/analytics";
 
 import type {
   AccountOverviewResponse,
   BalanceDetailResponse,
+  PipsSummaryResponse,
   PositionsResponse,
   ProfitDetailResponse,
   SerializedAccount,
   Timeframe,
-  WinDetailResponse,
 } from "@/lib/trading/types";
 
 import {
@@ -31,10 +33,18 @@ import {
   TimeframeStrip,
   TradingMonitorSharedStyles,
 } from "@/components/trading-monitor/shared";
+import {
+  ExpandableKpiKey,
+  formatPlainNumberValue,
+  formatPlainPercent,
+  formatSignedPlainNumberValue,
+  normalizeNegativeAmount,
+} from "@/components/trading-monitor/DashboardFormatters";
 import { SummaryChip } from "@/components/trading-monitor/SummaryChip";
 import { OpenPositionsOverlay } from "@/components/trading-monitor/OpenPositionsOverlay";
 import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPanel";
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
+import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
 
 const PULL_THRESHOLD = 72;
@@ -42,29 +52,6 @@ const MAX_PULL_DISTANCE = 116;
 const REFRESH_HOLD_DISTANCE = 52;
 const MIN_REFRESH_VISIBLE_MS = 520;
 const SPINNER_CIRCUMFERENCE = 62.83;
-type ExpandableKpiKey = "gain" | "dd" | "win" | "trades" | "opens";
-
-function trimTrailingZeroDecimals(value: string) {
-  return value
-    .replace(/(\.\d*?[1-9])0+(?=[a-z%]|$)/gi, "$1")
-    .replace(/\.0+(?=[a-z%]|$)/gi, "");
-}
-
-function formatPlainPercent(value: number | null | undefined, digits = 1) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  return `${trimTrailingZeroDecimals(Math.abs(value ?? 0).toFixed(digits))}%`;
-}
-
-function formatPlainNumberValue(value: number | null | undefined, digits = 2) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-
-  return trimTrailingZeroDecimals(Number(value ?? 0).toFixed(digits));
-}
 
 function formatRatioValue(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
@@ -97,25 +84,6 @@ function formatAverageHoldTime(hours: number | null | undefined) {
   return `${days}d ${formatPlainNumberValue(remainder, 1)}h`;
 }
 
-function normalizeNegativeAmount(value: number | null | undefined) {
-  if (!Number.isFinite(value)) {
-    return null;
-  }
-
-  return -Math.abs(value ?? 0);
-}
-
-
-
-
-
-
-
-
-
-
-
-
 function applyPullResistance(distance: number) {
   const dampenedDistance = distance * 0.5;
 
@@ -126,16 +94,14 @@ function applyPullResistance(distance: number) {
   return Math.min(MAX_PULL_DISTANCE, PULL_THRESHOLD + (dampenedDistance - PULL_THRESHOLD) * 0.35);
 }
 
-function DashboardCard({
+const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
   onRequestStateChange,
-  isLandscapeCarousel,
 }: {
   account: SerializedAccount;
   refreshKey: number;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
-  isLandscapeCarousel: boolean;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("all");
   const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
@@ -160,15 +126,17 @@ function DashboardCard({
       onRequestStateChange,
     },
   );
-  const winDetail = useApiResource<WinDetailResponse>(
-    expandedKpi === "win" ? `/api/accounts/${account.id}/win-detail?timeframe=${timeframe}` : null,
+  const pipsSummary = useApiResource<PipsSummaryResponse>(
+    expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
     },
   );
   const positionsDetail = useApiResource<PositionsResponse>(
-    expandedKpi === "opens" || expandedKpi === "trades" ? `/api/accounts/${account.id}/positions?timeframe=${timeframe}` : null,
+    expandedKpi === "opens" || expandedKpi === "trades"
+      ? `/api/accounts/${account.id}/positions?timeframe=${timeframe}`
+      : null,
     {
       refreshKey,
       onRequestStateChange,
@@ -185,18 +153,18 @@ function DashboardCard({
   const growthTone = toneFromNumber(overview.data?.kpis.periodGrowth);
   const gainTone = toneFromNumber(overview.data?.kpis.netProfit);
   const relativeDrawdownTone = drawdownTone(overview.data?.kpis.drawdown);
-  const winTone = toneFromNumber((overview.data?.kpis.winPercent ?? 0) - 50);
+  const pipsTone = toneFromNumber(overview.data?.kpis.netPips);
   const openTone = (overview.data?.kpis.openCount ?? 0) > 0 ? "warning" : "muted";
   const accountLabel = accountSource.account_number ? `#${accountSource.account_number}` : "Unnumbered";
-  const firstName = displayName(accountSource);
+  const accountDisplayName = displayName(accountSource);
   const displayedBalance = highlightedBalance ?? accountSource.balance;
   const displayedGrowth = formatPercent(overview.data?.kpis.periodGrowth, 1);
   const displayedBalanceLabel = formatCurrency(displayedBalance, 2);
   const drawdownMeta = Number.isFinite(overview.data?.kpis.absoluteDrawdown)
     ? `Abs ${formatCompactNumber(overview.data?.kpis.absoluteDrawdown, 1)}`
     : undefined;
-  const kpiItems: Array<{
-    key: ExpandableKpiKey | "trades";
+  const primaryKpiItems: Array<{
+    key: string;
     expandKey?: ExpandableKpiKey;
     label: string;
     value: string;
@@ -221,11 +189,13 @@ function DashboardCard({
       meta: drawdownMeta,
     },
     {
-      key: "win",
-      expandKey: "win",
-      label: "WIN%",
-      value: formatPlainPercent(overview.data?.kpis.winPercent, 1),
-      tone: winTone,
+      key: "pips",
+      expandKey: "pips",
+      label: "Pips",
+      value: formatCompactSignedNumber(overview.data?.kpis.netPips, 1),
+      tone: pipsTone,
+      meta: "Closed",
+      fullValue: `${formatSignedPlainNumberValue(overview.data?.kpis.netPips, 1)} pips`,
     },
     {
       key: "trades",
@@ -243,18 +213,26 @@ function DashboardCard({
       tone: openTone,
     },
   ];
+  const kpiRows = [
+    primaryKpiItems.filter((item) => ["gain", "dd", "pips", "trades", "opens"].includes(item.key)),
+  ];
+  const kpiItems = primaryKpiItems;
   const detailState =
     expandedKpi === "gain"
       ? profitDetail
       : expandedKpi === "dd"
         ? balanceDetail
-        : expandedKpi === "win"
-          ? winDetail
-          : expandedKpi === "opens" || expandedKpi === "trades"
+        : expandedKpi === "opens" || expandedKpi === "trades"
             ? positionsDetail
             : null;
   const isOpensExpanded = expandedKpi === "opens";
   const isTradesExpanded = expandedKpi === "trades";
+  const isPipsExpanded = expandedKpi === "pips";
+  const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
+    trackTimeframeChange(accountDisplayName, nextTimeframe);
+    setExpandedKpiState(null);
+    setTimeframe(nextTimeframe);
+  }, [accountDisplayName]);
 
   const detailRows: Array<{
     label: string;
@@ -307,12 +285,6 @@ function DashboardCard({
               fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
             },
             {
-              label: "LOAD",
-              value: formatPlainPercent(balanceDetail.data?.summary.maximalDepositLoad, 1),
-              tone: drawdownTone(balanceDetail.data?.summary.maximalDepositLoad),
-              meta: "Deposit load%",
-            },
-            {
               label: "LOSS",
               value: formatCompactSignedNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 1),
               tone: toneFromNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount),
@@ -320,34 +292,7 @@ function DashboardCard({
               fullValue: formatSignedCurrency(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 2),
             },
           ]
-        : expandedKpi === "win"
-          ? [
-              {
-                label: "SHARPE",
-                value: formatRatioValue(winDetail.data?.summary.sharpeRatio, 2),
-                tone: toneFromNumber(winDetail.data?.summary.sharpeRatio),
-              },
-              {
-                label: "PAYOFF",
-                value: formatCompactSignedNumber(winDetail.data?.summary.expectedPayoff, 1),
-                tone: toneFromNumber(winDetail.data?.summary.expectedPayoff),
-                meta: "Expected payoff",
-                fullValue: formatSignedCurrency(winDetail.data?.summary.expectedPayoff, 2),
-              },
-              {
-                label: "RECOV.",
-                value: formatRatioValue(winDetail.data?.summary.recoveryFactor, 2),
-                tone: toneFromNumber(winDetail.data?.summary.recoveryFactor),
-                meta: "Recovery factor",
-              },
-              {
-                label: "P.FACT",
-                value: formatRatioValue(winDetail.data?.summary.profitFactor, 2),
-                tone: toneFromNumber((winDetail.data?.summary.profitFactor ?? 0) - 1),
-                meta: "Profit factor",
-              },
-            ]
-          : expandedKpi === "trades"
+        : expandedKpi === "trades"
             ? [
                 {
                   label: "ACTIVITY",
@@ -369,50 +314,46 @@ function DashboardCard({
                 },
               ]
           : expandedKpi === "opens"
-              ? [
-                  {
-                    label: "Profit",
-                    value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
-                    tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
-                    fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
-                  },
-                  {
-                    label: "Margin Level%",
-                    value: formatPlainPercent(accountSource.margin_level, 0),
-                    tone:
-                      accountSource.margin_level == null
-                        ? "muted"
-                        : accountSource.margin_level >= 300
-                          ? "positive"
-                          : accountSource.margin_level >= 150
-                            ? "warning"
-                            : "negative",
-                  },
-                ]
+              ? (positionsDetail.data?.summary.openCount ?? 0) > 0
+                ? [
+                    {
+                      label: "OPEN",
+                      value: formatPlainNumberValue(positionsDetail.data?.summary.openCount, 0),
+                      tone: openTone,
+                      fullValue: formatWholeNumber(positionsDetail.data?.summary.openCount),
+                    },
+                    {
+                      label: "P/L",
+                      value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
+                      tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
+                      fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
+                    },
+                  ]
+                : []
             : [];
-
   const handleChipToggle = (key: ExpandableKpiKey) => {
     setExpandedKpiState((current) => {
       const currentValue = current?.scope === expandedKpiScope ? current.value : null;
+      const isSelecting = currentValue !== key;
+
+      if (isSelecting) {
+        trackKpiExpand(accountDisplayName, key);
+      }
 
       return {
         scope: expandedKpiScope,
-        value: currentValue === key ? null : key,
+        value: isSelecting ? key : null,
       };
     });
   };
-
-  useEffect(() => {
-    setExpandedKpiState(null); // Changed from setExpandedKpi(null);
-  }, [account.id, timeframe]);
 
   return (
     <article className={`card account-card ${active ? "account-card--active" : "account-card--inactive"}`}>
       <div className="sp-wrap">
         <div className="sp-header">
-          <div className="sp-top sp-top--compact">
-            <div className="sp-identity sp-identity--header">
-              <div className="sp-name">{firstName}</div>
+            <div className="sp-top sp-top--compact">
+              <div className="sp-identity sp-identity--header">
+              <div className="sp-name">{accountDisplayName}</div>
               <div className="sp-account">
                 <span>{accountLabel}</span>
                 <span
@@ -445,7 +386,7 @@ function DashboardCard({
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
         ) : (
-          <div className={isOpensExpanded ? "sp-canvas is-opens-expanded" : isTradesExpanded ? "sp-canvas is-trades-expanded" : "sp-canvas"}>
+          <div className={isOpensExpanded ? "sp-canvas is-opens-expanded" : isTradesExpanded ? "sp-canvas is-trades-expanded" : isPipsExpanded ? "sp-canvas is-pips-expanded" : "sp-canvas"}>
             {isOpensExpanded ? (
               positionsDetail.error ? (
                 <InlineState tone="error" title="Opens unavailable" message={positionsDetail.error} />
@@ -461,6 +402,14 @@ function DashboardCard({
                 <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
               ) : (
                 <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+              )
+            ) : isPipsExpanded ? (
+              pipsSummary.error ? (
+                <InlineState tone="error" title="Pips unavailable" message={pipsSummary.error} />
+              ) : pipsSummary.loading && !pipsSummary.data ? (
+                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+              ) : (
+                <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
               )
             ) : (
               <div className="sp-canvas__chart">
@@ -484,19 +433,32 @@ function DashboardCard({
           </div>
         )}
 
-        {!isOpensExpanded && !isTradesExpanded ? (
+        {!isOpensExpanded && !isTradesExpanded && !isPipsExpanded ? (
           <div className="tf-row">
-            <TimeframeStrip active={timeframe} onChange={setTimeframe} />
+            <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
           </div>
         ) : null}
       </div>
 
       <div className="kpi-stack">
-        <div className="kgrid">
-          {kpiItems.map((item) => {
-            const expandKey = item.expandKey;
+        {kpiRows.map((row, rowIndex) => (
+          <div key={`kpi-row-${rowIndex}`} className={`kgrid ${rowIndex > 0 ? "kgrid--subrow" : ""}`}>
+            {row.map((item) => {
+              const expandKey = item.expandKey;
 
-            if (!expandKey) {
+              if (!expandKey) {
+                return (
+                  <SummaryChip
+                    key={item.key}
+                    label={item.label}
+                    value={item.value}
+                    tone={item.tone}
+                    meta={item.meta}
+                    fullValue={item.fullValue}
+                  />
+                );
+              }
+
               return (
                 <SummaryChip
                   key={item.key}
@@ -505,25 +467,13 @@ function DashboardCard({
                   tone={item.tone}
                   meta={item.meta}
                   fullValue={item.fullValue}
+                  onClick={() => handleChipToggle(expandKey)}
+                  isSelected={expandedKpi === expandKey}
                 />
               );
-            }
-
-            return (
-              <SummaryChip
-                key={item.key}
-                label={item.label}
-                value={item.value}
-                tone={item.tone}
-                meta={item.meta}
-                fullValue={item.fullValue}
-                onClick={() => handleChipToggle(expandKey)}
-                isSelected={expandedKpi === expandKey}
-              />
-            );
-          })}
-        </div>
-
+            })}
+          </div>
+        ))}
       </div>
 
       {expandedKpi && detailRows.length ? (
@@ -532,7 +482,7 @@ function DashboardCard({
             <InlineState tone="error" title="KPI unavailable" message={detailState.error} />
           ) : detailState?.loading && !detailState?.data ? (
             <div className="kpi-detail-grid" aria-hidden="true">
-              {Array.from({ length: 4 }, (_, index) => (
+              {Array.from({ length: expandedKpi === "pips" ? 3 : 4 }, (_, index) => (
                 <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
               ))}
             </div>
@@ -556,20 +506,30 @@ function DashboardCard({
       ) : null}
     </article>
   );
-}
+});
+
+DashboardCard.displayName = "DashboardCard";
 
 export default function DashboardClient() {
+  const pathname = usePathname();
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
+  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(orientation: landscape) and (max-width: 1180px)").matches;
+  });
   const [activeAccountIndex, setActiveAccountIndex] = useState(0);
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const accountsSectionRef = useRef<HTMLElement | null>(null);
+  const activeAccountIndexRef = useRef(0);
   const pullStartYRef = useRef<number | null>(null);
   const pullStartXRef = useRef<number | null>(null);
   const pullActiveRef = useRef(false);
@@ -579,6 +539,13 @@ export default function DashboardClient() {
   const indicatorHideTimerRef = useRef<number | null>(null);
   const lastLandscapeAccountOrderRef = useRef("");
   const wasLandscapeCarouselRef = useRef(false);
+
+  useEffect(() => {
+    trackEvent("page_view", {
+      page_path: pathname,
+      page_title: document.title,
+    });
+  }, [pathname]);
 
   const handleRequestStateChange = useCallback(({ loading, refreshKey: requestRefreshKey }: { loading: boolean; refreshKey: number }) => {
     if (!refreshingRef.current || requestRefreshKey !== activeRefreshKeyRef.current) {
@@ -621,6 +588,11 @@ export default function DashboardClient() {
     }, 1400);
   }, [accounts.data?.length, isLandscapeCarousel]);
 
+  const syncActiveAccountIndex = useCallback((nextIndex: number) => {
+    activeAccountIndexRef.current = nextIndex;
+    setActiveAccountIndex((current) => (current === nextIndex ? current : nextIndex));
+  }, []);
+
   const scrollToAccountIndex = useCallback((targetIndex: number, behavior: ScrollBehavior = "smooth") => {
     if (!isLandscapeCarousel) {
       return;
@@ -643,9 +615,9 @@ export default function DashboardClient() {
       top: 0,
       behavior,
     });
-    setActiveAccountIndex(clampedIndex);
+    syncActiveAccountIndex(clampedIndex);
     revealPageIndicator();
-  }, [isLandscapeCarousel, revealPageIndicator]);
+  }, [isLandscapeCarousel, revealPageIndicator, syncActiveAccountIndex]);
 
   const triggerRefresh = useCallback(() => {
     if (refreshingRef.current) {
@@ -669,10 +641,17 @@ export default function DashboardClient() {
   useEffect(() => {
     const mediaQuery = window.matchMedia("(orientation: landscape) and (max-width: 1180px)");
     const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
-      setIsLandscapeCarousel(event.matches);
+      const nextMatches = event.matches;
+      setIsLandscapeCarousel(nextMatches);
+
+      if (!nextMatches) {
+        setShowPageIndicator(false);
+        syncActiveAccountIndex(0);
+        lastLandscapeAccountOrderRef.current = "";
+        wasLandscapeCarouselRef.current = false;
+      }
     };
 
-    handleChange(mediaQuery);
     if (typeof mediaQuery.addEventListener === "function") {
       mediaQuery.addEventListener("change", handleChange);
       return () => mediaQuery.removeEventListener("change", handleChange);
@@ -680,7 +659,7 @@ export default function DashboardClient() {
 
     mediaQuery.addListener(handleChange);
     return () => mediaQuery.removeListener(handleChange);
-  }, []);
+  }, [syncActiveAccountIndex]);
 
   useEffect(() => {
     return () => {
@@ -692,8 +671,6 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!isLandscapeCarousel) {
-      setShowPageIndicator(false);
-      setActiveAccountIndex(0);
       lastLandscapeAccountOrderRef.current = "";
       wasLandscapeCarouselRef.current = false;
       return;
@@ -749,7 +726,7 @@ export default function DashboardClient() {
     const resolveActiveIndex = () => {
       const cards = Array.from(section.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
       if (!cards.length) {
-        setActiveAccountIndex(0);
+        syncActiveAccountIndex(0);
         return;
       }
 
@@ -766,7 +743,10 @@ export default function DashboardClient() {
         }
       });
 
-      setActiveAccountIndex(nextIndex);
+      if (nextIndex !== activeAccountIndexRef.current && accounts.data?.[nextIndex]) {
+        trackAccountSwipe(displayName(accounts.data[nextIndex]), nextIndex);
+      }
+      syncActiveAccountIndex(nextIndex);
     };
 
     const handleScroll = () => {
@@ -782,7 +762,7 @@ export default function DashboardClient() {
       section.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
     };
-  }, [isLandscapeCarousel, revealPageIndicator]);
+  }, [accounts.data, isLandscapeCarousel, revealPageIndicator, syncActiveAccountIndex]);
 
   useEffect(() => {
     if (!isRefreshing || !hasSeenRefreshRequest || pendingRefreshRequests > 0) {
@@ -860,6 +840,7 @@ export default function DashboardClient() {
     finishPull();
 
     if (shouldRefresh) {
+      trackRefresh("pull");
       triggerRefresh();
       return;
     }
@@ -942,15 +923,14 @@ export default function DashboardClient() {
                   account={account}
                   refreshKey={refreshKey}
                   onRequestStateChange={handleRequestStateChange}
-                  isLandscapeCarousel={isLandscapeCarousel}
                 />
               ))
             ) : (
               <div className="card">
                 <InlineState
                   tone="empty"
-                  title="No accounts"
-                  message="Account cards will appear here after the backend imports report data."
+                  title="Analytic"
+                  message="by Therng"
                 />
               </div>
             )}

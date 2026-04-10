@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ResourceState<T> {
   data: T | null;
@@ -21,42 +21,27 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
     error: null,
     loading: Boolean(url),
   });
-  const [refreshTick, setRefreshTick] = useState(0);
+  const previousUrlRef = useRef<string | null>(null);
+  const requestStateChangeRef = useRef(onRequestStateChange);
+
+  useEffect(() => {
+    requestStateChangeRef.current = onRequestStateChange;
+  }, [onRequestStateChange]);
 
   useEffect(() => {
     if (!url) {
+      previousUrlRef.current = null;
       return;
     }
 
-    const refresh = () => setRefreshTick((current) => current + 1);
-    const interval = window.setInterval(refresh, 60_000);
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refresh();
-      }
-    };
-
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [url]);
-
-  useEffect(() => {
-    if (!url) {
-      return;
-    }
-
+    const isSameResource = previousUrlRef.current === url;
+    previousUrlRef.current = url;
     const controller = new AbortController();
     let active = true;
     let requestSettled = false;
 
     const notifyRequestState = (loading: boolean) => {
-      onRequestStateChange?.({ loading, refreshKey });
+      requestStateChangeRef.current?.({ loading, refreshKey });
     };
 
     const settleRequest = () => {
@@ -68,18 +53,12 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
       notifyRequestState(false);
     };
 
-    queueMicrotask(() => {
-      if (!active || controller.signal.aborted) {
-        return;
-      }
-
-      setState({
-        data: null,
-        error: null,
-        loading: true,
-      });
-      notifyRequestState(true);
-    });
+    setState((current) => ({
+      data: isSameResource ? current.data : null,
+      error: null,
+      loading: true,
+    }));
+    notifyRequestState(true);
 
     fetch(url, {
       cache: "no-store",
@@ -124,7 +103,7 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
       controller.abort();
       settleRequest();
     };
-  }, [onRequestStateChange, refreshKey, refreshTick, url]);
+  }, [refreshKey, url]);
 
   if (!url) {
     return { data: null, error: null, loading: false };
