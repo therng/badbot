@@ -8,6 +8,7 @@ import type {
   TradeExecutionDistribution,
   Timeframe,
   WinDetailResponse,
+  PipsSummaryResponse,
 } from "@/lib/trading/types";
 import {
   buildBalanceCurve,
@@ -142,6 +143,88 @@ function sanitizeHistoryPositionComment(comment: string | null | undefined, prof
   }
 
   return normalizedComment;
+}
+
+function getPricePrecision(value: number | null | undefined) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  const normalized = Number(value ?? 0).toString();
+  const fractional = normalized.split(".")[1];
+  return fractional ? fractional.length : 0;
+}
+
+const FX_CODES = new Set([
+  "AUD",
+  "CAD",
+  "CHF",
+  "CNH",
+  "CZK",
+  "DKK",
+  "EUR",
+  "GBP",
+  "HKD",
+  "HUF",
+  "JPY",
+  "MXN",
+  "NOK",
+  "NZD",
+  "PLN",
+  "SEK",
+  "SGD",
+  "TRY",
+  "USD",
+  "ZAR",
+]);
+
+function resolveFxPointSize(symbol: string | undefined) {
+  const normalizedSymbol = (symbol ?? "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+  if (normalizedSymbol.length < 6) {
+    return null;
+  }
+
+  for (let index = 0; index <= normalizedSymbol.length - 6; index += 1) {
+    const base = normalizedSymbol.slice(index, index + 3);
+    const quote = normalizedSymbol.slice(index + 3, index + 6);
+    if (FX_CODES.has(base) && FX_CODES.has(quote)) {
+      return quote === "JPY" ? 0.001 : 0.00001;
+    }
+  }
+
+  return null;
+}
+
+function resolvePointSize(symbol: string | undefined, openPrice: number | null | undefined, closePrice: number | null | undefined) {
+  const fxPointSize = resolveFxPointSize(symbol);
+  if (fxPointSize !== null) {
+    return fxPointSize;
+  }
+
+  const precision = Math.max(getPricePrecision(openPrice), getPricePrecision(closePrice));
+  return precision > 0 ? 10 ** -precision : 1;
+}
+
+function positionPips(position: PositionRow) {
+  const openPrice = Number(position.openPrice ?? Number.NaN);
+  const closePrice = Number(position.closePrice ?? Number.NaN);
+  if (!Number.isFinite(openPrice) || !Number.isFinite(closePrice)) {
+    return null;
+  }
+
+  const side = normalizeTradeSide(position.type, position.type);
+  if (side !== "buy" && side !== "sell") {
+    return null;
+  }
+
+  const pointSize = resolvePointSize(position.symbol, openPrice, closePrice);
+  if (!Number.isFinite(pointSize) || pointSize <= 0) {
+    return null;
+  }
+
+  const rawPoints = side === "buy" ? (closePrice - openPrice) / pointSize : (openPrice - closePrice) / pointSize;
+  const rawPips = rawPoints / 10;
+  return Number.isFinite(rawPips) ? rawPips : null;
 }
 
 function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): TradeExecutionDistribution {
@@ -527,6 +610,7 @@ type CachedTimeframeViews = {
   positions: PositionsResponse;
   profitDetail: ProfitDetailResponse;
   winDetail: WinDetailResponse;
+  pipsSummary: PipsSummaryResponse;
 };
 
 type AccountPreaggregatedBundle = {
@@ -627,6 +711,62 @@ function buildTimeframeView(params: {
   const scopedPositions = filterBySince(positions, (position) => position.closeTime, since);
   const scopedClosedPositions = scopedPositions.filter((position) => isClosedPosition(position));
   const closedPositionSummary = summarizeClosedPositions(scopedClosedPositions);
+  const scopedPositionPips = scopedClosedPositions
+    .map((position) => positionPips(position))
+    .filter((value): value is number => Number.isFinite(value));
+  const totalWinningPips = scopedPositionPips.filter((value) => value > 0).reduce((total, value) => total + value, 0);
+  const totalLosingPips = scopedPositionPips.filter((value) => value < 0).reduce((total, value) => total + value, 0);
+  const netPips = scopedPositionPips.reduce((total, value) => total + value, 0);
+  const winningPipTrades = scopedPositionPips.filter((value) => value > 0);
+  const averageWinningPips = winningPipTrades.length ? totalWinningPips / winningPipTrades.length : null;
+  const totalVolume = scopedClosedPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0);
+
+  const getPipsSummaryRow = (label: string, sinceDate: Date | null) => {
+    const periodDeals = filterBySince(deals, (deal) => deal.time, sinceDate);
+    const periodPositions = filterBySince(positions, (position) => position.closeTime, sinceDate);
+    const periodClosedPositions = periodPositions.filter((position) => isClosedPosition(position));
+
+    const profit = periodDeals
+      .filter((deal) => !isFundingDeal(deal.type, deal.comment, dealNet(deal)))
+      .reduce((total, deal) => total + dealNet(deal), 0);
+
+    const growth = computeCompoundedGrowth(deals, sinceDate, null);
+
+    const pips = periodClosedPositions
+      .map((position) => positionPips(position))
+      .filter((value): value is number => Number.isFinite(value))
+      .reduce((total, value) => total + value, 0);
+
+    const volume = periodClosedPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0);
+
+    return {
+      label,
+      profit,
+      growth,
+      pips,
+      volume,
+    };
+  };
+
+  const now = reportTime;
+  const startOfToday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const startOfWeek = new Date(now);
+  const weekOffset = (startOfWeek.getDay() + 6) % 7;
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(startOfWeek.getDate() - weekOffset);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+  const pipsSummary: PipsSummaryResponse = {
+    timeframe,
+    account,
+    rows: [
+      getPipsSummaryRow("Today", startOfToday),
+      getPipsSummaryRow("Weekly", startOfWeek),
+      getPipsSummaryRow("Monthly", startOfMonth),
+      getPipsSummaryRow("Yearly", startOfYear),
+    ],
+  };
 
   const endingBalance = Number.isFinite(latestSnapshotBalance) && latestSnapshotBalance > 0
     ? latestSnapshotBalance
@@ -677,6 +817,8 @@ function buildTimeframeView(params: {
       drawdown: drawdown.relativePercent,
       absoluteDrawdown: drawdown.absoluteAmount,
       winPercent: closedPositionSummary.winPercent,
+      netPips,
+      totalWinningPips,
       trades: closedPositionSummary.totalTrades,
       floatingPL: openPositions.reduce((total, position) => total + Number(position.profit ?? 0), 0),
       openCount: openPositions.length,
@@ -853,6 +995,11 @@ function buildTimeframeView(params: {
       maxConsecutiveProfitAmount: positionRunAmounts.maxConsecutiveProfitAmount,
       maxConsecutiveLossAmount: positionRunAmounts.maxConsecutiveLossAmount,
       symbolTradePercent: buildSymbolTradePercent(scopedClosedPositions),
+      totalWinningPips,
+      totalLosingPips,
+      netPips,
+      averageWinningPips,
+      totalVolume,
       openCount: openPositionsPayload.length,
       floatingProfit: openPositionsPayload.reduce((total, position) => total + Number(position.floatingProfit ?? 0), 0),
     },
@@ -1030,6 +1177,7 @@ function buildTimeframeView(params: {
     positions: positionsPayload,
     profitDetail,
     winDetail,
+    pipsSummary,
   } satisfies CachedTimeframeViews;
 }
 
@@ -1108,7 +1256,8 @@ export type AccountCachedViewKind =
   | "growth"
   | "positions"
   | "profitDetail"
-  | "winDetail";
+  | "winDetail"
+  | "pipsSummary";
 
 export function parseRequestTimeframe(rawTimeframe: string | null) {
   return parseTimeframe(rawTimeframe);

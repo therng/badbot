@@ -41,7 +41,6 @@ import {
   normalizeNegativeAmount,
 } from "@/components/trading-monitor/DashboardFormatters";
 import { SummaryChip } from "@/components/trading-monitor/SummaryChip";
-import { OpenPositionsOverlay } from "@/components/trading-monitor/OpenPositionsOverlay";
 import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPanel";
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
@@ -427,7 +426,6 @@ const DashboardCard = memo(function DashboardCard({
                   liveTimestamp={accountSource.last_updated}
                   liveBalance={accountSource.balance}
                 />
-                <OpenPositionsOverlay positions={overview.data?.openPositions} />
               </div>
             )}
           </div>

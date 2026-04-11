@@ -11,6 +11,7 @@ export interface SerializedAccount {
   balance: number;
   equity: number;
   floating_pl: number;
+  margin: number | null;
   margin_level: number | null;
 }
 
@@ -96,6 +97,8 @@ export interface AccountOverviewResponse {
     drawdown: number;
     absoluteDrawdown: number;
     winPercent: number | null;
+    netPips: number;
+    totalWinningPips: number;
     trades: number;
     floatingPL: number;
     openCount: number;
@@ -177,6 +180,11 @@ export interface PositionsResponse {
       symbol: string;
       percent: number;
     }>;
+    totalWinningPips: number;
+    totalLosingPips: number;
+    netPips: number;
+    averageWinningPips: number | null;
+    totalVolume: number;
     openCount: number;
     floatingProfit: number;
   };
@@ -256,6 +264,20 @@ export interface ProfitDetailResponse {
     price: number | null;
     pnl: number;
   }>;
+}
+
+export interface PipsSummaryRow {
+  label: string;
+  profit: number;
+  growth: number;
+  pips: number;
+  volume: number;
+}
+
+export interface PipsSummaryResponse {
+  timeframe: Timeframe;
+  account: SerializedAccount;
+  rows: PipsSummaryRow[];
 }
 
 export interface WinDetailResponse {

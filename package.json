@@ -21,6 +21,7 @@
     "test:formatters": "node --import tsx --test src/components/trading-monitor/formatters.test.ts"
   },
   "dependencies": {
+    "@next/third-parties": "^16.2.3",
     "@prisma/client": "^6.19.2",
     "basic-ftp": "^5.2.1",
     "cheerio": "^1.2.0",

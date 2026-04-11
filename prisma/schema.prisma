@@ -8,21 +8,21 @@ generator client {
 }
 
 model TradingAccount {
-  id                String              @id @default(cuid())
-  accountNo         String              @unique @map("account_number")
-  accountName       String?             @map("owner_name")
-  company           String?
-  currency          String
-  serverName        String              @map("server")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  reportDate        DateTime?           @map("report_date")
-  accountSnapshot   AccountSnapshot?
+  id                  String               @id @default(cuid())
+  accountNo           String               @unique @map("account_number")
+  accountName         String?              @map("owner_name")
+  company             String?
+  currency            String
+  serverName          String               @map("server")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  reportDate          DateTime?            @map("report_date")
+  accountSnapshot     AccountSnapshot?
   accountReportResult AccountReportResult?
-  openPositions     OpenPosition[]
-  positions         Position[]
-  deals             Deal[]
-  reportImports     ReportImport[]
+  openPositions       OpenPosition[]
+  positions           Position[]
+  deals               Deal[]
+  reportImports       ReportImport[]
 
   @@map("Account")
 }
@@ -32,20 +32,20 @@ model AccountReportResult {
   tradingAccountId           String         @unique @map("account_id")
   computedAt                 DateTime       @default(now()) @map("computed_at")
   sourceReportDate           DateTime?      @map("source_report_date")
-  totalCommission            Decimal?       @db.Decimal(28, 8) @map("total_commission")
-  totalSwap                  Decimal?       @db.Decimal(28, 8) @map("total_swap")
-  totalNetProfit             Decimal?       @db.Decimal(28, 8) @map("total_net_profit")
-  grossProfit                Decimal?       @db.Decimal(28, 8) @map("gross_profit")
-  grossLoss                  Decimal?       @db.Decimal(28, 8) @map("gross_loss")
+  totalCommission            Decimal?       @map("total_commission") @db.Decimal(28, 8)
+  totalSwap                  Decimal?       @map("total_swap") @db.Decimal(28, 8)
+  totalNetProfit             Decimal?       @map("total_net_profit") @db.Decimal(28, 8)
+  grossProfit                Decimal?       @map("gross_profit") @db.Decimal(28, 8)
+  grossLoss                  Decimal?       @map("gross_loss") @db.Decimal(28, 8)
   profitFactor               Float?         @map("profit_factor")
-  expectedPayoff             Decimal?       @db.Decimal(28, 8) @map("expected_payoff")
+  expectedPayoff             Decimal?       @map("expected_payoff") @db.Decimal(28, 8)
   recoveryFactor             Float?         @map("recovery_factor")
   sharpeRatio                Float?         @map("sharpe_ratio")
-  balanceDrawdownAbsolute    Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_absolute")
-  balanceDrawdownMaximal     Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_maximal")
+  balanceDrawdownAbsolute    Decimal?       @map("balance_drawdown_absolute") @db.Decimal(28, 8)
+  balanceDrawdownMaximal     Decimal?       @map("balance_drawdown_maximal") @db.Decimal(28, 8)
   balanceDrawdownMaximalPct  Float?         @map("balance_drawdown_maximal_pct")
   balanceDrawdownRelativePct Float?         @map("balance_drawdown_relative_pct")
-  balanceDrawdownRelative    Decimal?       @db.Decimal(28, 8) @map("balance_drawdown_relative")
+  balanceDrawdownRelative    Decimal?       @map("balance_drawdown_relative") @db.Decimal(28, 8)
   totalTrades                Int?           @map("total_trades")
   shortTradesWon             Int?           @map("short_trades_won")
   shortTradesTotal           Int?           @map("short_trades_total")
@@ -53,10 +53,10 @@ model AccountReportResult {
   longTradesTotal            Int?           @map("long_trades_total")
   profitTradesCount          Int?           @map("profit_trades_count")
   lossTradesCount            Int?           @map("loss_trades_count")
-  largestProfitTrade         Decimal?       @db.Decimal(28, 8) @map("largest_profit_trade")
-  largestLossTrade           Decimal?       @db.Decimal(28, 8) @map("largest_loss_trade")
-  averageProfitTrade         Decimal?       @db.Decimal(28, 8) @map("average_profit_trade")
-  averageLossTrade           Decimal?       @db.Decimal(28, 8) @map("average_loss_trade")
+  largestProfitTrade         Decimal?       @map("largest_profit_trade") @db.Decimal(28, 8)
+  largestLossTrade           Decimal?       @map("largest_loss_trade") @db.Decimal(28, 8)
+  averageProfitTrade         Decimal?       @map("average_profit_trade") @db.Decimal(28, 8)
+  averageLossTrade           Decimal?       @map("average_loss_trade") @db.Decimal(28, 8)
   maximumConsecutiveWins     Int?           @map("maximum_consecutive_wins")
   maximumConsecutiveLosses   Int?           @map("maximum_consecutive_losses")
   tradingAccount             TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)

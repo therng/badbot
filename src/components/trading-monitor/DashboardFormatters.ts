@@ -7,7 +7,7 @@ import {
 } from "@/components/trading-monitor/formatters";
 
 export type MonthlyDisplayMode = "percent" | "amount";
-export type ExpandableKpiKey = "gain" | "dd" | "win" | "trades" | "opens";
+export type ExpandableKpiKey = "gain" | "dd" | "pips" | "trades" | "opens";
 
 export function trimTrailingZeroDecimals(value: string) {
   return value
@@ -46,6 +46,16 @@ export function formatPlainNumberValue(value: number | null | undefined, digits 
   }
 
   return trimTrailingZeroDecimals(Number(value ?? 0).toFixed(digits));
+}
+
+export function formatSignedPlainNumberValue(value: number | null | undefined, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  const numeric = value ?? 0;
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}`;
 }
 
 export function formatSignedPlainAmountKpiValue(value: number | null | undefined, digits = 1) {

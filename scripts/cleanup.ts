@@ -7,14 +7,19 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Cleaning database...");
 
-  await prisma.$transaction([
-    prisma.deal.deleteMany(),
-    prisma.position.deleteMany(),
-    prisma.openPosition.deleteMany(),
-    prisma.accountSnapshot.deleteMany(),
-    prisma.reportImport.deleteMany(),
-    prisma.tradingAccount.deleteMany(),
-  ]);
+  // Using TRUNCATE with CASCADE is significantly faster than deleteMany() 
+  // because it removes all rows without scanning and is a single operation.
+  await prisma.$executeRawUnsafe(`
+    TRUNCATE TABLE 
+      "Deal", 
+      "Position", 
+      "OpenPosition", 
+      "AccountSnapshot", 
+      "AccountReportResult",
+      "ReportImport", 
+      "Account" 
+    RESTART IDENTITY CASCADE;
+  `);
 
   console.log("Cleanup complete.");
 }
