@@ -24,6 +24,7 @@ const FILE_STABLE_MS = Number.parseInt(process.env.WORKER_FILE_STABLE_MS || "600
 const MIN_FILE_SIZE_BYTES = Number.parseInt(process.env.WORKER_MIN_FILE_SIZE_BYTES || "1024", 10);
 const RUN_ONCE = process.env.WORKER_RUN_ONCE === "true";
 const FORCE_REIMPORT = process.env.WORKER_FORCE_REIMPORT === "true";
+const LEGACY_REPORT_TIME_SHIFT_MS = 7 * 60 * 60 * 1000;
 
 function decodeReportBuffer(buffer: Buffer) {
   if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
@@ -117,7 +118,12 @@ function normalizeNumber(value: number | null | undefined, fallback = 0) {
 }
 
 function isSameInstant(left: Date | null | undefined, right: Date | null | undefined) {
-  return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+  if (!(left instanceof Date) || !(right instanceof Date)) {
+    return false;
+  }
+
+  const delta = Math.abs(left.getTime() - right.getTime());
+  return delta === 0 || delta === LEGACY_REPORT_TIME_SHIFT_MS;
 }
 
 function compareInstants(left: Date | null | undefined, right: Date | null | undefined) {
@@ -140,7 +146,11 @@ function compareInstants(left: Date | null | undefined, right: Date | null | und
 }
 
 function isSameOrNewerReportDate(incoming: Date, existing: Date | null | undefined) {
-  return compareInstants(incoming, existing) >= 0;
+  if (compareInstants(incoming, existing) >= 0) {
+    return true;
+  }
+
+  return isSameInstant(incoming, existing);
 }
 
 async function importReport(fileName: string, htmlContent: string) {

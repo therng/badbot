@@ -8,6 +8,15 @@ import type {
   Timeframe,
   TradeExecutionDistribution,
 } from "@/lib/trading/types";
+import {
+  convertBangkokReportTimeToTableTimestamp,
+  endOfThaiDayInTableTimeTimestamp,
+  formatTableDateLabel,
+  formatTableTimeLabel,
+  getTableHour,
+  startOfThaiDayInTableTimeTimestamp,
+  toTimestamp,
+} from "@/lib/time";
 
 import {
   TIMEFRAME_OPTIONS,
@@ -16,6 +25,9 @@ import {
   formatPercent,
   formatSignedCurrency,
 } from "@/components/trading-monitor/formatters";
+
+const ACCOUNT_CHART_COLOR = "var(--account-chart, #2c5d9d)";
+const ACCOUNT_CHART_MUTED_COLOR = "var(--account-chart-muted, #97a3b1)";
 
 export function TimeframeStrip({
   active,
@@ -196,21 +208,15 @@ function formatNumber(value: number | null | undefined, digits = 2) {
 }
 
 function getTimestampValue(value: Date | string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? timestamp : null;
+  return toTimestamp(value);
 }
 
 function startOfDayWindow(timestamp: number) {
-  const date = new Date(timestamp);
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return startOfThaiDayInTableTimeTimestamp(timestamp) ?? timestamp;
 }
 
 function endOfDayWindow(timestamp: number) {
-  return startOfDayWindow(timestamp) + 23 * 60 * 60 * 1000;
+  return endOfThaiDayInTableTimeTimestamp(timestamp) ?? (startOfDayWindow(timestamp) + 23 * 60 * 60 * 1000);
 }
 
 function resolveBalanceValue(point: ChartPoint | BalanceEventPoint) {
@@ -223,58 +229,21 @@ function resolveBalanceValue(point: ChartPoint | BalanceEventPoint) {
 }
 
 function formatReportLocalDate(value: Date | string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(parsed);
+  return formatTableDateLabel(value);
 }
 
 function formatReportLocalTime(value: Date | string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-  }).format(parsed);
+  return formatTableTimeLabel(value);
 }
 
 function formatDateTime(value: Date | string | null | undefined) {
-  if (!value) {
+  const dateLabel = formatTableDateLabel(value);
+  const timeLabel = formatTableTimeLabel(value);
+  if (dateLabel === "-" || timeLabel === "-") {
     return "-";
   }
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return `${dateLabel} ${timeLabel}`;
 }
 
 function withLivePoint(
@@ -282,7 +251,7 @@ function withLivePoint(
   liveTimestamp: Date | string | null | undefined,
   liveBalance: number | null | undefined,
 ) {
-  const timestamp = getTimestampValue(liveTimestamp);
+  const timestamp = convertBangkokReportTimeToTableTimestamp(liveTimestamp);
   if (timestamp === null || !Number.isFinite(liveBalance)) {
     return points;
   }
@@ -363,10 +332,12 @@ function buildDailyTimePoints(
   });
 
   const linePath = buildSmoothPath(timelinePoints);
+  const lastPoint = timelinePoints[timelinePoints.length - 1];
+  const fillEndX = lastPoint?.x ?? width - horizontalInset;
   return {
     points: timelinePoints,
     linePath,
-    fillPath: `${linePath} L ${width - horizontalInset} ${height} L ${horizontalInset} ${height} Z`,
+    fillPath: `${linePath} L ${fillEndX} ${height} L ${horizontalInset} ${height} Z`,
   };
 }
 
@@ -443,11 +414,13 @@ function buildSparkline(values: number[], width: number, height: number) {
     y: Number((topInset + (1 - (value - minimum) / range) * plotHeight).toFixed(2)),
   }));
   const linePath = buildSmoothPath(points);
+  const lastPoint = points[points.length - 1];
+  const fillEndX = lastPoint?.x ?? width - horizontalInset;
 
   return {
     points,
     linePath,
-    fillPath: `${linePath} L ${width - horizontalInset} ${height} L ${horizontalInset} ${height} Z`,
+    fillPath: `${linePath} L ${fillEndX} ${height} L ${horizontalInset} ${height} Z`,
   };
 }
 
@@ -498,7 +471,7 @@ export function SparklineChart({
   active,
   tone = "neutral",
   onHighlightBalanceChange,
-  timeframe = "all",
+  timeframe = "1d",
   liveTimestamp,
   liveBalance,
 }: {
@@ -528,8 +501,9 @@ export function SparklineChart({
   const activeIndex = highlightedIndex ?? lastIndex;
   const activePoint = sparklinePoints[activeIndex] ?? sparklinePoints[lastIndex];
   const activeDataPoint = resolvedPoints[activeIndex] ?? resolvedPoints[lastIndex];
-  const currentDotColor = "var(--account-homebrew, #00ff41)";
-  const statusPointColor = active ? currentDotColor : "var(--account-chart-muted, #97a3b1)";
+  const currentDotColor = ACCOUNT_CHART_COLOR;
+  const currentBeaconColor = ACCOUNT_CHART_COLOR;
+  const statusPointColor = active ? currentBeaconColor : ACCOUNT_CHART_MUTED_COLOR;
   const showActiveMarker = Boolean(activePoint);
   const showCurrentDot = active && Boolean(currentPoint);
   const beaconStyle =
@@ -551,13 +525,26 @@ export function SparklineChart({
     stroke: strokeByTone[tone],
     areaTop:
       tone === "positive"
-        ? "rgba(90, 160, 112, 0.12)"
+        ? "rgba(90, 160, 112, 0.18)"
         : tone === "negative"
-          ? "rgba(196, 99, 96, 0.11)"
+          ? "rgba(196, 99, 96, 0.17)"
           : active
-            ? "rgba(83, 119, 165, 0.12)"
-            : "rgba(125, 143, 166, 0.09)",
-    areaBottom: "rgba(255, 255, 255, 0)",
+            ? "rgba(44, 93, 157, 0.32)"
+            : "rgba(83, 119, 165, 0.2)",
+    areaMid:
+      tone === "positive"
+        ? "rgba(90, 160, 112, 0.08)"
+        : tone === "negative"
+          ? "rgba(196, 99, 96, 0.07)"
+          : active
+            ? "rgba(44, 93, 157, 0.14)"
+            : "rgba(83, 119, 165, 0.08)",
+    areaBottom:
+      tone === "positive"
+        ? "rgba(90, 160, 112, 0.02)"
+        : tone === "negative"
+          ? "rgba(196, 99, 96, 0.02)"
+          : "rgba(44, 93, 157, 0.03)",
   };
 
   if (!sparklinePoints.length) {
@@ -614,7 +601,7 @@ export function SparklineChart({
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={palette.areaTop} />
-            <stop offset="72%" stopColor="rgba(255, 255, 255, 0.04)" />
+            <stop offset="72%" stopColor={palette.areaMid} />
             <stop offset="100%" stopColor={palette.areaBottom} />
           </linearGradient>
         </defs>
@@ -713,7 +700,7 @@ export function TradeExecutionsChart({
 }) {
   const [activeHour, setActiveHour] = useState<number | null>(null);
   const gradientId = useId();
-  const currentDotColor = "var(--account-homebrew, #00ff41)";
+  const currentDotColor = ACCOUNT_CHART_COLOR;
   const width = 320;
   const height = 132;
   const paddingX = 10;
@@ -860,7 +847,7 @@ export function TradeExecutionsChart({
 
 export function BalanceEventChart({
   points,
-  timeframe = "all",
+  timeframe = "1d",
   reportTimestamp,
   currentBalance,
 }: {
@@ -890,7 +877,6 @@ export function BalanceEventChart({
   const range = maxValue - minValue || 1;
   const plotHeight = height - paddingTop - paddingBottom;
   const showDailyAxis = timeframe === "1d";
-  const dailyAxisTicks = showDailyAxis ? Array.from({ length: 24 }, (_, index) => index) : [];
   const anchorTimestamp =
     getTimestampValue(reportTimestamp)
     ?? getTimestampValue(resolvedPoints[resolvedPoints.length - 1]?.x)
@@ -898,6 +884,13 @@ export function BalanceEventChart({
     ?? 0;
   const dayStart = startOfDayWindow(anchorTimestamp);
   const dayEnd = endOfDayWindow(anchorTimestamp);
+  const axisStartHour = getTableHour(dayStart) ?? 0;
+  const dailyAxisTicks = showDailyAxis
+    ? Array.from({ length: 24 }, (_, index) => ({
+        hour: (axisStartHour + index) % 24,
+        index,
+      }))
+    : [];
 
   const coordinates = resolvedPoints.map((point, index) => ({
     ...point,
@@ -929,16 +922,16 @@ export function BalanceEventChart({
             const y = paddingTop + (index / 3) * plotHeight;
             return <line key={index} x1={paddingX} x2={width - paddingX} y1={y} y2={y} />;
           })}
-          {dailyAxisTicks.map((hour) => {
-            const x = paddingX + (hour / 23) * (width - paddingX * 2);
+          {dailyAxisTicks.map(({ hour, index }) => {
+            const x = paddingX + (index / 23) * (width - paddingX * 2);
             return <line key={`x-${hour}`} x1={x} x2={x} y1={paddingTop} y2={paddingTop + plotHeight} />;
           })}
         </g>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(83, 119, 165, 0.3)" />
-            <stop offset="70%" stopColor="rgba(83, 119, 165, 0.08)" />
-            <stop offset="100%" stopColor="rgba(83, 119, 165, 0.01)" />
+            <stop offset="0%" stopColor="rgba(44, 93, 157, 0.44)" />
+            <stop offset="70%" stopColor="rgba(44, 93, 157, 0.16)" />
+            <stop offset="100%" stopColor="rgba(44, 93, 157, 0.04)" />
           </linearGradient>
         </defs>
         <path
@@ -965,17 +958,13 @@ export function BalanceEventChart({
           );
         })}
         {coordinates.map((point, index) => {
-          const label = labelBalanceEvent(point.eventType, point.eventDelta);
-          const tone =
-            label === "Deposit" ? "var(--positive)" : label === "Withdrawal" ? "var(--negative)" : "var(--accent-bright)";
-
           return (
             <circle
               key={`${point.x}-${index}-dot`}
               cx={point.xCoord}
               cy={point.yCoord}
               r={index === resolvedActiveIndex ? 7.25 : 4}
-              fill={tone}
+              fill={ACCOUNT_CHART_COLOR}
               stroke="rgba(11, 15, 27, 0.95)"
               strokeWidth={index === resolvedActiveIndex ? "2.7" : "2"}
               className={index === resolvedActiveIndex ? "detail-chart-dot--active" : undefined}
@@ -988,10 +977,10 @@ export function BalanceEventChart({
         {showDailyAxis ? (
           <g className="chart-axis" aria-hidden="true">
             {dailyAxisTicks.map((hour) => {
-              const x = paddingX + (hour / 23) * (width - paddingX * 2);
+              const x = paddingX + (hour.index / 23) * (width - paddingX * 2);
               return (
-                <g key={`tick-${hour}`} transform={`translate(${x}, ${height - 16})`}>
-                  {hour % 2 === 0 ? <text textAnchor="middle">{hour}</text> : null}
+                <g key={`tick-${hour.hour}`} transform={`translate(${x}, ${height - 16})`}>
+                  {hour.index % 2 === 0 ? <text textAnchor="middle">{hour.hour}</text> : null}
                 </g>
               );
             })}
@@ -1100,6 +1089,10 @@ export function TradingMonitorSharedStyles() {
         --max-scale: 2.8;
         --pulse-duration: 3.2s;
         --pulse-delay: 1.6s;
+        --stroke-color: rgba(255, 255, 255, 0.76);
+        --fill-color: rgba(255, 255, 255, 0.16);
+        --bg-glow: rgba(255, 255, 255, 0.1);
+        --shadow-glow: rgba(255, 255, 255, 0.25);
         --stroke-color: color-mix(in srgb, currentColor 76%, white 24%);
         --fill-color: color-mix(in srgb, currentColor 16%, transparent);
         --bg-glow: color-mix(in srgb, currentColor 10%, transparent);
@@ -1122,6 +1115,7 @@ export function TradingMonitorSharedStyles() {
         border-radius: 10px;
         background: rgba(7, 11, 15, 0.94);
         box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+        -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
         pointer-events: none;
       }
@@ -1183,6 +1177,7 @@ export function TradingMonitorSharedStyles() {
       }
 
       .sparkline-live-dot__core {
+        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.42));
         filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 80%, transparent));
       }
 
@@ -1232,10 +1227,11 @@ export function TradingMonitorSharedStyles() {
       }
 
       .trade-executions-chart__focus-dot {
-        fill: var(--account-homebrew, #00ff41);
+        fill: var(--account-chart, #2c5d9d);
         stroke: rgba(255, 255, 255, 0.76);
         stroke-width: 1.5;
-        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--account-homebrew, #00ff41) 80%, transparent));
+        filter: drop-shadow(0 0 8px rgba(44, 93, 157, 0.38));
+        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--account-chart, #2c5d9d) 80%, transparent));
       }
 
       .trade-executions-chart__hit {

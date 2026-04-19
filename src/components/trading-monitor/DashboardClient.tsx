@@ -51,6 +51,16 @@ const MAX_PULL_DISTANCE = 116;
 const REFRESH_HOLD_DISTANCE = 52;
 const MIN_REFRESH_VISIBLE_MS = 520;
 const SPINNER_CIRCUMFERENCE = 62.83;
+const EAGER_ACCOUNT_CARD_COUNT = 2;
+const ACCOUNT_CARD_PRELOAD_MARGIN = "720px 360px";
+
+function scrollElementToLeft(element: HTMLElement, left: number, behavior: ScrollBehavior = "smooth") {
+  element.scrollTo({
+    left,
+    top: 0,
+    behavior,
+  });
+}
 
 function formatRatioValue(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
@@ -83,6 +93,23 @@ function formatAverageHoldTime(hours: number | null | undefined) {
   return `${days}d ${formatPlainNumberValue(remainder, 1)}h`;
 }
 
+function marginLevelTone(value: number | null | undefined): MetricTone {
+  if (!Number.isFinite(value)) {
+    return "muted";
+  }
+
+  const numeric = value ?? 0;
+  if (numeric <= 100) {
+    return "negative";
+  }
+
+  if (numeric <= 200) {
+    return "warning";
+  }
+
+  return "positive";
+}
+
 function applyPullResistance(distance: number) {
   const dampenedDistance = distance * 0.5;
 
@@ -102,7 +129,7 @@ const DashboardCard = memo(function DashboardCard({
   refreshKey: number;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
-  const [timeframe, setTimeframe] = useState<Timeframe>("all");
+  const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
   const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
   const expandedKpiScope = `${account.id}:${timeframe}`;
@@ -207,7 +234,7 @@ const DashboardCard = memo(function DashboardCard({
     {
       key: "opens",
       expandKey: "opens",
-      label: "Opens",
+      label: "Open",
       value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
       tone: openTone,
     },
@@ -232,6 +259,9 @@ const DashboardCard = memo(function DashboardCard({
     setExpandedKpiState(null);
     setTimeframe(nextTimeframe);
   }, [accountDisplayName]);
+  const openPositionSwap = positionsDetail.data?.openPositions.reduce((total, position) => total + Number(position.swap ?? 0), 0);
+  const currentMargin = positionsDetail.data?.account.margin;
+  const currentMarginLevel = positionsDetail.data?.account.margin_level;
 
   const detailRows: Array<{
     label: string;
@@ -284,11 +314,11 @@ const DashboardCard = memo(function DashboardCard({
               fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
             },
             {
-              label: "LOSS",
-              value: formatCompactSignedNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 1),
-              tone: toneFromNumber(balanceDetail.data?.summary.maximumConsecutiveLossAmount),
-              meta: "Consecutive loss",
-              fullValue: formatSignedCurrency(balanceDetail.data?.summary.maximumConsecutiveLossAmount, 2),
+              label: "WIN",
+              value: formatPlainPercent(overview.data?.kpis.winPercent, 1),
+              tone: toneFromNumber(overview.data?.kpis.winPercent),
+              meta: "Closed positions win rate",
+              fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 1),
             },
           ]
         : expandedKpi === "trades"
@@ -313,22 +343,32 @@ const DashboardCard = memo(function DashboardCard({
                 },
               ]
           : expandedKpi === "opens"
-              ? (positionsDetail.data?.summary.openCount ?? 0) > 0
-                ? [
-                    {
-                      label: "OPEN",
-                      value: formatPlainNumberValue(positionsDetail.data?.summary.openCount, 0),
-                      tone: openTone,
-                      fullValue: formatWholeNumber(positionsDetail.data?.summary.openCount),
-                    },
-                    {
-                      label: "P/L",
-                      value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
-                      tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
-                      fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
-                    },
-                  ]
-                : []
+              ? [
+                  {
+                    label: "P/L",
+                    value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
+                    tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
+                    fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
+                  },
+                  {
+                    label: "Swap",
+                    value: formatCompactSignedNumber(openPositionSwap, 1),
+                    tone: toneFromNumber(openPositionSwap),
+                    fullValue: formatSignedCurrency(openPositionSwap, 2),
+                  },
+                  {
+                    label: "Margin",
+                    value: formatCompactNumber(currentMargin, 1),
+                    tone: Number.isFinite(currentMargin) && (currentMargin ?? 0) > 0 ? "warning" : "muted",
+                    fullValue: formatCurrency(currentMargin, 2),
+                  },
+                  {
+                    label: "Level",
+                    value: formatPlainPercent(currentMarginLevel, 1),
+                    tone: marginLevelTone(currentMarginLevel),
+                    fullValue: formatPlainPercent(currentMarginLevel, 1),
+                  },
+                ]
             : [];
   const handleChipToggle = (key: ExpandableKpiKey) => {
     setExpandedKpiState((current) => {
@@ -388,7 +428,7 @@ const DashboardCard = memo(function DashboardCard({
           <div className={isOpensExpanded ? "sp-canvas is-opens-expanded" : isTradesExpanded ? "sp-canvas is-trades-expanded" : isPipsExpanded ? "sp-canvas is-pips-expanded" : "sp-canvas"}>
             {isOpensExpanded ? (
               positionsDetail.error ? (
-                <InlineState tone="error" title="Opens unavailable" message={positionsDetail.error} />
+                <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
               ) : positionsDetail.loading && !positionsDetail.data ? (
                 <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
               ) : (
@@ -508,19 +548,132 @@ const DashboardCard = memo(function DashboardCard({
 
 DashboardCard.displayName = "DashboardCard";
 
+function DeferredDashboardCard({
+  account,
+  onLoad,
+}: {
+  account: SerializedAccount;
+  onLoad: () => void;
+}) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const active = account.status === "Active";
+  const accountLabel = account.account_number ? `#${account.account_number}` : "Unnumbered";
+  const accountDisplayName = displayName(account);
+
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node) {
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) {
+        return;
+      }
+
+      observer.disconnect();
+      onLoad();
+    }, {
+      root: null,
+      rootMargin: ACCOUNT_CARD_PRELOAD_MARGIN,
+      threshold: 0.01,
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onLoad]);
+
+  return (
+    <article
+      ref={cardRef}
+      className={`card account-card account-card--deferred ${active ? "account-card--active" : "account-card--inactive"}`}
+      aria-label={`${accountDisplayName} loading`}
+    >
+      <div className="sp-wrap">
+        <div className="sp-header">
+          <div className="sp-top sp-top--compact">
+            <div className="sp-identity sp-identity--header">
+              <div className="sp-name">{accountDisplayName}</div>
+              <div className="sp-account">
+                <span>{accountLabel}</span>
+                <span
+                  className={`sp-account-status ${active ? "is-active" : "is-inactive"}`}
+                  aria-label={`Account status ${active ? "Active" : "Inactive"}`}
+                />
+              </div>
+            </div>
+
+            <div className="sp-side">
+              <div className="sp-growth tone-muted">
+                <strong>{formatPercent(null, 1)}</strong>
+              </div>
+              <div className="sp-balance" aria-label={`Balance ${formatCurrency(account.balance, 2)}`}>
+                <strong>{formatCurrency(account.balance, 2)}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+        <div className="tf-row" aria-hidden="true">
+          <div className="timeframe-strip timeframe-strip--deferred">
+            {["D", "W", "M", "Y"].map((label) => (
+              <span key={label} className="timeframe-pill timeframe-pill--skeleton">{label}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="kpi-stack" aria-hidden="true">
+        <div className="kgrid">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className="kchip kchip--skeleton">
+              <span className="kl">&nbsp;</span>
+              <strong className="kv">&nbsp;</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function LazyDashboardCard({
+  account,
+  index,
+  refreshKey,
+  onRequestStateChange,
+}: {
+  account: SerializedAccount;
+  index: number;
+  refreshKey: number;
+  onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
+}) {
+  const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
+  const handleLoad = useCallback(() => {
+    setShouldLoad(true);
+  }, []);
+
+  if (!shouldLoad) {
+    return <DeferredDashboardCard account={account} onLoad={handleLoad} />;
+  }
+
+  return (
+    <DashboardCard
+      account={account}
+      refreshKey={refreshKey}
+      onRequestStateChange={onRequestStateChange}
+    />
+  );
+}
+
 export default function DashboardClient() {
   const pathname = usePathname();
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return window.matchMedia("(orientation: landscape) and (max-width: 1180px)").matches;
-  });
+  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
   const [activeAccountIndex, setActiveAccountIndex] = useState(0);
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
@@ -534,6 +687,7 @@ export default function DashboardClient() {
   const activeRefreshKeyRef = useRef<number | null>(null);
   const refreshStartedAtRef = useRef(0);
   const refreshingRef = useRef(false);
+  const resumeRefreshArmedRef = useRef(false);
   const indicatorHideTimerRef = useRef<number | null>(null);
   const lastLandscapeAccountOrderRef = useRef("");
   const wasLandscapeCarouselRef = useRef(false);
@@ -608,11 +762,7 @@ export default function DashboardClient() {
 
     const clampedIndex = Math.max(0, Math.min(targetIndex, cards.length - 1));
     const targetCard = cards[clampedIndex];
-    section.scrollTo({
-      left: targetCard.offsetLeft,
-      top: 0,
-      behavior,
-    });
+    scrollElementToLeft(section, targetCard.offsetLeft, behavior);
     syncActiveAccountIndex(clampedIndex);
     revealPageIndicator();
   }, [isLandscapeCarousel, revealPageIndicator, syncActiveAccountIndex]);
@@ -636,6 +786,54 @@ export default function DashboardClient() {
     });
   }, []);
 
+  const triggerResumeRefresh = useCallback(() => {
+    if (refreshingRef.current) {
+      return;
+    }
+
+    setRefreshKey((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    const refreshOnResume = () => {
+      if (!resumeRefreshArmedRef.current || document.visibilityState === "hidden") {
+        return;
+      }
+
+      resumeRefreshArmedRef.current = false;
+      trackRefresh("resume");
+      triggerResumeRefresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        resumeRefreshArmedRef.current = true;
+        return;
+      }
+
+      refreshOnResume();
+    };
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) {
+        return;
+      }
+
+      resumeRefreshArmedRef.current = true;
+      refreshOnResume();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", refreshOnResume);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", refreshOnResume);
+    };
+  }, [triggerResumeRefresh]);
+
   useEffect(() => {
     const mediaQuery = window.matchMedia("(orientation: landscape) and (max-width: 1180px)");
     const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
@@ -650,13 +848,10 @@ export default function DashboardClient() {
       }
     };
 
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
+    handleChange(mediaQuery);
 
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, [syncActiveAccountIndex]);
 
   useEffect(() => {
@@ -915,10 +1110,11 @@ export default function DashboardClient() {
                 ))}
               </>
             ) : accounts.data?.length ? (
-              accounts.data.map((account) => (
-                <DashboardCard
+              accounts.data.map((account, index) => (
+                <LazyDashboardCard
                   key={account.id}
                   account={account}
+                  index={index}
                   refreshKey={refreshKey}
                   onRequestStateChange={handleRequestStateChange}
                 />

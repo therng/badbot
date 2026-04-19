@@ -1,3 +1,9 @@
+{
+	auto_https off
+}
+
 :80 {
+	bind 0.0.0.0
+	encode zstd gzip
 	reverse_proxy web:3000
 }

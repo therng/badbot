@@ -1,5 +1,5 @@
-import type { ParsedReport } from "../parser";
-import { computeBalanceDrawdown as computeSharedBalanceDrawdown, summarizeClosedPositions } from "./analytics";
+import type { ParsedReport } from "@/lib/parser";
+import { computeBalanceDrawdown as computeSharedBalanceDrawdown, summarizeClosedPositions } from "@/lib/trading/analytics";
 
 export type StandaloneTimeframe = "day" | "week" | "month" | "year" | "all-time";
 
@@ -300,7 +300,7 @@ function getSinceDate(timeframe: StandaloneTimeframe, reportTime: Date) {
   }
 }
 
-function getAccountStatus(reportTimestamp: Date, activeWindowMinutes = 15) {
+function getAccountStatus(reportTimestamp: Date, activeWindowMinutes = 24 * 60) {
   if (reportTimestamp.getTime() > Date.now() + MAX_FUTURE_SKEW_MS) {
     return "Inactive";
   }

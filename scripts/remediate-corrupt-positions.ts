@@ -2,6 +2,8 @@ import "dotenv/config";
 
 import { Prisma, PrismaClient } from "@prisma/client";
 
+import { getDatabaseErrorDetails } from "../src/lib/database-errors";
+
 const prisma = new PrismaClient();
 const ZERO = new Prisma.Decimal(0);
 const APPLY = process.argv.includes("--apply");
@@ -152,7 +154,11 @@ async function main() {
 
 void main()
   .catch((error) => {
-    console.error("Position remediation failed:", error);
+    const details = getDatabaseErrorDetails(error, "Position remediation failed.");
+    console.error(details.message);
+    if (details.status !== 503) {
+      console.error("Position remediation failed:", error);
+    }
     process.exitCode = 1;
   })
   .finally(async () => {

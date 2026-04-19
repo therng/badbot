@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getDatabaseErrorDetails } from "@/lib/database-errors";
 import {
   getCachedAccountView,
   parseRequestTimeframe,
@@ -18,7 +19,8 @@ export async function withApiErrorHandling(errorMessage: string, handler: RouteH
     return await handler();
   } catch (error) {
     console.error("API Error:", error);
-    return jsonApiError(errorMessage, 500);
+    const details = getDatabaseErrorDetails(error, errorMessage);
+    return jsonApiError(details.message, details.status);
   }
 }
 

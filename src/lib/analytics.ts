@@ -1,20 +1,25 @@
 "use client";
 
-import { sendGTMEvent } from "@next/third-parties/google";
-
 declare global {
   interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-    dataLayer?: Object[];
-    gtag: (...args: any[]) => void;
+    dataLayer?: Array<Record<string, unknown>>;
+    gtag?: (...args: unknown[]) => void;
   }
+}
+
+function pushDataLayer(event: Record<string, unknown>) {
+  if (typeof window === "undefined" || !window.dataLayer) {
+    return;
+  }
+
+  window.dataLayer.push(event);
 }
 
 /**
  * GA4 / GTM Event helper
  */
-export const trackEvent = (eventName: string, eventParams?: Record<string, any>) => {
-  sendGTMEvent({
+export const trackEvent = (eventName: string, eventParams?: Record<string, unknown>) => {
+  pushDataLayer({
     event: eventName,
     ...eventParams,
   });
@@ -29,9 +34,9 @@ export type ConsentType = "analytics_storage" | "ad_storage" | "ad_user_data" | 
 export const updateConsent = (consent: Record<ConsentType, "granted" | "denied">) => {
   if (typeof window !== "undefined" && window.gtag) {
     window.gtag("consent", "update", consent);
-    
+
     // Also push to dataLayer for GTM triggers
-    sendGTMEvent({
+    pushDataLayer({
       event: "consent_update",
       consent_settings: consent,
     });
@@ -41,7 +46,7 @@ export const updateConsent = (consent: Record<ConsentType, "granted" | "denied">
 /**
  * Dashboard specific events
  */
-export const trackDashboardInteraction = (action: string, label: string, value?: any) => {
+export const trackDashboardInteraction = (action: string, label: string, value?: unknown) => {
   trackEvent("dashboard_interaction", {
     interaction_action: action,
     interaction_label: label,
@@ -57,7 +62,7 @@ export const trackKpiExpand = (accountName: string, kpi: string) => {
   trackDashboardInteraction("expand_kpi", `${accountName}: ${kpi}`, kpi);
 };
 
-export const trackRefresh = (source: "pull" | "manual") => {
+export const trackRefresh = (source: "pull" | "manual" | "resume") => {
   trackDashboardInteraction("refresh_data", source);
 };
 

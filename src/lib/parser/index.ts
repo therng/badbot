@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import * as cheerio from "cheerio";
 
+import { parseBangkokDate, parseTableDate } from "@/lib/time";
+
 export interface ParsedReport {
   fileHash: string;
   metadata: {
@@ -224,51 +226,11 @@ function parseIntegerMaybe(value: string): number | null {
 }
 
 export function parseDate(value: string): Date {
-  const text = cleanText(value);
-  if (!text) {
-    return new Date(Number.NaN);
-  }
+  return parseTableDate(value);
+}
 
-  const ymdMatch = text.match(
-    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (ymdMatch) {
-    const [, year, month, day, hh = "0", mm = "0", ss = "0"] = ymdMatch;
-    return new Date(
-      Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10),
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
-      ),
-    );
-  }
-
-  const dmyMatch = text.match(
-    /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (dmyMatch) {
-    const [, day, month, year, hh = "0", mm = "0", ss = "0"] = dmyMatch;
-    return new Date(
-      Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10),
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
-      ),
-    );
-  }
-
-  const nativeParsed = new Date(text);
-  if (!Number.isNaN(nativeParsed.getTime())) {
-    return nativeParsed;
-  }
-
-  return new Date(Number.NaN);
+export function parseReportDate(value: string): Date {
+  return parseBangkokDate(value);
 }
 
 export function parseVolume(value: string): { req: number; filled: number } {
@@ -393,7 +355,7 @@ function isLikelyHeaderRow(cells: string[]): boolean {
   ];
 
   const normalized = cells.map((cell) => normalizeLabel(cell));
-  if (normalized.some((cell) => isValidDate(parseDate(cell)))) {
+  if (normalized.some((cell) => isValidDate(parseTableDate(cell)) || isValidDate(parseBangkokDate(cell)))) {
     return false;
   }
 
@@ -457,7 +419,7 @@ function getOptionalCommentCell(cells: string[], headerMap: HeaderMap | null): s
 
 function findFirstValidDate(cells: string[], indexes: number[]): Date | null {
   for (const index of indexes) {
-    const parsed = parseDate(getCell(cells, index));
+    const parsed = parseTableDate(getCell(cells, index));
     if (isValidDate(parsed)) {
       return parsed;
     }
@@ -474,7 +436,7 @@ function extractDateCandidates(text: string): Date[] {
   const matches =
     text.match(/\d{1,4}[./-]\d{1,2}[./-]\d{1,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/g) ?? [];
 
-  return matches.map((match) => parseDate(match)).filter((date) => isValidDate(date));
+  return matches.map((match) => parseReportDate(match)).filter((date) => isValidDate(date));
 }
 
 function parseMetadataFromCells(cells: string[], report: ParsedReport, reportDateCandidates: Date[]): void {
@@ -535,39 +497,54 @@ function parseMetadataFromCells(cells: string[], report: ParsedReport, reportDat
 }
 
 function summaryFieldFromLabel(label: string): keyof ParsedReport["accountSummary"] | null {
-  if (label.startsWith("balance")) {
+  if (label === "balance") {
     return "balance";
   }
-  if (label.includes("credit facility")) {
+  if (label === "credit facility") {
     return "credit_facility";
   }
-  if (label.startsWith("equity")) {
+  if (label === "equity") {
     return "equity";
   }
   if (label === "margin") {
     return "margin";
   }
-  if (label.includes("free margin")) {
+  if (label === "free margin") {
     return "free_margin";
   }
-  if (label.includes("margin level")) {
+  if (label === "margin level") {
     return "margin_level";
   }
-  if (label.includes("floating") && (label.includes("p/l") || label.includes("pl") || label.includes("profit"))) {
+  if (label === "floating p/l" || label === "floating pl" || label === "floating profit") {
     return "floating_pl";
   }
 
   return null;
 }
 
+function findSummaryValueAfterLabel(cells: string[], labelIndex: number): number | null {
+  for (let index = labelIndex + 1; index < cells.length; index += 1) {
+    if (summaryFieldFromLabel(normalizeLabel(cells[index]))) {
+      return null;
+    }
+
+    const value = parseNumberMaybe(cells[index]);
+    if (value !== null) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 function parseSummaryRow(cells: string[], report: ParsedReport): void {
-  for (let index = 0; index < cells.length - 1; index += 2) {
+  for (let index = 0; index < cells.length - 1; index += 1) {
     const field = summaryFieldFromLabel(normalizeLabel(cells[index]));
     if (!field) {
       continue;
     }
 
-    const value = parseNumberMaybe(cells[index + 1]);
+    const value = findSummaryValueAfterLabel(cells, index);
     if (value === null) {
       continue;
     }
@@ -579,13 +556,13 @@ function parseSummaryRow(cells: string[], report: ParsedReport): void {
 function isLikelySummaryRow(cells: string[]): boolean {
   let recognizedPairs = 0;
 
-  for (let index = 0; index < cells.length - 1; index += 2) {
+  for (let index = 0; index < cells.length - 1; index += 1) {
     const field = summaryFieldFromLabel(normalizeLabel(cells[index]));
     if (!field) {
       continue;
     }
 
-    const value = parseNumberMaybe(cells[index + 1]);
+    const value = findSummaryValueAfterLabel(cells, index);
     if (value === null) {
       continue;
     }
@@ -693,8 +670,23 @@ function parseCountPercentValue(value: string): { count: number | null; percent:
 }
 
 function parseDrawdownValue(value: string): { primary: number | null; secondary: number | null } {
-  const numbers = cleanText(value).match(/-?\d+(?:[.,]\d+)?/g) ?? [];
-  const parsed = numbers.map((chunk) => parseNumber(chunk)).filter((item) => Number.isFinite(item));
+  const text = cleanText(value);
+  if (!text) {
+    return {
+      primary: null,
+      secondary: null,
+    };
+  }
+
+  const parentheticalSegments = Array.from(text.matchAll(/\(([^()]+)\)/g))
+    .map((match) => cleanText(match[1]))
+    .filter(Boolean);
+  const outsideSegment = cleanText(text.replace(/\([^()]+\)/g, ""));
+  const parseSegment = (segment: string) => parseStrictNumberMaybe(segment.replace(/%/g, ""));
+  const outsideValue = outsideSegment ? parseSegment(outsideSegment) : null;
+  const insideValue = parentheticalSegments.length ? parseSegment(parentheticalSegments[0]) : null;
+
+  const parsed = [outsideValue, insideValue].filter((item): item is number => Number.isFinite(item));
   return {
     primary: parsed[0] ?? null,
     secondary: parsed[1] ?? null,

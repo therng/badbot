@@ -1,3 +1,4 @@
+import { getDatabaseErrorDetails } from "../src/lib/database-errors";
 import { prisma } from "../src/lib/prisma";
 import { recomputeAccountReportResult } from "../src/lib/trading/calculate-report-results";
 
@@ -27,7 +28,11 @@ async function main() {
 
 void main()
   .catch((error) => {
-    console.error("Backfill failed:", error);
+    const details = getDatabaseErrorDetails(error, "Backfill failed.");
+    console.error(details.message);
+    if (details.status !== 503) {
+      console.error("Backfill failed:", error);
+    }
     process.exitCode = 1;
   })
   .finally(async () => {

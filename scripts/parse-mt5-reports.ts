@@ -1,8 +1,8 @@
-const { readFile, writeFile } = require("node:fs/promises");
-const path = require("node:path");
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
-const { parseReport } = require("../src/lib/parser");
-const { buildStandaloneMonitorData } = require("../src/lib/trading/standalone-model");
+import { parseReport } from "@/lib/parser";
+import { buildStandaloneMonitorData } from "@/lib/trading/standalone-model";
 
 function decodeReportBuffer(buffer: Buffer) {
   if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {

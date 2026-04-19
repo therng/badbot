@@ -21,6 +21,8 @@ export {
   computeCompoundedGrowth,
   computeConsecutiveRunAmounts,
   computeDepositLoadPercent,
+  computeTradeActivityPercent,
+  computeTradesPerWeek,
   computeSharpeRatio,
   computeStreaks,
   computeYearGrowth,
@@ -64,6 +66,7 @@ const accountInclude = {
 type AccountRecord = any;
 type NumericLike = Prisma.Decimal | number;
 type NullableNumericLike = NumericLike | null | undefined;
+const BALANCE_SORT_EPSILON = 0.000001;
 
 export interface AccountBundle {
   account: AccountRecord;
@@ -95,6 +98,18 @@ function toNullableNumber(value: NullableNumericLike) {
 
 function toNumber(value: NullableNumericLike, fallback = 0) {
   return toNullableNumber(value) ?? fallback;
+}
+
+function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
+  const balanceDelta = b.balance - a.balance;
+  if (Math.abs(balanceDelta) > BALANCE_SORT_EPSILON) {
+    return balanceDelta;
+  }
+
+  return a.account_number.localeCompare(b.account_number, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 export function serializeOpenPositions(
@@ -204,13 +219,33 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
 
 export async function getAccountListItems() {
   const accounts = await (prisma as any).tradingAccount.findMany({
-    include: {
+    select: {
+      id: true,
+      accountNo: true,
+      accountName: true,
+      currency: true,
+      serverName: true,
+      reportDate: true,
       accountSnapshot: true,
       deals: {
-        orderBy: [{ time: "asc" }, { dealNo: "asc" }],
+        where: {
+          balance: {
+            not: null,
+          },
+        },
+        orderBy: [{ time: "desc" }, { dealNo: "desc" }],
+        take: 1,
+        select: {
+          time: true,
+          dealNo: true,
+          balance: true,
+        },
       },
       openPositions: {
-        orderBy: [{ reportDate: "desc" }, { positionNo: "asc" }],
+        select: {
+          reportDate: true,
+          profit: true,
+        },
       },
     },
     orderBy: {
@@ -218,7 +253,7 @@ export async function getAccountListItems() {
     },
   });
 
-  return accounts.map((account: any) => {
+  const items = accounts.map((account: any) => {
     const openPositions = account.openPositions as Array<{
       reportDate?: Date | string | null;
       profit?: NullableNumericLike;
@@ -249,4 +284,6 @@ export async function getAccountListItems() {
       last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
     } satisfies SerializedAccount;
   });
+
+  return items.sort(compareAccountListItems);
 }

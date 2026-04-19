@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500&family=Manrope:wght@500;600;700&display=swap");
-
 :root {
   --bg: #061018;
   --bg-elevated: #0c1621;
@@ -25,9 +23,9 @@
   --radius-md: 8px;
   --radius-sm: 6px;
   --shadow: 0 28px 88px rgba(2, 8, 14, 0.44);
-  --serif: "Manrope", "Segoe UI", sans-serif;
-  --sans: "Manrope", "Segoe UI", sans-serif;
-  --mono: "Azeret Mono", "SFMono-Regular", monospace;
+  --serif: var(--font-manrope, "Manrope"), "Segoe UI", sans-serif;
+  --sans: var(--font-manrope, "Manrope"), "Segoe UI", sans-serif;
+  --mono: var(--font-azeret-mono, "Azeret Mono"), "SFMono-Regular", monospace;
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -134,6 +132,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: panel-enter 280ms ease-out both;
 }
@@ -1306,6 +1305,7 @@ button:focus-visible {
   background: rgba(249, 252, 255, 0.9);
   border: 1px solid rgba(170, 188, 204, 0.72);
   box-shadow: 0 12px 24px rgba(20, 35, 49, 0.14);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
@@ -1967,8 +1967,11 @@ button:focus-visible {
   min-width: 460px;
   width: max(100%, 460px);
   border-collapse: collapse;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: "Manrope", var(--sans);
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .pips-performance__table th,
@@ -1990,7 +1993,8 @@ button:focus-visible {
   color: var(--account-muted);
   font-size: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
+  font-weight: 700;
   padding-top: 10px;
   padding-bottom: 6px;
 }
@@ -2161,7 +2165,7 @@ button:focus-visible {
 }
 
 .trade-history-row__detail span {
-  font-family: var(--mono);
+  font-family: "Manrope", var(--sans);
   font-size: 8px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2169,7 +2173,7 @@ button:focus-visible {
 }
 
 .trade-history-row__detail strong {
-  font-family: var(--mono);
+  font-family: "Manrope", var(--sans);
   font-size: 10px;
   line-height: 1.2;
   color: #2e2f31;
@@ -2219,6 +2223,7 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(247, 243, 235, 0.95) 0%, rgba(243, 238, 226, 0.9) 100%);
   box-shadow: 0 12px 28px rgba(80, 68, 54, 0.12);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
@@ -2792,6 +2797,7 @@ button:focus-visible {
   border-radius: 18px;
   border: 1px solid rgba(166, 196, 222, 0.12);
   background: rgba(255, 255, 255, 0.025);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 
@@ -3430,6 +3436,16 @@ button:focus-visible {
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.78), transparent 34%),
     linear-gradient(180deg, #faf7ef 0%, var(--account-paper) 100%);
   box-shadow: 0 14px 32px var(--account-paper-shadow);
+  content-visibility: auto;
+  contain-intrinsic-size: 430px;
+}
+
+.dashboard-section > .account-card.account-card--deferred {
+  contain: layout paint style;
+}
+
+.dashboard-section > .account-card.account-card--deferred .account-card__chart-skeleton::after {
+  display: none;
 }
 
 .dashboard-section > .account-card:hover {
@@ -3521,8 +3537,11 @@ button:focus-visible {
 .dashboard-section > .account-card .sp-account-status.is-active {
   background: var(--account-homebrew, #00ff41);
   box-shadow:
+    0 0 0 1px rgba(0, 255, 65, 0.18),
+    0 0 10px rgba(0, 255, 65, 0.28);
+  box-shadow:
     0 0 0 1px color-mix(in srgb, var(--account-homebrew, #00ff41) 18%, rgba(92, 82, 62, 0.08)),
-    0 0 10px color-mix(in srgb, var(--account-homebrew, #00ff41) 28%, transparent);
+    0 0 10px color-mix(in srgb, var(--account-homebrew, #00ff41) 30%, transparent);
 }
 
 .dashboard-section > .account-card .sp-account-status.is-inactive {
@@ -3615,7 +3634,7 @@ button:focus-visible {
 .dashboard-section > .account-card .sp-canvas {
   display: block;
   position: relative;
-  height: 162px;
+  height: var(--account-card-panel-height, 186px);
   padding: 4px 0 0;
   border-radius: 0;
   border: 0;
@@ -3623,8 +3642,10 @@ button:focus-visible {
   box-shadow: none;
 }
 
-.dashboard-section > .account-card .sp-canvas.is-pips-expanded {
-  height: auto;
+.dashboard-section > .account-card .sp-canvas.is-pips-expanded,
+.dashboard-section > .account-card .sp-canvas.is-opens-expanded,
+.dashboard-section > .account-card .sp-canvas.is-trades-expanded {
+  height: var(--account-card-panel-height, 186px);
   min-height: 0;
   padding-top: 0;
 }
@@ -3639,7 +3660,7 @@ button:focus-visible {
 .dashboard-section > .account-card .sp-canvas .sparkline-chart,
 .dashboard-section > .account-card .account-card__chart-skeleton {
   width: 100%;
-  height: 162px;
+  height: var(--account-card-panel-height, 186px);
   overflow: visible;
 }
 
@@ -3657,6 +3678,7 @@ button:focus-visible {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(247, 243, 235, 0.95) 0%, rgba(243, 238, 226, 0.9) 100%);
   box-shadow: 0 12px 28px rgba(80, 68, 54, 0.12);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
@@ -3746,6 +3768,8 @@ button:focus-visible {
 
 .dashboard-section > .account-card .trade-history-panel--list-only {
   height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .dashboard-section > .account-card .trade-history-panel--loading {
@@ -3883,6 +3907,16 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.dashboard-section > .account-card .trade-history-panel__list .trade-history-row__side.trade-history-row__side--buy,
+.dashboard-section > .account-card .trade-history-panel__list .trade-history-row__volume.trade-history-row__side--buy {
+  color: #2d8cff;
+}
+
+.dashboard-section > .account-card .trade-history-panel__list .trade-history-row__side.trade-history-row__side--sell,
+.dashboard-section > .account-card .trade-history-panel__list .trade-history-row__volume.trade-history-row__side--sell {
+  color: #e24d43;
+}
+
 .dashboard-section > .account-card .trade-history-row__trail--secondary span,
 .dashboard-section > .account-card .trade-history-row__prices span {
   color: rgba(46, 47, 49, 0.74);
@@ -3946,6 +3980,14 @@ button:focus-visible {
   color: var(--account-chart);
 }
 
+.dashboard-section > .account-card .timeframe-strip--deferred {
+  pointer-events: none;
+}
+
+.dashboard-section > .account-card .timeframe-pill--skeleton {
+  color: rgba(46, 47, 49, 0.32);
+}
+
 .dashboard-section > .account-card .kgrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
@@ -3991,6 +4033,27 @@ button:focus-visible {
 .dashboard-section > .account-card .kchip.is-actionable:focus-visible {
   border-color: rgba(44, 93, 157, 0.14);
   background: rgba(255, 255, 255, 0.62);
+}
+
+.dashboard-section > .account-card .kchip--skeleton {
+  min-height: 45px;
+  background: rgba(255, 255, 255, 0.38);
+  border-color: rgba(92, 82, 62, 0.04);
+}
+
+.dashboard-section > .account-card .kchip--skeleton .kl,
+.dashboard-section > .account-card .kchip--skeleton .kv {
+  display: block;
+  width: 64%;
+  min-height: 8px;
+  border-radius: 999px;
+  background: rgba(92, 82, 62, 0.1);
+  color: transparent;
+}
+
+.dashboard-section > .account-card .kchip--skeleton .kv {
+  width: 82%;
+  min-height: 14px;
 }
 
 .dashboard-section > .account-card .kgrid .kl {
@@ -4185,7 +4248,16 @@ button:focus-visible {
 }
 
 .dashboard-section > .account-card .pips-performance {
+  display: grid;
+  height: 100%;
+  min-height: 0;
   margin-top: 0;
+}
+
+.dashboard-section > .account-card .pips-performance__table-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
 }
 
 .dashboard-section > .account-card .pips-performance__table {
@@ -4205,6 +4277,7 @@ button:focus-visible {
 
 @media (max-width: 820px) {
   .dashboard-section > .account-card {
+    --account-card-panel-height: 172px;
     padding: 16px;
     border-radius: 16px;
   }
@@ -4212,7 +4285,7 @@ button:focus-visible {
   .dashboard-section > .account-card .sp-canvas,
   .dashboard-section > .account-card .sp-canvas .sparkline-chart,
   .dashboard-section > .account-card .account-card__chart-skeleton {
-    height: 150px;
+    height: var(--account-card-panel-height);
   }
 
   .dashboard-section > .account-card .sp-canvas.is-history-expanded {
@@ -4224,8 +4297,10 @@ button:focus-visible {
     height: 150px;
   }
 
-  .dashboard-section > .account-card .sp-canvas.is-opens-expanded {
-    height: 182px;
+  .dashboard-section > .account-card .sp-canvas.is-opens-expanded,
+  .dashboard-section > .account-card .sp-canvas.is-trades-expanded,
+  .dashboard-section > .account-card .sp-canvas.is-pips-expanded {
+    height: var(--account-card-panel-height);
   }
 
   .dashboard-section > .account-card .pips-performance__table th,
@@ -4257,10 +4332,14 @@ button:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .dashboard-section > .account-card {
+    --account-card-panel-height: 164px;
+  }
+
   .dashboard-section > .account-card .sp-canvas,
   .dashboard-section > .account-card .sp-canvas .sparkline-chart,
   .dashboard-section > .account-card .account-card__chart-skeleton {
-    height: 136px;
+    height: var(--account-card-panel-height);
   }
 
   .dashboard-section > .account-card .sp-canvas.is-history-expanded {
@@ -4272,12 +4351,9 @@ button:focus-visible {
     height: 136px;
   }
 
-  .dashboard-section > .account-card .sp-canvas.is-opens-expanded {
-    height: 188px;
-  }
-
+  .dashboard-section > .account-card .sp-canvas.is-opens-expanded,
   .dashboard-section > .account-card .sp-canvas.is-trades-expanded {
-    height: 214px;
+    height: var(--account-card-panel-height);
   }
 
   .dashboard-section > .account-card .pips-performance__table th,
@@ -4609,6 +4685,7 @@ button:focus-visible {
   border-radius: 999px;
   background: rgba(13, 17, 22, 0.76);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   pointer-events: none;
   opacity: 0;
@@ -4735,6 +4812,7 @@ button:focus-visible {
   }
 
   .dashboard-section.dashboard-section--carousel > .account-card {
+    --account-card-panel-height: 272px;
     flex: 0 0 100%;
     width: 100%;
     height: auto;
@@ -4808,10 +4886,12 @@ button:focus-visible {
   .dashboard-section.dashboard-section--carousel > .account-card .account-card__chart-skeleton,
   .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas {
     grid-area: chart;
-    height: 100%;
-    min-height: 272px;
+    height: var(--account-card-panel-height);
+    min-height: var(--account-card-panel-height);
+    max-height: var(--account-card-panel-height);
     margin: 0;
     align-self: stretch;
+    overflow: hidden;
     border-radius: 20px;
     border: 1px solid rgba(92, 82, 62, 0.08);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(242, 236, 226, 0.4));
@@ -4825,7 +4905,7 @@ button:focus-visible {
   .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas .sparkline-chart,
   .dashboard-section.dashboard-section--carousel > .account-card .account-card__chart-skeleton {
     height: 100%;
-    min-height: 244px;
+    min-height: 0;
   }
 
   .dashboard-section.dashboard-section--carousel > .account-card .tf-row {
@@ -4902,6 +4982,7 @@ button:focus-visible {
 
 @media (orientation: landscape) and (max-width: 840px) {
   .dashboard-section.dashboard-section--carousel > .account-card {
+    --account-card-panel-height: 236px;
     padding: 18px 18px 16px;
     grid-template-columns: minmax(0, 1fr) 232px;
     grid-template-rows: auto minmax(236px, auto) auto auto;

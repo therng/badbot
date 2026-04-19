@@ -1,4 +1,12 @@
 import type { Timeframe } from "@/lib/trading/types";
+import {
+  addBangkokDays,
+  endOfBangkokDay,
+  getBangkokDateKey,
+  startOfThaiDayInTableTime,
+  startOfBangkokDay,
+  startOfBangkokYear,
+} from "@/lib/time";
 
 type NumericLike = number | { valueOf(): unknown } | null | undefined;
 
@@ -152,9 +160,7 @@ function getTradeMetrics(deals: BalanceRow[], start: Date | null, end: Date | nu
 }
 
 function toIsoDay(value: Date | string) {
-  const ts = parseTimestamp(value);
-  if (!Number.isFinite(ts)) return null;
-  return new Date(ts).toISOString().slice(0, 10);
+  return getBangkokDateKey(value);
 }
 
 function getPositionCloseTime(row: { closeTime?: Date | string | null; outTime?: Date | string | null }) {
@@ -184,24 +190,20 @@ export function parseTimeframe(value: string | null): Timeframe {
 }
 
 export function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  return startOfBangkokDay(date) ?? new Date(date.getTime());
 }
 
 export function endOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return endOfBangkokDay(date) ?? new Date(date.getTime());
 }
 
 export function getSinceDate(timeframe: Timeframe, now = new Date()) {
   switch (timeframe) {
-    case "1d": return startOfDay(now);
-    case "1w": {
-      const start = startOfDay(now);
-      start.setDate(start.getDate() - 6);
-      return start;
-    }
-    case "1m": return startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30));
-    case "ytd": return startOfDay(new Date(now.getFullYear(), 0, 1));
-    case "1y": return startOfDay(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+    case "1d": return startOfThaiDayInTableTime(now) ?? startOfDay(now);
+    case "1w": return addBangkokDays(startOfDay(now), -6);
+    case "1m": return addBangkokDays(startOfDay(now), -30);
+    case "ytd": return startOfBangkokYear(now);
+    case "1y": return addBangkokDays(startOfDay(now), -365);
     default: return null;
   }
 }
@@ -217,7 +219,7 @@ export function getTimeframeLabel(timeframe: Timeframe) {
   }
 }
 
-export function getAccountStatus(lastUpdated: Date | string | null | undefined, activeWindowMinutes = 15) {
+export function getAccountStatus(lastUpdated: Date | string | null | undefined, activeWindowMinutes = 24 * 60) {
   const timestamp = parseTimestamp(lastUpdated);
   if (!Number.isFinite(timestamp) || timestamp > Date.now() + MAX_FUTURE_SKEW_MS) return "Inactive" as const;
   return Date.now() - timestamp <= activeWindowMinutes * 60_000 ? "Active" as const : "Inactive" as const;
@@ -341,6 +343,138 @@ export function computeSharpeRatio(values: number[]) {
   const deviation = Math.sqrt(variance);
   if (!Number.isFinite(deviation) || deviation === 0) return null;
   return average / deviation;
+}
+
+type PositionLifetimeRow = {
+  openTime?: Date | string | null;
+  inTime?: Date | string | null;
+  closeTime?: Date | string | null;
+  outTime?: Date | string | null;
+};
+
+type PositionLifetimeRange = {
+  start: number;
+  end: number;
+};
+
+function getPositionLifetimeRange(row: PositionLifetimeRow): PositionLifetimeRange | null {
+  const opened = parseTimestamp(getPositionOpenTime(row));
+  const closed = parseTimestamp(getPositionCloseTime(row));
+
+  if (!Number.isFinite(opened) && !Number.isFinite(closed)) {
+    return null;
+  }
+
+  if (!Number.isFinite(opened)) {
+    return { start: closed, end: closed };
+  }
+
+  if (!Number.isFinite(closed)) {
+    return { start: opened, end: opened };
+  }
+
+  if (closed < opened) {
+    return { start: closed, end: closed };
+  }
+
+  return { start: opened, end: closed };
+}
+
+function getLifetimeCalendarDayCount(start: number, end: number) {
+  const startDay = startOfBangkokDay(start);
+  const endDay = startOfBangkokDay(end);
+  if (!startDay || !endDay) {
+    return null;
+  }
+
+  return Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
+}
+
+function getLifetimeCalendarWindow(rows: PositionLifetimeRow[], reportTime?: Date | string | null) {
+  let earliestStart = Number.POSITIVE_INFINITY;
+  let latestEnd = Number.NEGATIVE_INFINITY;
+
+  for (const row of rows) {
+    const range = getPositionLifetimeRange(row);
+    if (!range) {
+      continue;
+    }
+
+    earliestStart = Math.min(earliestStart, range.start);
+    latestEnd = Math.max(latestEnd, range.end);
+  }
+
+  if (!Number.isFinite(earliestStart) || !Number.isFinite(latestEnd)) {
+    return null;
+  }
+
+  const reportTimestamp = parseTimestamp(reportTime);
+  const windowEnd = Number.isFinite(reportTimestamp)
+    ? Math.max(latestEnd, reportTimestamp)
+    : latestEnd;
+  const totalDays = getLifetimeCalendarDayCount(earliestStart, windowEnd);
+  if (!totalDays) {
+    return null;
+  }
+
+  return {
+    totalDays,
+  };
+}
+
+export function computeTradeActivityPercent(rows: PositionLifetimeRow[], reportTime?: Date | string | null) {
+  const lifetimeWindow = getLifetimeCalendarWindow(rows, reportTime);
+  if (!lifetimeWindow) {
+    return null;
+  }
+
+  const activeDays = new Set<string>();
+
+  for (const row of rows) {
+    const range = getPositionLifetimeRange(row);
+    if (!range) {
+      continue;
+    }
+
+    let cursor = startOfBangkokDay(range.start);
+    const endDay = startOfBangkokDay(range.end);
+    if (!cursor || !endDay) {
+      continue;
+    }
+
+    while (cursor.getTime() <= endDay.getTime()) {
+      const dayKey = getBangkokDateKey(cursor);
+      if (dayKey) {
+        activeDays.add(dayKey);
+      }
+
+      const nextDay = addBangkokDays(cursor, 1);
+      if (!nextDay) {
+        break;
+      }
+
+      cursor = nextDay;
+    }
+  }
+
+  return (activeDays.size / lifetimeWindow.totalDays) * 100;
+}
+
+export function computeTradesPerWeek(rows: PositionLifetimeRow[], reportTime?: Date | string | null) {
+  const closedCount = rows.reduce(
+    (total, row) => (Number.isFinite(parseTimestamp(getPositionCloseTime(row))) ? total + 1 : total),
+    0,
+  );
+  if (closedCount === 0) {
+    return null;
+  }
+
+  const lifetimeWindow = getLifetimeCalendarWindow(rows, reportTime);
+  if (!lifetimeWindow) {
+    return null;
+  }
+
+  return (closedCount / lifetimeWindow.totalDays) * 7;
 }
 
 export function computeAverageHoldHours(rows: Array<{ openTime?: Date | string | null; inTime?: Date | string | null; closeTime?: Date | string | null; outTime?: Date | string | null; }>) {
@@ -486,13 +620,11 @@ export function getShortTradeWinPercent(deals: Array<{ type?: string | null; dir
 }
 
 export function buildDailyProfitSeries(deals: BalanceRow[], days = 5, now = new Date()) {
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
+  const end = endOfBangkokDay(now) ?? new Date(now.getTime());
   const dayKeys: string[] = [];
   for (let offset = days - 1; offset >= 0; offset -= 1) {
-    const cursor = new Date(end);
-    cursor.setDate(end.getDate() - offset);
-    dayKeys.push(cursor.toISOString().slice(0, 10));
+    const cursor = addBangkokDays(end, -offset);
+    dayKeys.push(getBangkokDateKey(cursor) ?? "-");
   }
 
   const totals = new Map(dayKeys.map(k => [k, 0]));

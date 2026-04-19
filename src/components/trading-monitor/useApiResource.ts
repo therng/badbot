@@ -60,10 +60,12 @@ export function useApiResource<T>(url: string | null, options: UseApiResourceOpt
     }));
     notifyRequestState(true);
 
-    fetch(url, {
+    const requestInit: RequestInit = {
       cache: "no-store",
       signal: controller.signal,
-    })
+    };
+
+    fetch(url, requestInit)
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         if (!response.ok) {

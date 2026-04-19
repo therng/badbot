@@ -36,7 +36,7 @@ export function TradeHistoryPanel({
           const isExpanded = expandedRowKey === rowKey;
           const comment = position.comment?.trim() || "-";
           const sideLabel = formatPositionSide(position.type);
-          const volumeLabel = `${formatPlainNumberValue(position.volume, 2)} lot`;
+          const volumeLabel = formatPlainNumberValue(position.volume, 2);
           const rowNetPnl = positionHistoryNetPnl(position);
           const normalizedSide = sideLabel.toLowerCase();
           const sideToneClass =

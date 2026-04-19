@@ -1,4 +1,21 @@
 import { prisma } from "@/lib/prisma";
+import {
+  addBangkokDays,
+  convertBangkokReportTimeToTableTimestamp,
+  endOfBangkokMonth,
+  endOfBangkokYear,
+  getBangkokDateKey,
+  getBangkokHour,
+  getBangkokMonthIndex,
+  getBangkokYear,
+  getThaiDateKeyFromTableTime,
+  getThaiHourFromTableTime,
+  startOfBangkokDay,
+  startOfBangkokMonth,
+  startOfBangkokWeek,
+  startOfBangkokYear,
+  startOfThaiDayInTableTime,
+} from "@/lib/time";
 import type {
   AccountOverviewResponse,
   BalanceDetailResponse,
@@ -23,7 +40,9 @@ import {
   computeCompoundedGrowth,
   computeConsecutiveRunAmounts,
   computeDepositLoadPercent,
+  computeTradeActivityPercent,
   computeSharpeRatio,
+  computeTradesPerWeek,
   computeYearGrowth,
   dealNet,
   filterBySince,
@@ -47,7 +66,6 @@ import {
 } from "@/lib/trading/account-data";
 
 const ACCOUNT_CACHE_REVALIDATE_MS = 5_000;
-const TIMEFRAMES: Timeframe[] = ["1d", "1w", "1m", "ytd", "1y", "all"];
 const MONTH_LABELS = Array.from({ length: 12 }, (_, index) =>
   new Date(2024, index, 1).toLocaleString("en-US", { month: "short" }),
 );
@@ -98,11 +116,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 const MAX_REPORT_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 function startOfReportDay(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-function padTwo(value: number) {
-  return String(value).padStart(2, "0");
+  return startOfThaiDayInTableTime(date) ?? startOfBangkokDay(date) ?? date;
 }
 
 function getValidDate(value: Date | string | null | undefined) {
@@ -115,12 +129,7 @@ function getValidDate(value: Date | string | null | undefined) {
 }
 
 function getReportLocalDateKey(value: Date | string | null | undefined) {
-  const parsed = getValidDate(value);
-  if (!parsed) {
-    return null;
-  }
-
-  return `${parsed.getUTCFullYear()}-${padTwo(parsed.getUTCMonth() + 1)}-${padTwo(parsed.getUTCDate())}`;
+  return getBangkokDateKey(value);
 }
 
 function sanitizeHistoryPositionComment(comment: string | null | undefined, profit: number | null | undefined) {
@@ -228,7 +237,8 @@ function positionPips(position: PositionRow) {
 }
 
 function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): TradeExecutionDistribution {
-  const reportDate = getReportLocalDateKey(reportTime) ?? reportTime.toISOString().slice(0, 10);
+  const reportDate = getReportLocalDateKey(reportTime) ?? "0000-00-00";
+  const reportTableTimestamp = convertBangkokReportTimeToTableTimestamp(reportTime);
   const hourly = Array.from({ length: 24 }, (_, hour) => ({
     hour,
     totalExecutions: 0,
@@ -254,13 +264,13 @@ function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): Tr
       continue;
     }
 
-    const executionDate = getReportLocalDateKey(parsedTime);
+    const executionDate = getThaiDateKeyFromTableTime(parsedTime);
     if (executionDate !== reportDate) {
       excludedOutsideReportDate += 1;
       continue;
     }
 
-    if (parsedTime.getTime() > reportTime.getTime() + MAX_REPORT_FUTURE_SKEW_MS) {
+    if (reportTableTimestamp !== null && parsedTime.getTime() > reportTableTimestamp + MAX_REPORT_FUTURE_SKEW_MS) {
       excludedFutureSkew += 1;
       continue;
     }
@@ -276,7 +286,7 @@ function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): Tr
     }
     seenDealKeys.add(dedupeKey);
 
-    const hour = parsedTime.getUTCHours();
+    const hour = getThaiHourFromTableTime(parsedTime) ?? getBangkokHour(parsedTime) ?? 0;
     const bucket = hourly[hour];
     if (!bucket) {
       continue;
@@ -331,7 +341,7 @@ function buildRealtime24HourBalanceCurve(
   endingBalance: number,
 ) {
   const sortedDeals = [...deals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
-  const anchorTime = reportTime.getTime();
+  const anchorTime = convertBangkokReportTimeToTableTimestamp(reportTime) ?? reportTime.getTime();
   const startTime = startOfReportDay(reportTime).getTime();
   const endTime = startTime + 24 * ONE_HOUR_MS;
   const clampedAnchorTime = Math.min(Math.max(anchorTime, startTime), endTime);
@@ -428,7 +438,7 @@ function isMonthCovered(
     return false;
   }
 
-  return monthEnd >= new Date(firstDealTime.getFullYear(), firstDealTime.getMonth(), 1, 0, 0, 0, 0)
+  return monthEnd >= (startOfBangkokMonth(firstDealTime) ?? firstDealTime)
     && monthStart <= latestCoveredTime;
 }
 
@@ -467,8 +477,8 @@ function buildCalendarMonthlyPerformance(deals: DealRow[], reportTime: Date) {
 
   const firstDealTime = new Date(sortedDeals[0].time);
   const latestCoveredTime = new Date(reportTime);
-  const firstYear = firstDealTime.getFullYear();
-  const lastYear = latestCoveredTime.getFullYear();
+  const firstYear = getBangkokYear(firstDealTime) ?? new Date(firstDealTime).getFullYear();
+  const lastYear = getBangkokYear(latestCoveredTime) ?? new Date(latestCoveredTime).getFullYear();
   let totalRatio = 1;
   let totalNetAmount = 0;
 
@@ -479,8 +489,8 @@ function buildCalendarMonthlyPerformance(deals: DealRow[], reportTime: Date) {
     let hasCoveredMonth = false;
 
     const months = Array.from({ length: 12 }, (_, monthIndex) => {
-      const monthStart = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+      const monthStart = startOfBangkokMonth(new Date(Date.UTC(year, monthIndex, 1))) ?? new Date(Date.UTC(year, monthIndex, 1));
+      const monthEnd = endOfBangkokMonth(monthStart) ?? monthStart;
       if (!isMonthCovered(monthStart, monthEnd, firstDealTime, latestCoveredTime)) {
         return {
           month: monthIndex,
@@ -527,31 +537,6 @@ function buildCalendarMonthlyPerformance(deals: DealRow[], reportTime: Date) {
       totalNetAmount,
     },
   };
-}
-
-function computeTradesPerWeek(
-  timeframe: Timeframe,
-  rows: Array<{ closeTime: Date | string | null }>,
-) {
-  if (timeframe === "all") {
-    return null;
-  }
-
-  const closed = rows.filter((row) => row.closeTime);
-  if (!closed.length) {
-    return null;
-  }
-
-  const sorted = [...closed].sort((left, right) => new Date(left.closeTime ?? 0).getTime() - new Date(right.closeTime ?? 0).getTime());
-  const oldest = new Date(sorted[0].closeTime ?? 0).getTime();
-  const newest = new Date(sorted[sorted.length - 1].closeTime ?? 0).getTime();
-
-  if (!Number.isFinite(oldest) || !Number.isFinite(newest)) {
-    return null;
-  }
-
-  const weeks = Math.max(1, (newest - oldest) / 604_800_000);
-  return closed.length / weeks;
 }
 
 function computeAverageStreaks(values: number[]) {
@@ -613,11 +598,23 @@ type CachedTimeframeViews = {
   pipsSummary: PipsSummaryResponse;
 };
 
+type AccountPreaggregatedSource = {
+  account: NonNullable<ReturnType<typeof serializeAccountBundle>>;
+  deals: DealRow[];
+  positions: PositionRow[];
+  openPositions: OpenPositionRow[];
+  latestSnapshotBalance: number;
+  latestSnapshotEquity: number;
+  latestSnapshotMargin: number;
+  reportTime: Date;
+};
+
 type AccountPreaggregatedBundle = {
   accountId: string;
   versionKey: string;
   lastCheckedAt: number;
-  timeframes: Record<Timeframe, CachedTimeframeViews>;
+  source: AccountPreaggregatedSource;
+  timeframes: Partial<Record<Timeframe, CachedTimeframeViews>>;
 };
 
 const accountCache = new Map<string, AccountPreaggregatedBundle>();
@@ -680,17 +677,7 @@ async function getAccountVersionProbe(accountId: string): Promise<AccountVersion
   };
 }
 
-function buildTimeframeView(params: {
-  timeframe: Timeframe;
-  account: NonNullable<ReturnType<typeof serializeAccountBundle>>;
-  deals: DealRow[];
-  positions: PositionRow[];
-  openPositions: OpenPositionRow[];
-  latestSnapshotBalance: number;
-  latestSnapshotEquity: number;
-  latestSnapshotMargin: number;
-  reportTime: Date;
-}) {
+function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Timeframe }) {
   const {
     timeframe,
     account,
@@ -708,6 +695,7 @@ function buildTimeframeView(params: {
   const drawdownDeals = deals.filter((deal) => !isBalanceDeal(deal.type, deal.comment, dealNet(deal)));
   const tradingDeals = scopedDeals.filter((deal) => isTradingDeal(deal.type));
   const sortedScopedDeals = [...scopedDeals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
+  const allClosedPositions = positions.filter((position) => isClosedPosition(position));
   const scopedPositions = filterBySince(positions, (position) => position.closeTime, since);
   const scopedClosedPositions = scopedPositions.filter((position) => isClosedPosition(position));
   const closedPositionSummary = summarizeClosedPositions(scopedClosedPositions);
@@ -749,13 +737,10 @@ function buildTimeframeView(params: {
   };
 
   const now = reportTime;
-  const startOfToday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const startOfWeek = new Date(now);
-  const weekOffset = (startOfWeek.getDay() + 6) % 7;
-  startOfWeek.setHours(0, 0, 0, 0);
-  startOfWeek.setDate(startOfWeek.getDate() - weekOffset);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const startOfToday = startOfThaiDayInTableTime(now) ?? startOfBangkokDay(now) ?? now;
+  const startOfWeek = startOfBangkokWeek(now) ?? startOfToday;
+  const startOfMonth = startOfBangkokMonth(now) ?? startOfToday;
+  const startOfYear = startOfBangkokYear(now) ?? startOfToday;
 
   const pipsSummary: PipsSummaryResponse = {
     timeframe,
@@ -880,29 +865,31 @@ function buildTimeframeView(params: {
     })),
   };
 
-  const year = reportTime.getFullYear();
+  const year = getBangkokYear(reportTime) ?? reportTime.getFullYear();
   const allTimeGrowth = computeAllTimeGrowth(deals);
   const ytdGrowth = computeYearGrowth(deals, year);
   const allTimeAbsoluteGain = computeAbsoluteGain(deals, null);
   const ytdAbsoluteGain = computeAbsoluteGain(
     deals,
-    new Date(year, 0, 1, 0, 0, 0, 0),
-    new Date(year, 11, 31, 23, 59, 59, 999),
+    startOfBangkokYear(reportTime) ?? new Date(Date.UTC(year, 0, 1)),
+    endOfBangkokYear(reportTime) ?? new Date(Date.UTC(year + 1, 0, 1) - 1),
   );
   void ytdAbsoluteGain;
   const absoluteGain = timeframe === "all" ? allTimeAbsoluteGain : computeAbsoluteGain(deals, since, null);
 
   const monthly = Array.from({ length: 12 }, (_, index) => {
-    const start = new Date(year, index, 1, 0, 0, 0, 0);
-    const end = new Date(year, index + 1, 0, 23, 59, 59, 999);
+    const start = startOfBangkokMonth(new Date(Date.UTC(year, index, 1))) ?? new Date(Date.UTC(year, index, 1));
+    const end = endOfBangkokMonth(start) ?? start;
 
     return {
-      month: start.toLocaleString("en-US", { month: "short" }),
+      month: MONTH_LABELS[getBangkokMonthIndex(start) ?? index] ?? "",
       value: computeCompoundedGrowth(deals, start, end),
     };
   });
 
-  const years = deals.map((deal) => new Date(deal.time).getFullYear());
+  const years = deals
+    .map((deal) => getBangkokYear(deal.time))
+    .filter((value): value is number => Number.isFinite(value));
   const firstYear = years.length ? Math.min(...years) : year;
   const yearly = Array.from({ length: year - firstYear + 1 }, (_, index) => {
     const itemYear = firstYear + index;
@@ -973,7 +960,9 @@ function buildTimeframeView(params: {
   const positionRunAmounts = computeConsecutiveRunAmounts(positionNetValues);
   const positionsDrawdown = computeBalanceDrawdown(deals, since, null);
   const totalNet = closedPositionSummary.totalNetProfit;
-  const totalTrackedTrades = scopedPositionTrades.length + openPositionsPayload.length;
+  const lifetimeTradeActivityPercent = computeTradeActivityPercent(allClosedPositions, reportTime);
+  const lifetimeTradesPerWeek = computeTradesPerWeek(allClosedPositions, reportTime);
+  const lifetimeAverageHoldHours = computeAverageHoldHours(allClosedPositions);
   const largestProfitTrade = closedPositionSummary.largestProfitTrade;
   const largestLossTrade = closedPositionSummary.largestLossTrade;
 
@@ -983,11 +972,11 @@ function buildTimeframeView(params: {
     summary: {
       dealCount: closedPositionSummary.totalTrades,
       totalTrades: closedPositionSummary.totalTrades,
-      tradeActivityPercent: totalTrackedTrades ? (openPositionsPayload.length / totalTrackedTrades) * 100 : 0,
-      tradesPerWeek: computeTradesPerWeek(timeframe, scopedClosedPositions),
+      tradeActivityPercent: lifetimeTradeActivityPercent,
+      tradesPerWeek: lifetimeTradesPerWeek,
       longTradeWin: getLongTradeWinPercent(scopedClosedPositions),
       shortTradeWin: getShortTradeWinPercent(scopedClosedPositions),
-      averageHoldHours: computeAverageHoldHours(scopedClosedPositions),
+      averageHoldHours: lifetimeAverageHoldHours,
       profitFactor: closedPositionSummary.profitFactor,
       recoveryFactor: positionsDrawdown.maximalAmount > 0 ? totalNet / positionsDrawdown.maximalAmount : null,
       sharpeRatio: computeSharpeRatio(positionNetValues),
@@ -1202,10 +1191,11 @@ async function rebuildAccountCache(accountId: string, versionKey: string): Promi
   const latestSnapshotEquity = Number(bundle.latestSnapshot?.equity ?? 0);
   const latestSnapshotMargin = Number(bundle.latestSnapshot?.margin ?? 0);
 
-  const timeframeEntries = TIMEFRAMES.map((timeframe) => [
-    timeframe,
-    buildTimeframeView({
-      timeframe,
+  const cached: AccountPreaggregatedBundle = {
+    accountId,
+    versionKey,
+    lastCheckedAt: Date.now(),
+    source: {
       account,
       deals,
       positions,
@@ -1214,14 +1204,8 @@ async function rebuildAccountCache(accountId: string, versionKey: string): Promi
       latestSnapshotEquity,
       latestSnapshotMargin,
       reportTime,
-    }),
-  ]) as Array<[Timeframe, CachedTimeframeViews]>;
-
-  const cached: AccountPreaggregatedBundle = {
-    accountId,
-    versionKey,
-    lastCheckedAt: Date.now(),
-    timeframes: Object.fromEntries(timeframeEntries) as Record<Timeframe, CachedTimeframeViews>,
+    },
+    timeframes: {},
   };
 
   accountCache.set(accountId, cached);
@@ -1260,7 +1244,7 @@ export type AccountCachedViewKind =
   | "pipsSummary";
 
 export function parseRequestTimeframe(rawTimeframe: string | null) {
-  return parseTimeframe(rawTimeframe);
+  return rawTimeframe === null ? "1d" : parseTimeframe(rawTimeframe);
 }
 
 export async function getCachedAccountView(accountId: string, timeframe: Timeframe, kind: AccountCachedViewKind) {
@@ -1269,7 +1253,13 @@ export async function getCachedAccountView(accountId: string, timeframe: Timefra
     return null;
   }
 
-  return cached.timeframes[timeframe][kind];
+  const timeframeView = cached.timeframes[timeframe] ?? buildTimeframeView({
+    ...cached.source,
+    timeframe,
+  });
+  cached.timeframes[timeframe] = timeframeView;
+
+  return timeframeView[kind];
 }
 
 export function warmAccountOverviewCaches(accountIds: string[]) {

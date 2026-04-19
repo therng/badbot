@@ -7,7 +7,6 @@ import {
   formatTradeHistoryDateTime,
   formatTradePrice,
 } from "@/components/trading-monitor/DashboardFormatters";
-import { toneFromNumber } from "@/components/trading-monitor/formatters";
 
 function rankOpenPositions(positions: PositionsResponse["openPositions"] | null | undefined) {
   return [...(positions ?? [])].sort((left, right) => {
@@ -18,6 +17,10 @@ function rankOpenPositions(positions: PositionsResponse["openPositions"] | null 
 
     return Number(right.volume ?? 0) - Number(left.volume ?? 0);
   });
+}
+
+function formatStopTargetPrice(value: number | null | undefined) {
+  return Number.isFinite(value) ? formatTradePrice(value) : "-";
 }
 
 export function OpenPositionsPanel({
@@ -44,8 +47,16 @@ export function OpenPositionsPanel({
           const sideToneClass =
             normalizedSide === "buy" ? "trade-history-row__side--buy" : normalizedSide === "sell" ? "trade-history-row__side--sell" : "";
           const comment = position.comment?.trim() || "-";
-          const volumeLabel = `${formatPlainNumberValue(position.volume, 2)} lot`;
+          const volumeLabel = formatPlainNumberValue(position.volume, 2);
           const priceRangeLabel = `${formatTradePrice(position.openPrice)} -> ${formatTradePrice(position.marketPrice)}`;
+          const stopLossLabel = `SL ${formatStopTargetPrice(position.sl)}`;
+          const takeProfitLabel = `TP ${formatStopTargetPrice(position.tp)}`;
+          const pnlToneClass =
+            position.floatingProfit > 0
+              ? "trade-history-row__trail--positive"
+              : position.floatingProfit < 0
+                ? "trade-history-row__trail--negative"
+                : "trade-history-row__trail--neutral";
 
           return (
             <div key={position.positionId} className="trade-history-row">
@@ -56,7 +67,7 @@ export function OpenPositionsPanel({
                     <span className={`trade-history-row__side ${sideToneClass}`}>{sideLabel}</span>
                     <span className={`trade-history-row__volume ${sideToneClass}`}>{volumeLabel}</span>
                   </div>
-                  <div className={`trade-history-row__trail tone-${toneFromNumber(position.floatingProfit)}`}>
+                  <div className={`trade-history-row__trail ${pnlToneClass}`}>
                     <strong>{formatSignedPlainAmountKpiValue(position.floatingProfit)}</strong>
                   </div>
                 </div>
@@ -64,6 +75,8 @@ export function OpenPositionsPanel({
                   <div className="trade-history-row__prices">
                     <span className="trade-history-row__comment">{comment}</span>
                     <span>{priceRangeLabel}</span>
+                    <span>{stopLossLabel}</span>
+                    <span>{takeProfitLabel}</span>
                   </div>
                   <div className="trade-history-row__trail trade-history-row__trail--secondary">
                     <span>{formatTradeHistoryDateTime(position.openedAt)}</span>

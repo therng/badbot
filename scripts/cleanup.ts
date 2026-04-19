@@ -2,6 +2,8 @@ import "dotenv/config";
 
 import { PrismaClient } from "@prisma/client";
 
+import { getDatabaseErrorDetails } from "../src/lib/database-errors";
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -26,7 +28,11 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error(error);
+    const details = getDatabaseErrorDetails(error, "Cleanup failed.");
+    console.error(details.message);
+    if (details.status !== 503) {
+      console.error(error);
+    }
     process.exit(1);
   })
   .finally(async () => {
