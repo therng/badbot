@@ -520,7 +520,8 @@ body::before {
 }
 .dashboard-section > .account-card .kchip--skeleton .kv { width: 82%; min-height: 14px; }
 
-.dashboard-section > .account-card .kgrid .kl {
+.dashboard-section > .account-card .kgrid .kl,
+.dashboard-section > .account-card .kpi-detail-grid .kl {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 7px;
@@ -1185,7 +1186,8 @@ a:focus-visible, button:focus-visible {
     gap: 4px;
   }
   .dashboard-section > .account-card .kv { font-size: 10.5px; }
-  .dashboard-section > .account-card .kgrid .kl { font-size: 6px; }
+  .dashboard-section > .account-card .kgrid .kl,
+  .dashboard-section > .account-card .kpi-detail-grid .kl { font-size: 6px; }
   .dashboard-section > .account-card .kchip { padding: 6px 6px 5px; }
 
   .dashboard-section > .account-card .trade-history-row__details { grid-template-columns: repeat(2,minmax(0,1fr)); }
