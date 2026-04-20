@@ -45,6 +45,7 @@ import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPa
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
+import { LoadingScreen } from "@/components/trading-monitor/LoadingScreen";
 
 const PULL_THRESHOLD = 72;
 const MAX_PULL_DISTANCE = 116;
@@ -678,6 +679,7 @@ export default function DashboardClient() {
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const accountsSectionRef = useRef<HTMLElement | null>(null);
   const activeAccountIndexRef = useRef(0);
@@ -1069,6 +1071,8 @@ export default function DashboardClient() {
   }
 
   return (
+    <>
+    {showLoadingScreen && <LoadingScreen onDone={() => setShowLoadingScreen(false)} />}
     <main className="monitor-page">
       <TradingMonitorSharedStyles />
       <div className="monitor-shell app-shell">
@@ -1175,5 +1179,6 @@ export default function DashboardClient() {
         ) : null}
       </div>
     </main>
+    </>
   );
 }
