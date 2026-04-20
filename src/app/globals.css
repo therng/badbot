@@ -4,7 +4,7 @@
    Fonts: IBM Plex Mono (data) · Syne (display) · Inter (body)
 ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap');
+
 
 :root {
   /* ── Core surface palette ── */
@@ -52,9 +52,9 @@
   --text-ghost:    rgba(240,242,245,0.20);
 
   /* ── Typography ── */
-  --font-display: 'Syne', 'Segoe UI', sans-serif;
-  --font-body:    'Inter', 'Segoe UI', sans-serif;
-  --font-mono:    'IBM Plex Mono', 'SFMono-Regular', monospace;
+  --font-display: var(--font-manrope, "Manrope"), "Segoe UI", sans-serif;
+  --font-body:    var(--font-manrope, "Manrope"), "Segoe UI", sans-serif;
+  --font-mono:    var(--font-azeret-mono, "Azeret Mono"), "SFMono-Regular", monospace;
 
   /* ── Radii ── */
   --r-xs:  4px;
@@ -278,11 +278,11 @@ body::before {
 }
 
 .dashboard-section > .account-card .sp-name {
-  font-family: var(--font-display);
+  font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: clamp(17px, 2.4vw, 24px);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   color: var(--card-ink);
   white-space: nowrap;
   overflow: hidden;
@@ -293,10 +293,10 @@ body::before {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.06em;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--card-muted);
 }
 
@@ -357,10 +357,10 @@ body::before {
 }
 .dashboard-section > .account-card .sp-balance span { display: none; }
 .dashboard-section > .account-card .sp-balance strong {
-  font-family: var(--font-display);
-  font-size: clamp(22px, 2.8vw, 32px);
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: clamp(22px, 2.7vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
   line-height: 1;
   color: var(--gold-300);
   display: block;
@@ -532,13 +532,15 @@ body::before {
   overflow-wrap: anywhere;
 }
 .dashboard-section > .account-card .kv {
-  font-family: var(--font-mono);
-  font-size: clamp(12px, 1.5vw, 14px);
-  font-weight: 500;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: clamp(13px, 1.55vw, 15px);
+  font-weight: 700;
   color: var(--card-ink);
-  letter-spacing: -0.01em;
-  line-height: 1.1;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
   overflow-wrap: anywhere;
+  word-break: break-word;
+  text-wrap: pretty;
 }
 .dashboard-section > .account-card .kchip__meta {
   display: none;
@@ -733,11 +735,11 @@ body::before {
   min-width: 0;
 }
 .dashboard-section > .account-card .trade-history-panel__list .trade-history-row__instrument strong {
-  font-family: var(--font-mono);
+  font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--card-ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.05em;
 }
 .dashboard-section > .account-card .trade-history-row__side { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; }
 .dashboard-section > .account-card .trade-history-row__side--buy  { color: var(--card-positive); }
@@ -1043,6 +1045,7 @@ body::before {
 .section-state.is-empty  { border-color: rgba(61,214,140,0.15); }
 
 /* ─────────────────────────────────────────────
+<<<<<<< Updated upstream
    ANALYTIC AI LAUNCH SCREEN
 ───────────────────────────────────────────── */
 /* ─────────────────────────────────────────────
@@ -1383,6 +1386,8 @@ body::before {
 }
 
 /* ─────────────────────────────────────────────
+=======
+>>>>>>> Stashed changes
    SKELETONS + ANIMATIONS
 ───────────────────────────────────────────── */
 .section-skeleton { display: grid; gap: 14px; }
@@ -1486,15 +1491,6 @@ a:focus-visible, button:focus-visible {
   .sparkline-live-beacon__pulse { animation: none; opacity: 0; }
   .sp-account-status.is-active { animation: none; }
   .dashboard-section > .account-card { animation: none; }
-  .als-ring--outer, .als-ring--mid, .als-ring--inner,
-  .als-sweep,
-  .als-tick, .als-dp,
-  .als-orb-glow, .als-orb, .als-orb-core, .als-orb-dot,
-  .als-wordmark-dot,
-  .als-scan span,
-  .als-status span {
-    animation: none;
-  }
 }
 
 /* ─────────────────────────────────────────────
@@ -1509,11 +1505,6 @@ a:focus-visible, button:focus-visible {
     box-shadow: none;
   }
   .app-scroll { padding: calc(16px + var(--safe-top)) calc(14px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(14px + var(--safe-left)); }
-
-  .als-visual {
-    width: min(210px, 66vw);
-    height: min(210px, 66vw);
-  }
 
   .dashboard-section > .account-card {
     --account-card-panel-height: 158px;
@@ -1573,44 +1564,6 @@ a:focus-visible, button:focus-visible {
   .monitor-page { padding: 0; }
   .monitor-shell.app-shell { height: 100vh; height: 100svh; border-radius: 0; border-left: none; border-right: none; }
   .app-scroll { padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(16px + var(--safe-left)); }
-
-  .monitor-shell.app-shell > .analytic-launch-screen,
-  .dashboard-section > .analytic-launch-screen {
-    min-height: calc(100svh - 34px - var(--safe-top) - var(--safe-bottom));
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 36px;
-    padding: max(52px, calc(42px + var(--safe-top))) max(28px, calc(20px + var(--safe-right))) max(38px, calc(28px + var(--safe-bottom))) max(28px, calc(20px + var(--safe-left)));
-  }
-
-  .als-visual {
-    width: min(168px, 35svh);
-    height: min(168px, 35svh);
-    max-height: none;
-    flex-shrink: 0;
-  }
-
-  .als-brand {
-    margin-top: 0;
-    align-items: flex-start;
-    text-align: left;
-    width: min(240px, 40vw);
-    gap: 4px;
-  }
-
-  .als-insight { min-height: 32px; font-size: 13px; }
-  .als-scan { margin-top: 12px; width: 100px; }
-  .als-status { margin-top: 8px; }
-
-  .als-wordmark {
-    top: max(16px, calc(12px + var(--safe-top)));
-    font-size: 22px;
-  }
-
-  .als-footer {
-    bottom: max(8px, calc(6px + var(--safe-bottom)));
-  }
 
   .account-carousel-nav {
     position: absolute;
@@ -1744,7 +1697,7 @@ body { min-height: 100svh; }
   min-height: calc(100svh - 28px - var(--safe-top) - var(--safe-bottom));
   height: calc(100svh - 28px - var(--safe-top) - var(--safe-bottom));
 }
-@media (max-width: 820px) {
+@media (max-width: 400px) {
   .monitor-shell.app-shell { min-height: 100svh; height: 100svh; }
 }
 @media (orientation: landscape) and (max-width: 1180px) {
@@ -1754,6 +1707,7 @@ body { min-height: 100svh; }
   .monitor-page { padding: 0; }
   .monitor-shell.app-shell { width: 100%; max-width: none; border-radius: 0; border-left: none; border-right: none; box-shadow: none; min-height: 100dvh; height: 100dvh; }
 }
+<<<<<<< Updated upstream
 
 /* ── Loading Screen ──────────────────────────────────── */
 .ls {
@@ -2004,3 +1958,5 @@ body { min-height: 100svh; }
     transition: none;
   }
 }
+=======
+>>>>>>> Stashed changes

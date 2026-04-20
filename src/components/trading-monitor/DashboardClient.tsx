@@ -27,7 +27,7 @@ import {
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
 import {
-  AnalyticLaunchScreen,
+  AccountsUnavailableState,
   InlineState,
   SparklineChart,
   TimeframeStrip,
@@ -45,7 +45,6 @@ import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPa
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
-import { LoadingScreen } from "@/components/trading-monitor/LoadingScreen";
 
 const PULL_THRESHOLD = 72;
 const MAX_PULL_DISTANCE = 116;
@@ -679,7 +678,6 @@ export default function DashboardClient() {
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const accountsSectionRef = useRef<HTMLElement | null>(null);
   const activeAccountIndexRef = useRef(0);
@@ -795,6 +793,15 @@ export default function DashboardClient() {
 
     setRefreshKey((current) => current + 1);
   }, []);
+
+  const retryAccountsRequest = useCallback(() => {
+    if (accounts.loading) {
+      return;
+    }
+
+    trackRefresh("manual");
+    setRefreshKey((current) => current + 1);
+  }, [accounts.loading]);
 
   useEffect(() => {
     const refreshOnResume = () => {
@@ -1057,22 +1064,8 @@ export default function DashboardClient() {
   const canGoPreviousAccount = shouldRenderIndicators && activeAccountIndex > 0;
   const canGoNextAccount = shouldRenderIndicators && activeAccountIndex < accountCount - 1;
 
-  const isMaintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
-
-  if (isMaintenanceMode) {
-    return (
-      <main className="monitor-page">
-        <TradingMonitorSharedStyles />
-        <div className="monitor-shell app-shell">
-          <AnalyticLaunchScreen variant="maintenance" />
-        </div>
-      </main>
-    );
-  }
-
   return (
     <>
-    {showLoadingScreen && <LoadingScreen onDone={() => setShowLoadingScreen(false)} />}
     <main className="monitor-page">
       <TradingMonitorSharedStyles />
       <div className="monitor-shell app-shell">
@@ -1115,14 +1108,13 @@ export default function DashboardClient() {
             aria-label="Trading accounts"
           >
             {accounts.error ? (
-              <AnalyticLaunchScreen
-                className="analytic-launch-screen--inline"
-                variant="error"
-                notice={accounts.error}
-                status="Accounts unavailable"
+              <AccountsUnavailableState
+                message={accounts.error}
+                onRetry={retryAccountsRequest}
+                retrying={accounts.loading}
               />
             ) : accounts.loading && !accounts.data ? (
-              <AnalyticLaunchScreen className="analytic-launch-screen--inline" />
+              <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
             ) : accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
@@ -1134,11 +1126,7 @@ export default function DashboardClient() {
                 />
               ))
             ) : (
-              <AnalyticLaunchScreen
-                className="analytic-launch-screen--inline"
-                variant="empty"
-                notice="No account"
-              />
+              <InlineState tone="empty" title="No account" message="No account data is available." />
             )}
           </section>
         </div>

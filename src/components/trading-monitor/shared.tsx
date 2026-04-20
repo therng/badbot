@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import type {
   BalanceEventPoint,
@@ -28,38 +28,6 @@ import {
 
 const ACCOUNT_CHART_COLOR = "var(--account-chart, #2c5d9d)";
 const ACCOUNT_CHART_MUTED_COLOR = "var(--account-chart-muted, #97a3b1)";
-const LAUNCH_LOADING_STEPS = ["Neural Syncing", "Predicting Trends", "Gemini Fetch", "Optimizing"] as const;
-let _insightPromise: Promise<string> | null = null;
-function fetchLoadingInsight(fallback: string): Promise<string> {
-  _insightPromise ??= fetch("/api/loading-insight")
-    .then((r) => r.json())
-    .then((d: { insight?: string }) => d.insight || fallback)
-    .catch(() => fallback);
-  return _insightPromise;
-}
-const LAUNCH_TREND_TEXT = "กำลังวิเคราะห์แนวโน้ม...";
-const LAUNCH_VARIANT_COPY = {
-  loading: {
-    core: "AI Core",
-    status: "",
-  },
-  maintenance: {
-    core: "AI Core",
-    status: "Maintenance mode",
-  },
-  error: {
-    core: "AI Core",
-    status: "Error message",
-  },
-  empty: {
-    core: "AI Core",
-    status: "No account",
-  },
-  info: {
-    core: "AI Core",
-    status: "",
-  },
-} as const;
 
 export function TimeframeStrip({
   active,
@@ -103,140 +71,50 @@ export function InlineState({
   );
 }
 
-export function AnalyticLaunchScreen({
-  className,
-  variant = "loading",
-  coreLabel,
+export function AccountsUnavailableState({
   message,
-  notice,
-  status,
+  onRetry,
+  retrying = false,
 }: {
-  className?: string;
-  variant?: "loading" | "maintenance" | "error" | "empty" | "info";
-  coreLabel?: string;
-  message?: string;
-  notice?: string;
-  status?: string;
+  message: string;
+  onRetry?: () => void;
+  retrying?: boolean;
 }) {
-  const glowId = useId();
-  const blurId = useId();
-  const variantCopy = LAUNCH_VARIANT_COPY[variant];
-  const isLoading = variant === "loading";
-  const [loadingStep, setLoadingStep] = useState(0);
-  const [insightText, setInsightText] = useState(LAUNCH_TREND_TEXT);
-
-  useEffect(() => {
-    if (!isLoading) return;
-    const id = window.setInterval(() => {
-      setLoadingStep((s) => (s + 1) % LAUNCH_LOADING_STEPS.length);
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, [isLoading]);
-
-  useEffect(() => {
-    if (!isLoading || message) return;
-    let cancelled = false;
-    fetchLoadingInsight(LAUNCH_TREND_TEXT).then((text) => {
-      if (!cancelled) setInsightText(text);
-    });
-    return () => { cancelled = true; };
-  }, [isLoading, message]);
-
-  const screenClass = ["analytic-launch-screen", `is-${variant}`, className].filter(Boolean).join(" ");
-  const resolvedLabel = coreLabel ?? variantCopy.core;
-  const resolvedInsight = message ?? insightText;
-  const statusText = isLoading ? LAUNCH_LOADING_STEPS[loadingStep] : (status ?? variantCopy.status);
-  const footerMessage = variant === "loading" ? null : (status ?? variantCopy.status) || null;
-
   return (
-    <div className={screenClass} role={variant === "error" ? "alert" : "status"} aria-busy={isLoading}>
-      <div className="als-ambient" aria-hidden="true" />
-
-      <h1 className="als-wordmark" aria-label="Analytic">
-        ANALYT
-        <span className="als-wordmark-i">
-          I
-          <span className="als-wordmark-dot" />
-        </span>
-        C
-      </h1>
-
-      <div className="als-visual" aria-hidden="true">
-        <svg viewBox="0 0 200 200" className="als-orbital" focusable="false">
-          <defs>
-            <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="var(--launch-accent)" stopOpacity="0.55" />
-              <stop offset="55%" stopColor="var(--launch-accent)" stopOpacity="0.08" />
-              <stop offset="100%" stopColor="var(--launch-accent)" stopOpacity="0" />
-            </radialGradient>
-            <filter id={blurId} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          <circle cx="100" cy="100" r="88" className="als-ring als-ring--outer" />
-          <circle cx="100" cy="100" r="66" className="als-ring als-ring--mid" />
-          <circle cx="100" cy="100" r="44" className="als-ring als-ring--inner" />
-
-          <line x1="10" y1="100" x2="190" y2="100" className="als-crosshair" />
-          <line x1="100" y1="10" x2="100" y2="190" className="als-crosshair" />
-
-          <g className="als-sweep">
-            <path d="M100,100 L100,12 A88,88 0 0,1 188,100 Z" className="als-sweep-wake" />
-            <line x1="100" y1="100" x2="100" y2="12" className="als-sweep-arm" />
+    <section className="accounts-unavailable" role="alert" aria-live="assertive">
+      <div className="accounts-unavailable__bg" aria-hidden="true" />
+      <div className="accounts-unavailable__signal" aria-hidden="true">
+        <svg viewBox="0 0 180 180" className="accounts-unavailable__signal-svg" focusable="false">
+          <circle cx="90" cy="90" r="70" className="accounts-unavailable__ring accounts-unavailable__ring--outer" />
+          <circle cx="90" cy="90" r="50" className="accounts-unavailable__ring accounts-unavailable__ring--mid" />
+          <circle cx="90" cy="90" r="32" className="accounts-unavailable__ring accounts-unavailable__ring--inner" />
+          <g className="accounts-unavailable__sweep">
+            <path d="M90,90 L90,20 A70,70 0 0,1 160,90 Z" className="accounts-unavailable__sweep-wake" />
+            <line x1="90" y1="90" x2="90" y2="20" className="accounts-unavailable__sweep-arm" />
           </g>
-
-          <circle cx="100" cy="12" r="2.5" className="als-tick" />
-          <circle cx="188" cy="100" r="2.5" className="als-tick als-tick--2" />
-          <circle cx="100" cy="188" r="2.5" className="als-tick als-tick--3" />
-          <circle cx="12" cy="100" r="2.5" className="als-tick als-tick--4" />
-
-          <circle cx="100" cy="34" r="3" className="als-dp" />
-          <circle cx="166" cy="100" r="2.5" className="als-dp als-dp--2" />
-          <circle cx="46" cy="146" r="2" className="als-dp als-dp--3" />
-
-          <circle cx="100" cy="100" r="38" fill={`url(#${glowId})`} className="als-orb-glow" />
-          <circle cx="100" cy="100" r="26" className="als-orb" filter={`url(#${blurId})`} />
-          <circle cx="100" cy="100" r="17" className="als-orb-core" />
-          <circle cx="100" cy="100" r="4.5" className="als-orb-dot" />
+          <circle cx="90" cy="90" r="18" className="accounts-unavailable__core" />
+          <path d="M90 74 L90 100" className="accounts-unavailable__mark" />
+          <circle cx="90" cy="112" r="2.6" className="accounts-unavailable__mark-dot" />
         </svg>
       </div>
-
-      <div className="als-brand">
-        <span className="als-label" aria-hidden="true">{resolvedLabel}</span>
-        <p className="als-insight">{`"${resolvedInsight}"`}</p>
-        {notice && <p className="als-notice">{notice}</p>}
-        <div className="als-scan" aria-hidden="true"><span /></div>
-        <div className="als-status"><span>{statusText}</span></div>
+      <div className="accounts-unavailable__body">
+        <p className="accounts-unavailable__eyebrow">Data Feed Alert</p>
+        <h2>Accounts unavailable</h2>
+        <p className="accounts-unavailable__message">{message}</p>
+        <div className="accounts-unavailable__meta" aria-hidden="true">
+          <span>Scope /api/accounts</span>
+          <span>{retrying ? "Reconnecting..." : "Awaiting retry"}</span>
+        </div>
+        <button
+          type="button"
+          className="accounts-unavailable__retry"
+          onClick={onRetry}
+          disabled={retrying || !onRetry}
+        >
+          {retrying ? "Retrying..." : "Retry now"}
+        </button>
       </div>
-
-      <footer className="als-footer">
-        <span>VERSION 4.0</span>
-        {footerMessage ? <strong>{footerMessage}</strong> : null}
-      </footer>
-    </div>
-  );
-}
-
-export function SectionSkeleton() {
-  return (
-    <div className="section-skeleton" aria-hidden="true">
-      <div className="skeleton-line skeleton-line--title" />
-      <div className="skeleton-line skeleton-line--wide" />
-      <div className="skeleton-chart" />
-      <div className="metric-cluster">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="metric-tile is-skeleton">
-            <div className="skeleton-line skeleton-line--tiny" />
-            <div className="skeleton-line skeleton-line--small" />
-          </div>
-        ))}
-      </div>
-    </div>
+    </section>
   );
 }
 

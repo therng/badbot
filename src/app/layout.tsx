@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Azeret_Mono, Manrope } from "next/font/google";
+import { Manrope, Azeret_Mono } from "next/font/google";
 
 import "@/app/globals.css";
 
@@ -77,8 +77,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="Analytic" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#06080b" />
-        <meta name="msapplication-TileColor" content="#06080b" />
+        <meta name="theme-color" content="#08090b" />
+        <meta name="msapplication-TileColor" content="#08090b" />
       </head>
       <body>
         {shouldLoadGtm ? (
