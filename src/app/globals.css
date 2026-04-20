@@ -1866,6 +1866,21 @@ body { min-height: 100svh; }
   animation: ls-rise 0.5s ease 0.65s both;
 }
 
+.ls__cursor {
+  display: inline-block;
+  width: 1px;
+  height: 0.85em;
+  background: currentColor;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  animation: ls-blink 0.7s step-end infinite;
+}
+
+@keyframes ls-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .ls__divider {
   width: 100%;
   border: none;
