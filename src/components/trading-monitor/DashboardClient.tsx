@@ -27,8 +27,8 @@ import {
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
 import {
+  AnalyticLaunchScreen,
   InlineState,
-  SectionSkeleton,
   SparklineChart,
   TimeframeStrip,
   TradingMonitorSharedStyles,
@@ -1055,6 +1055,19 @@ export default function DashboardClient() {
   const canGoPreviousAccount = shouldRenderIndicators && activeAccountIndex > 0;
   const canGoNextAccount = shouldRenderIndicators && activeAccountIndex < accountCount - 1;
 
+  const isMaintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
+
+  if (isMaintenanceMode) {
+    return (
+      <main className="monitor-page">
+        <TradingMonitorSharedStyles />
+        <div className="monitor-shell app-shell">
+          <AnalyticLaunchScreen variant="maintenance" />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="monitor-page">
       <TradingMonitorSharedStyles />
@@ -1098,17 +1111,14 @@ export default function DashboardClient() {
             aria-label="Trading accounts"
           >
             {accounts.error ? (
-              <div className="card">
-                <InlineState tone="error" title="Accounts unavailable" message={accounts.error} />
-              </div>
+              <AnalyticLaunchScreen
+                className="analytic-launch-screen--inline"
+                variant="error"
+                notice={accounts.error}
+                status="Accounts unavailable"
+              />
             ) : accounts.loading && !accounts.data ? (
-              <>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="card">
-                    <SectionSkeleton />
-                  </div>
-                ))}
-              </>
+              <AnalyticLaunchScreen className="analytic-launch-screen--inline" />
             ) : accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
@@ -1120,13 +1130,11 @@ export default function DashboardClient() {
                 />
               ))
             ) : (
-              <div className="card">
-                <InlineState
-                  tone="empty"
-                  title="Analytic"
-                  message="by Therng"
-                />
-              </div>
+              <AnalyticLaunchScreen
+                className="analytic-launch-screen--inline"
+                variant="empty"
+                notice="No account"
+              />
             )}
           </section>
         </div>
