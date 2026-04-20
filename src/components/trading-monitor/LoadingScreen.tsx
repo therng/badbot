@@ -40,12 +40,20 @@ export function LoadingScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <div className={`ls ls--${phase}`} role="status" aria-label="Loading">
+      <div className="ls__blob ls__blob--tl" aria-hidden="true" />
+      <div className="ls__blob ls__blob--br" aria-hidden="true" />
+
       <div className="ls__inner">
         <div className="ls__chart" aria-hidden="true">
-          <svg viewBox="0 0 280 130" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <filter id="ls-glow" x="-20%" y="-60%" width="140%" height="220%">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="blur" />
+              <linearGradient id="ls-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#3B82F6" stopOpacity="0" />
+                <stop offset="40%" stopColor="#60A5FA" stopOpacity="1" />
+                <stop offset="100%" stopColor="#2563EB" stopOpacity="1" />
+              </linearGradient>
+              <filter id="ls-soft-glow">
+                <feGaussianBlur stdDeviation="2" result="blur" />
                 <feMerge>
                   <feMergeNode in="blur" />
                   <feMergeNode in="SourceGraphic" />
@@ -53,31 +61,31 @@ export function LoadingScreen({ onDone }: { onDone: () => void }) {
               </filter>
             </defs>
             <path
-              className="ls__wave-glow"
-              d="M10,104 C48,104 52,22 90,22 C128,22 132,82 170,58 C208,34 238,10 270,10"
+              d="M40 20 V100 H160"
               fill="none"
-              stroke="#3d9eff"
-              strokeWidth="6"
-              strokeLinecap="round"
-              filter="url(#ls-glow)"
+              stroke="rgba(255,255,255,0.04)"
+              strokeWidth="1"
             />
             <path
               className="ls__wave"
-              d="M10,104 C48,104 52,22 90,22 C128,22 132,82 170,58 C208,34 238,10 270,10"
+              d="M40 85 Q60 90 80 55 T120 45 T165 35"
               fill="none"
-              stroke="#a0d4ff"
-              strokeWidth="2"
+              stroke="url(#ls-line-grad)"
+              strokeWidth="4"
               strokeLinecap="round"
+              filter="url(#ls-soft-glow)"
             />
+            <circle className="ls__dot" cx="80" cy="55" r="2.5" fill="#60A5FA" />
+            <circle className="ls__dot ls__dot--delayed" cx="120" cy="45" r="2.5" fill="#60A5FA" />
           </svg>
         </div>
 
         <h1 className="ls__logo" aria-label="Analytic">
-          ANALYT<span className="ls__logo-i">i</span>C
+          ANALYT<span className="ls__logo-i">I<span className="ls__logo-dot" aria-hidden="true" /></span>C
         </h1>
 
         <div className="ls__badge" aria-hidden="true">
-          <span className="ls__badge-star">✦</span>
+          <span>✨</span>
           <span>AI CORE</span>
         </div>
 
@@ -85,7 +93,7 @@ export function LoadingScreen({ onDone }: { onDone: () => void }) {
           &ldquo;{statusText}{typing && <span className="ls__cursor" aria-hidden="true" />}&rdquo;
         </p>
 
-        <hr className="ls__divider" />
+        <div className="ls__scan" aria-hidden="true" />
 
         <p className="ls__footer-title">NEURAL SYNCING</p>
         <p className="ls__footer-sub">NODE INSTANCE: FREE TIER ACTIVE</p>
