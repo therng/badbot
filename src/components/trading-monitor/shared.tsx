@@ -1215,7 +1215,7 @@ export function TradingMonitorSharedStyles() {
     <style jsx global>{`
       .chart-axis text {
         fill: rgba(255, 255, 255, 0.58);
-        font-family: var(--mono);
+        font-family: var(--font-mono);
         font-size: 12px;
         letter-spacing: 0.02em;
       }
@@ -1289,7 +1289,7 @@ export function TradingMonitorSharedStyles() {
         font-size: 10px;
         line-height: 1.2;
         letter-spacing: 0.04em;
-        font-family: var(--mono);
+        font-family: var(--font-mono);
       }
 
       .sparkline-live-beacon__ambient {
@@ -1398,7 +1398,7 @@ export function TradingMonitorSharedStyles() {
         padding: 20px 18px;
         text-align: center;
         color: var(--account-muted);
-        font-family: "Manrope", var(--sans);
+        font-family: var(--font-mono);
         font-size: 12px;
         font-weight: 600;
       }
