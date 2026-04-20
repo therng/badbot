@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   ANALYTIC v4.0 — Deep Terminal Dark
-   Palette: Obsidian base · Amber gold accent · Crimson negative
+   ANALYTIC v4.0 — Pure Black Terminal
+   Palette: Void black base · Electric blue accent · Crimson negative
    Fonts: IBM Plex Mono (data) · Syne (display) · Inter (body)
 ═══════════════════════════════════════════════════════════════ */
 
@@ -8,13 +8,13 @@
 
 :root {
   /* ── Core surface palette ── */
-  --bg-void:       #08090b;
-  --bg-base:       #0d0f12;
-  --bg-surface:    #111418;
-  --bg-elevated:   #161b21;
-  --bg-panel:      #1a2028;
-  --bg-hover:      #1f2530;
-  --bg-active:     #242c36;
+  --bg-void:       #000000;
+  --bg-base:       #03040a;
+  --bg-surface:    #060810;
+  --bg-elevated:   #0a0c16;
+  --bg-panel:      #0e111c;
+  --bg-hover:      #121523;
+  --bg-active:     #171b2a;
 
   /* ── Border system ── */
   --border-dim:    rgba(255,255,255,0.04);
@@ -22,16 +22,16 @@
   --border-mid:    rgba(255,255,255,0.12);
   --border-strong: rgba(255,255,255,0.18);
 
-  /* ── Amber gold — primary accent ── */
-  --gold-50:  #fff8e6;
-  --gold-100: #ffedb3;
-  --gold-200: #ffd966;
-  --gold-300: #f5c430;
-  --gold-400: #e8a800;
-  --gold-500: #c98f00;
-  --gold-600: #a07200;
-  --gold-glow: rgba(232,168,0,0.15);
-  --gold-line: rgba(232,168,0,0.25);
+  /* ── Electric blue — primary accent ── */
+  --gold-50:  #eff6ff;
+  --gold-100: #dbeafe;
+  --gold-200: #93c5fd;
+  --gold-300: #60a5fa;
+  --gold-400: #3b82f6;
+  --gold-500: #2563eb;
+  --gold-600: #1d4ed8;
+  --gold-glow: rgba(59,130,246,0.15);
+  --gold-line: rgba(59,130,246,0.25);
 
   /* ── Semantic tones ── */
   --positive:      #3dd68c;
@@ -93,8 +93,8 @@ body {
   min-height: 100vh;
   background-color: var(--bg-void);
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,168,0,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(77,168,245,0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(99,102,241,0.04) 0%, transparent 50%);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 14px;
@@ -186,8 +186,8 @@ body::before {
 ───────────────────────────────────────────── */
 .dashboard-section > .account-card {
   /* Local tokens */
-  --card-bg-top:    #141820;
-  --card-bg-bot:    #0f1217;
+  --card-bg-top:    #06091a;
+  --card-bg-bot:    #030610;
   --card-ink:       #e8ecf2;
   --card-muted:     rgba(232,236,242,0.45);
   --card-dim:       rgba(232,236,242,0.22);
@@ -195,13 +195,13 @@ body::before {
   --card-border-hi: rgba(255,255,255,0.13);
   --card-chip:      rgba(255,255,255,0.04);
   --card-chip-hi:   rgba(255,255,255,0.08);
-  --card-chart:     #e8a800;
-  --card-chart-dim: rgba(232,168,0,0.35);
-  --card-pulse:     #e8a800;
+  --card-chart:     #3b82f6;
+  --card-chart-dim: rgba(59,130,246,0.35);
+  --card-pulse:     #3b82f6;
   --card-positive:  #3dd68c;
   --card-negative:  #f04d4d;
   --card-warning:   #f5a623;
-  --card-neutral:   #4da8f5;
+  --card-neutral:   #60a5fa;
 
   /* Layout */
   position: relative;
@@ -456,8 +456,8 @@ body::before {
   background: rgba(255,255,255,0.06);
 }
 .dashboard-section > .account-card .timeframe-pill.is-active {
-  border-color: rgba(232,168,0,0.3);
-  background: rgba(232,168,0,0.1);
+  border-color: rgba(59,130,246,0.3);
+  background: rgba(59,130,246,0.1);
   color: var(--gold-300);
 }
 
@@ -495,12 +495,12 @@ body::before {
 .dashboard-section > .account-card .kchip.is-static { cursor: default; }
 .dashboard-section > .account-card .kchip.is-actionable:hover,
 .dashboard-section > .account-card .kchip.is-actionable:focus-visible {
-  border-color: rgba(232,168,0,0.2);
-  background: rgba(232,168,0,0.06);
+  border-color: rgba(59,130,246,0.2);
+  background: rgba(59,130,246,0.06);
 }
 .dashboard-section > .account-card .kchip.is-selected {
-  border-color: rgba(232,168,0,0.35);
-  background: rgba(232,168,0,0.1);
+  border-color: rgba(59,130,246,0.35);
+  background: rgba(59,130,246,0.1);
 }
 
 .dashboard-section > .account-card .kchip--skeleton {
@@ -525,7 +525,7 @@ body::before {
   font-family: var(--font-mono);
   font-size: 7px;
   font-weight: 400;
-  color: rgba(232,168,0,0.6);
+  color: rgba(59,130,246,0.6);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   line-height: 1.3;
@@ -541,12 +541,7 @@ body::before {
   overflow-wrap: anywhere;
 }
 .dashboard-section > .account-card .kchip__meta {
-  font-family: var(--font-mono);
-  font-size: 7px;
-  color: var(--card-dim);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1.2;
+  display: none;
 }
 
 /* KPI detail panel */
@@ -580,7 +575,7 @@ body::before {
   font-size: 7px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(232,168,0,0.5);
+  color: rgba(59,130,246,0.5);
 }
 .dashboard-section > .account-card .kpi-detail-item strong {
   font-family: var(--font-mono);
@@ -593,10 +588,7 @@ body::before {
   white-space: nowrap;
 }
 .dashboard-section > .account-card .kpi-detail-note {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--card-muted);
-  line-height: 1.5;
+  display: none;
 }
 
 /* Tone overrides for card context */
@@ -713,7 +705,7 @@ body::before {
   gap: 0;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(232,168,0,0.2) transparent;
+  scrollbar-color: rgba(59,130,246,0.2) transparent;
 }
 .dashboard-section > .account-card .trade-history-row {
   display: grid;
@@ -805,7 +797,7 @@ body::before {
   font-size: 7px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(232,168,0,0.5);
+  color: rgba(59,130,246,0.5);
   background: var(--bg-elevated);
   position: sticky;
   top: 0;
@@ -844,7 +836,7 @@ body::before {
   position: sticky;
   top: 0;
   background: var(--bg-elevated);
-  color: rgba(232,168,0,0.5);
+  color: rgba(59,130,246,0.5);
   font-size: 7.5px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -887,7 +879,7 @@ body::before {
   gap: 2px;
   min-width: 120px;
   padding: 8px 10px;
-  border: 0.5px solid rgba(232,168,0,0.2);
+  border: 0.5px solid rgba(59,130,246,0.2);
   border-radius: var(--r-sm);
   background: rgba(13,15,18,0.95);
   box-shadow: 0 12px 32px rgba(0,0,0,0.5);
@@ -904,8 +896,8 @@ body::before {
   width: 18px; height: 18px;
   transform: translate(-50%,-50%);
   border-radius: 50%;
-  background: rgba(232,168,0,0.1);
-  box-shadow: 0 0 12px rgba(232,168,0,0.3);
+  background: rgba(59,130,246,0.1);
+  box-shadow: 0 0 12px rgba(59,130,246,0.3);
   z-index: -1;
 }
 .sparkline-live-beacon__pulse {
@@ -916,8 +908,8 @@ body::before {
   transform: translate(-50%,-50%) scale(1);
   transform-origin: center;
   border-radius: 50%;
-  background: rgba(232,168,0,0.12);
-  border: 1px solid rgba(232,168,0,0.5);
+  background: rgba(59,130,246,0.12);
+  border: 1px solid rgba(59,130,246,0.5);
   opacity: 0;
 }
 .sparkline-live-beacon__pulse--one  { animation: pulse-ring var(--pulse-duration) ease-out infinite; }
@@ -930,7 +922,7 @@ body::before {
 }
 
 .sparkline-live-dot__core {
-  filter: drop-shadow(0 0 6px rgba(232,168,0,0.6));
+  filter: drop-shadow(0 0 6px rgba(59,130,246,0.6));
 }
 
 .trade-history-empty {
@@ -1002,13 +994,13 @@ body::before {
 .account-pages__dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  border: 0.5px solid rgba(232,168,0,0.4);
-  background: rgba(232,168,0,0.1);
+  border: 0.5px solid rgba(59,130,246,0.4);
+  background: rgba(59,130,246,0.1);
   transition: all 180ms ease;
 }
 .account-pages__dot.is-active {
   width: 16px;
-  border-color: rgba(232,168,0,0.9);
+  border-color: rgba(59,130,246,0.9);
   background: var(--gold-400);
 }
 
@@ -1058,8 +1050,8 @@ body::before {
 ───────────────────────────────────────────── */
 .analytic-launch-screen {
   --launch-accent: var(--gold-400);
-  --launch-accent-bright: var(--gold-200);
-  --launch-accent-rgb: 232,168,0;
+  --launch-accent-bright: var(--gold-300);
+  --launch-accent-rgb: 59,130,246;
   position: relative;
   width: 100%;
   min-height: min(720px, calc(100svh - 72px));
@@ -1089,7 +1081,7 @@ body::before {
 .analytic-launch-screen.is-empty {
   --launch-accent: var(--gold-400);
   --launch-accent-bright: var(--gold-200);
-  --launch-accent-rgb: 232,168,0;
+  --launch-accent-rgb: 59,130,246;
 }
 
 .monitor-shell.app-shell > .analytic-launch-screen { flex: 1; min-height: 0; }
@@ -1446,13 +1438,13 @@ body::before {
   transition: all var(--t-fast);
 }
 .timeframe-pill:hover { border-color: rgba(255,255,255,0.12); color: var(--text-primary); background: rgba(255,255,255,0.05); }
-.timeframe-pill.is-active { border-color: rgba(232,168,0,0.35); background: rgba(232,168,0,0.1); color: var(--gold-300); }
+.timeframe-pill.is-active { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.1); color: var(--gold-300); }
 
 /* ─────────────────────────────────────────────
    FOCUS RING
 ───────────────────────────────────────────── */
 a:focus-visible, button:focus-visible {
-  outline: 1.5px solid rgba(232,168,0,0.6);
+  outline: 1.5px solid rgba(59,130,246,0.6);
   outline-offset: 2px;
   border-radius: var(--r-xs);
 }
@@ -1474,8 +1466,8 @@ a:focus-visible, button:focus-visible {
 .trade-executions-chart__figure { position: relative; width: 100%; min-height: 0; height: 100%; }
 .trade-executions-chart__svg { width: 100%; height: 100%; overflow: visible; }
 .trade-executions-chart__grid line { stroke: rgba(255,255,255,0.04); stroke-width: 1; }
-.trade-executions-chart__focus-line { stroke: rgba(232,168,0,0.2); stroke-width: 1; stroke-dasharray: 3 5; }
-.trade-executions-chart__focus-dot { fill: var(--gold-400); stroke: rgba(255,255,255,0.6); stroke-width: 1.5; filter: drop-shadow(0 0 6px rgba(232,168,0,0.5)); }
+.trade-executions-chart__focus-line { stroke: rgba(59,130,246,0.2); stroke-width: 1; stroke-dasharray: 3 5; }
+.trade-executions-chart__focus-dot { fill: var(--gold-400); stroke: rgba(255,255,255,0.6); stroke-width: 1.5; filter: drop-shadow(0 0 6px rgba(59,130,246,0.5)); }
 .trade-executions-chart__hit { fill: transparent; cursor: pointer; }
 .trade-executions-chart__empty {
   position: absolute; inset: 0;
@@ -1645,7 +1637,7 @@ a:focus-visible, button:focus-visible {
     box-shadow: 0 12px 28px rgba(0,0,0,0.35);
     transition: all var(--t-base);
   }
-  .account-carousel-nav__button:hover { border-color: rgba(232,168,0,0.3); color: var(--gold-300); transform: translateY(-50%) scale(1.03); }
+  .account-carousel-nav__button:hover { border-color: rgba(59,130,246,0.3); color: var(--gold-300); transform: translateY(-50%) scale(1.03); }
   .account-carousel-nav__button:disabled { opacity: 0.3; cursor: default; transform: translateY(-50%); }
   .account-carousel-nav__button--prev { left: 0; }
   .account-carousel-nav__button--next { right: 0; }
@@ -1865,7 +1857,7 @@ body { min-height: 100svh; }
 
 /* Logo */
 .ls__logo {
-  font-family: var(--sans);
+  font-family: var(--font-body);
   font-size: clamp(3rem, 12vw, 4.8rem);
   font-weight: 900;
   font-style: italic;
@@ -1905,7 +1897,7 @@ body { min-height: 100svh; }
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -1916,7 +1908,7 @@ body { min-height: 100svh; }
 
 /* Status */
 .ls__status {
-  font-family: var(--sans);
+  font-family: var(--font-body);
   font-size: 0.85rem;
   font-style: italic;
   font-weight: 300;
@@ -1966,7 +1958,7 @@ body { min-height: 100svh; }
 
 /* Footer */
 .ls__footer-title {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.3em;
@@ -1977,7 +1969,7 @@ body { min-height: 100svh; }
 }
 
 .ls__footer-sub {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 400;
   letter-spacing: 0.14em;
