@@ -162,7 +162,8 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         window.setTimeout(() => {
           setPhase("entering");
           writeAuthenticatedFlag();
-          onEnter();
+          // Let the ai-login-exit animation (420ms) play before unmounting.
+          window.setTimeout(onEnter, 420);
         }, 420);
       }, 720);
     },
@@ -176,7 +177,8 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
     writeAuthenticatedFlag();
     window.setTimeout(() => {
       setPhase("entering");
-      onEnter();
+      // Let the ai-login-exit animation (420ms) play before unmounting.
+      window.setTimeout(onEnter, 420);
     }, 220);
   }, [onEnter, phase]);
 

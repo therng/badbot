@@ -37,10 +37,7 @@ export default function HomeExperience() {
     }
   }, []);
 
-  return (
-    <>
-      <DashboardClient />
-      {!authenticated ? <AILoginGate onEnter={handleEnter} /> : null}
-    </>
-  );
+  // Mount DashboardClient only after auth so its API fetches are not kicked
+  // off while the gate is still covering the UI (saves requests and CPU).
+  return authenticated ? <DashboardClient /> : <AILoginGate onEnter={handleEnter} />;
 }
