@@ -197,6 +197,7 @@ const DashboardCard = memo(function DashboardCard({
     tone: MetricTone;
     meta?: string;
     fullValue?: string;
+    hint?: string;
   }> = [
     {
       key: "gain",
@@ -205,6 +206,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatCompactSignedNumber(overview.data?.kpis.netProfit, 1),
       tone: gainTone,
       fullValue: formatSignedCurrency(overview.data?.kpis.netProfit, 2),
+      hint: "กำไร/ขาดทุนสุทธิหลังหัก swap และ commission แล้ว บอกว่า strategy นี้ทำเงินได้จริงหรือไม่ในช่วงเวลาที่เลือก",
     },
     {
       key: "dd",
@@ -213,6 +215,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatPlainPercent(overview.data?.kpis.drawdown, 1),
       tone: relativeDrawdownTone,
       meta: drawdownMeta,
+      hint: "วัดความเสี่ยงของ account — balance ลดลงจากจุดสูงสุดมากแค่ไหน (%) ยิ่งต่ำยิ่งควบคุม risk ได้ดี ใช้เปรียบเทียบความเสี่ยงระหว่าง account หรือ strategy",
     },
     {
       key: "pips",
@@ -222,6 +225,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: pipsTone,
       meta: "Closed",
       fullValue: `${formatSignedPlainNumberValue(overview.data?.kpis.netPips, 1)} pips`,
+      hint: "หน่วยวัดทิศทางการวิเคราะห์ตลาด — บวกหมายถึงจับทิศได้ถูก ใช้วัด skill โดยไม่ขึ้นกับขนาดเงินทุนหรือ lot size ทำให้เปรียบเทียบข้าม account ได้ยุติธรรม",
     },
     {
       key: "trades",
@@ -230,6 +234,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatCompactCount(overview.data?.kpis.trades, 1),
       tone: "warning",
       fullValue: formatWholeNumber(overview.data?.kpis.trades),
+      hint: "บอกความถี่และสไตล์การเทรด — Scalper มักมีจำนวนสูง Swing trader มักน้อย ใช้ประกอบการประเมินต้นทุน commission รวม",
     },
     {
       key: "opens",
@@ -237,6 +242,7 @@ const DashboardCard = memo(function DashboardCard({
       label: "Open",
       value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
       tone: openTone,
+      hint: "position ที่ยังอยู่ในตลาด แต่ละรายการล็อค margin และมี floating P/L ที่ยังไม่แน่นอน ยิ่งมากยิ่งต้องติดตามความเสี่ยงสะสม",
     },
   ];
   const kpiRows = [
@@ -269,6 +275,7 @@ const DashboardCard = memo(function DashboardCard({
     tone: MetricTone;
     meta?: string;
     fullValue?: string;
+    hint?: string;
   }> =
     expandedKpi === "gain"
       ? [
@@ -277,24 +284,28 @@ const DashboardCard = memo(function DashboardCard({
             value: formatCompactSignedNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 1),
             tone: toneFromNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission)),
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 2),
+            hint: "ต้นทุนที่จ่ายให้ broker ต่อการเทรดแต่ละครั้ง หาก commission สูงเมื่อเทียบกับ Gain แสดงว่าต้นทุนการเทรดกินกำไรมาก",
           },
           {
             label: "Swap",
             value: formatCompactSignedNumber(profitDetail.data?.summary.totalSwap, 1),
             tone: toneFromNumber(profitDetail.data?.summary.totalSwap),
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalSwap, 2),
+            hint: "ดอกเบี้ยรายคืนจากการถือ position ข้ามคืน อาจเป็นบวกหรือลบขึ้นกับคู่สกุลเงินและทิศทาง ส่งผลมากเมื่อถือ position หลายวัน",
           },
           {
             label: "Deposits",
             value: formatCompactSignedNumber(profitDetail.data?.summary.totalDeposit, 1),
             tone: "positive",
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalDeposit, 2),
+            hint: "เงินที่เติมเข้าบัญชีในช่วงนี้ ใช้ตรวจสอบว่า Gain ที่เห็นมาจากการเทรดจริง หรือจากการฝากเงินเพิ่ม",
           },
           {
             label: "Withdrawals",
             value: formatCompactSignedNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 1),
             tone: "warning",
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 2),
+            hint: "เงินที่ถอนออกจากบัญชีในช่วงนี้ ช่วยดู cash flow จริง และประเมินว่ากำไรที่ทำได้ถูกนำออกใช้จริงมากน้อยแค่ไหน",
           },
         ]
       : expandedKpi === "dd"
@@ -305,6 +316,7 @@ const DashboardCard = memo(function DashboardCard({
               tone: drawdownTone(balanceDetail.data?.summary.absoluteDrawdown),
               meta: "Balance absolute drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
+              hint: "balance ลดลงจากยอดเริ่มต้นมากที่สุดเท่าไร บอกว่าทุนเคยหายไปมากแค่ไหนเมื่อเทียบกับตอนเปิดบัญชี",
             },
             {
               label: "MAX",
@@ -312,6 +324,7 @@ const DashboardCard = memo(function DashboardCard({
               tone: drawdownTone(balanceDetail.data?.summary.maximalDrawdownAmount),
               meta: "Balance maximal drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
+              hint: "ความเสียหายสูงสุดที่เคยเกิดขึ้น วัดจาก peak สู่ valley นักลงทุนมักใช้ตัวเลขนี้ประเมินความเสี่ยงสูงสุดที่ยอมรับได้",
             },
             {
               label: "WIN",
@@ -319,6 +332,7 @@ const DashboardCard = memo(function DashboardCard({
               tone: toneFromNumber(overview.data?.kpis.winPercent),
               meta: "Closed positions win rate",
               fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 1),
+              hint: "สัดส่วนการชนะ — ค่าสูงไม่ได้แปลว่ากำไรมากเสมอไป ต้องดูร่วมกับ Risk:Reward ratio ด้วยว่าได้กำไรต่อครั้งมากกว่าขาดทุนหรือไม่",
             },
           ]
         : expandedKpi === "trades"
@@ -328,18 +342,21 @@ const DashboardCard = memo(function DashboardCard({
                   value: formatPlainPercent(positionsDetail.data?.summary.tradeActivityPercent, 1),
                   tone: toneFromNumber(positionsDetail.data?.summary.tradeActivityPercent),
                   meta: "Activity%",
+                  hint: "ความสม่ำเสมอของการเทรด — บอกว่า trader เทรดบ่อยแค่ไหนในช่วงนี้ ช่วยดูว่า strategy ต้องติดตามตลาดอย่างต่อเนื่องหรือไม่",
                 },
                 {
                   label: "TR/WK",
                   value: formatRatioValue(positionsDetail.data?.summary.tradesPerWeek, 1),
                   tone: toneFromNumber(positionsDetail.data?.summary.tradesPerWeek),
                   meta: "Trade per week",
+                  hint: "อัตราการเทรดต่อสัปดาห์ ใช้คาดการณ์จำนวน trade ในอนาคตและประเมินว่า strategy เหมาะกับเวลาที่มีหรือไม่",
                 },
                 {
                   label: "HOLD",
                   value: formatAverageHoldTime(positionsDetail.data?.summary.averageHoldHours),
                   tone: "neutral",
                   meta: "Average hold time",
+                  hint: "บอกสไตล์การเทรด — Scalper ถือ < 1 ชม. Day trader ถือไม่ข้ามวัน Swing trader ถือหลายวัน ยิ่งถือนานยิ่งสะสม swap มากขึ้น",
                 },
               ]
           : expandedKpi === "opens"
@@ -349,24 +366,28 @@ const DashboardCard = memo(function DashboardCard({
                     value: formatCompactSignedNumber(positionsDetail.data?.summary.floatingProfit, 1),
                     tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
                     fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
+                    hint: "กำไร/ขาดทุนที่ยังไม่ได้รับจริง เปลี่ยนตามราคาตลาดตลอดเวลา จะกลายเป็นกำไร/ขาดทุนจริงเมื่อปิด position",
                   },
                   {
                     label: "Swap",
                     value: formatCompactSignedNumber(openPositionSwap, 1),
                     tone: toneFromNumber(openPositionSwap),
                     fullValue: formatSignedCurrency(openPositionSwap, 2),
+                    hint: "ดอกเบี้ยค้างจ่ายของ position ที่เปิดอยู่ สะสมทุกคืนที่ถือข้ามคืน ควรติดตามหากถือ position ค้างหลายวัน",
                   },
                   {
                     label: "Margin",
                     value: formatCompactNumber(currentMargin, 1),
                     tone: Number.isFinite(currentMargin) && (currentMargin ?? 0) > 0 ? "warning" : "muted",
                     fullValue: formatCurrency(currentMargin, 2),
+                    hint: "เงินที่ถูกล็อคเป็นหลักประกันสำหรับ position ที่เปิดอยู่ ไม่สามารถใช้เปิด position ใหม่ได้จนกว่าจะปิด position เดิม",
                   },
                   {
                     label: "Level",
                     value: formatPlainPercent(currentMarginLevel, 1),
                     tone: marginLevelTone(currentMarginLevel),
                     fullValue: formatPlainPercent(currentMarginLevel, 1),
+                    hint: "สุขภาพของบัญชี = Equity ÷ Margin × 100% ยิ่งสูงยิ่งปลอดภัย broker ส่วนใหญ่ margin call ที่ 100% และ stop out ที่ 50%",
                   },
                 ]
             : [];
@@ -493,6 +514,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone={item.tone}
                     meta={item.meta}
                     fullValue={item.fullValue}
+                    hint={item.hint}
                   />
                 );
               }
@@ -505,6 +527,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone={item.tone}
                   meta={item.meta}
                   fullValue={item.fullValue}
+                  hint={item.hint}
                   onClick={() => handleChipToggle(expandKey)}
                   isSelected={expandedKpi === expandKey}
                 />
@@ -535,6 +558,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone={row.tone}
                     meta={row.meta}
                     fullValue={row.fullValue}
+                    hint={row.hint}
                   />
                 ))}
               </div>
