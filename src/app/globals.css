@@ -311,12 +311,12 @@ body::before {
 .dashboard-section > .account-card .sp-account-status.is-active {
   background: var(--positive);
   box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgba(61,214,140,0.4);
-  animation: pulse-dot 3s ease-in-out infinite;
+  animation: pulse-dot 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse-dot {
-  0%,100% { box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgba(61,214,140,0.35); }
-  50%      { box-shadow: 0 0 0 4px rgba(61,214,140,0.08), 0 0 14px rgba(61,214,140,0.5); }
+  0%,100% { opacity: 1;    box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgba(61,214,140,0.35); }
+  50%      { opacity: 0.3; box-shadow: 0 0 0 2px rgba(61,214,140,0.05), 0 0 4px rgba(61,214,140,0.15); }
 }
 
 .dashboard-section > .account-card .sp-account-status.is-inactive {
@@ -526,7 +526,7 @@ body::before {
   font-family: var(--font-mono);
   font-size: 7px;
   font-weight: 400;
-  color: rgba(59,130,246,0.6);
+  color: rgba(255,255,255,0.4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   line-height: 1.3;
@@ -770,7 +770,7 @@ body::before {
   display: grid;
   height: 100%;
   min-height: 0;
-  margin-top: 0;
+  margin-top: 10px;
 }
 .dashboard-section > .account-card .pips-performance__table-shell {
   height: 100%;
@@ -810,6 +810,14 @@ body::before {
   text-align: left;
   font-weight: 500;
   color: var(--card-ink);
+}
+.dashboard-section > .account-card .pips-performance__table tbody th:first-child {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
 }
 .dashboard-section > .account-card .pips-performance__table tr:last-child td { border-bottom: none; }
 
