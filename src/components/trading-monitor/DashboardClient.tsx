@@ -256,9 +256,11 @@ const DashboardCard = memo(function DashboardCard({
   const isPipsExpanded = expandedKpi === "pips";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
-    setExpandedKpiState(null);
+    setExpandedKpiState((current) =>
+      current?.value ? { scope: `${account.id}:${nextTimeframe}`, value: current.value } : current,
+    );
     setTimeframe(nextTimeframe);
-  }, [accountDisplayName]);
+  }, [accountDisplayName, account.id]);
   const openPositionSwap = positionsDetail.data?.openPositions.reduce((total, position) => total + Number(position.swap ?? 0), 0);
   const currentMargin = positionsDetail.data?.account.margin;
   const currentMarginLevel = positionsDetail.data?.account.margin_level;
