@@ -206,7 +206,7 @@ body::before {
   /* Layout */
   position: relative;
   padding: 20px 20px 18px;
-  gap: 14px;
+  gap: 4px;
   display: grid;
   min-height: auto;
   overflow: hidden;
@@ -251,7 +251,7 @@ body::before {
 }
 
 /* ── Card header layout ── */
-.dashboard-section > .account-card .sp-wrap { margin-bottom: 4px; }
+.dashboard-section > .account-card .sp-wrap { margin-bottom: 0; }
 
 .dashboard-section > .account-card .sp-header {
   display: grid;
