@@ -1,15 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EconomicEvent } from "@/app/api/economic-events/route";
 
-
-type InsightSource = "gemini" | "local" | "fallback";
-
-type InsightResponse = {
-  insight: string;
-  source: InsightSource;
-};
 
 type EconomicEventsResponse = {
   events: EconomicEvent[];
@@ -24,7 +17,16 @@ type AILoginGateProps = {
 
 const STORAGE_KEY = "analytic.ai.session";
 const TYPING_SPEED_MS = 20;
-const APP_VERSION = "v4.0";
+const ENGINE_CACHE_KEY = "analytic_xau_v1_cache";
+const ENGINE_CACHE_TTL_MS = 60 * 60 * 1000;
+
+type SessionKey = "asia" | "london" | "ny" | "overnight";
+type AnalyticEngineState = {
+  trends: string[];
+  currentIndex: number;
+  isLoading: boolean;
+  refresh: () => Promise<void>;
+};
 
 function readAuthenticatedFlag() {
   if (typeof window === "undefined") return false;
@@ -44,12 +46,110 @@ function writeAuthenticatedFlag() {
   }
 }
 
-function sourceLabel(source: InsightSource | null) {
-  switch (source) {
-    case "gemini": return "Gemini AI";
-    case "local": return "Local Composer";
-    case "fallback": return "Standby";
-    default: return "Booting…";
+function bangkokHour(date = new Date()) {
+  const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
+  return Math.floor(((utcMinutes + 7 * 60) % (24 * 60)) / 60);
+}
+
+function resolveSession(hour: number): SessionKey {
+  if (hour >= 7 && hour < 14) return "asia";
+  if (hour >= 14 && hour < 20) return "london";
+  if (hour >= 20 || hour < 2) return "ny";
+  return "overnight";
+}
+
+function pickDeterministic<T>(list: T[], seed: number, salt: number) {
+  const index = Math.abs(Math.floor(seed * 9301 + salt * 49297)) % list.length;
+  return list[index];
+}
+
+const TREND_BANK: Record<SessionKey, string[][]> = {
+  asia: [
+    [
+      "ฝั่งซื้อยังคุมจังหวะในกรอบเอเชีย",
+      "สภาพคล่องใต้ฐานยังมีโอกาสถูกกวาด",
+      "แรงขายเร่งตัวเมื่อหลุดฐานย่อย",
+      "รอรับหลังเก็บ liquidity แล้วค่อยตาม",
+    ],
+    [
+      "ทองยังยืนเหนือโครงสร้างพักตัวได้",
+      "จุดซ่อนแรงคือฐานต่ำก่อนหน้า",
+      "เสีย higher low แล้ว bias จะเปลี่ยน",
+      "เน้น buy the dip มากกว่าราคาไล่",
+    ],
+  ],
+  london: [
+    [
+      "ลอนดอนหนุนแรงซื้อเหนือกรอบสะสม",
+      "liquidity ฝั่งบนยังเปิดทางต่อ",
+      "โดน reject แรงตรงยอดคือสัญญาณเสี่ยง",
+      "รอ retest แล้วค่อยตามฝั่งขึ้น",
+    ],
+    [
+      "โมเมนตัมยุโรปยังพยุงฝั่งบวก",
+      "โซน sweep ใต้ low ล่าสุดยังสำคัญ",
+      "หลุดฐานลอนดอนเมื่อไรเกมเปลี่ยน",
+      "เลือกเทรด continuation หลังย่อสวย",
+    ],
+  ],
+  ny: [
+    [
+      "นิวยอร์กเปิดด้วยแรงตามซื้อชัด",
+      "จุดซ่อนอยู่ที่การดูดซับฝั่งขาย",
+      "DXY เด้งแรงจะกดทองทันที",
+      "ถือ bias บวกจนกว่าจะเสียฐาน",
+    ],
+    [
+      "กระแสหลักยังเอนเข้าฝั่งผู้ซื้อ",
+      "liquidity เหนือยอดยังล่อราคาอยู่",
+      "ข่าวสหรัฐพลิกจังหวะได้เร็วมาก",
+      "ลดขนาดไม้ก่อนข่าวแล้วค่อยเติม",
+    ],
+  ],
+  overnight: [
+    [
+      "ตลาดดึกยังสะสมกำลังก่อนเอเชีย",
+      "โซนเก็บของอยู่ใต้ swing ล่าสุด",
+      "หลุดฐานเงียบเมื่อไรฝั่งลงเร่งตัว",
+      "รอ confirmation ก่อนเปิดไม้ใหม่",
+    ],
+    [
+      "สภาพคล่องบางแต่โครงสร้างยังไม่เสีย",
+      "แรงจริงซ่อนอยู่แถว demand เดิม",
+      "เบรกหลอกช่วงดึกทำลายจังหวะง่าย",
+      "เก็บไม้เบาและรอเช้าเพิ่มน้ำหนัก",
+    ],
+  ],
+};
+
+const FALLBACK_TRENDS = [
+  "พร้อมสำหรับการสแกนโครงสร้างตลาด",
+  "โฟกัส liquidity สำคัญก่อนเสมอ",
+  "รักษา bias จนกว่าจะเสียฐาน",
+  "เข้าเทรดเมื่อจังหวะยืนยันเท่านั้น",
+];
+
+function buildLocalTrends(now = new Date()) {
+  const hour = bangkokHour(now);
+  const session = resolveSession(hour);
+  const rotation = Math.floor(now.getTime() / (10 * 60 * 1000));
+  const jitter = (rotation % 997) / 997;
+
+  return pickDeterministic(TREND_BANK[session], jitter, hour) ?? FALLBACK_TRENDS;
+}
+
+function readCachedTrends() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ENGINE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data?: unknown; timestamp?: unknown };
+    if (!Array.isArray(parsed.data) || typeof parsed.timestamp !== "number") return null;
+    if (Date.now() - parsed.timestamp >= ENGINE_CACHE_TTL_MS) return null;
+    const trends = parsed.data.filter((line): line is string => typeof line === "string" && line.trim().length > 0).slice(0, 4);
+    return trends.length === 4 ? trends : null;
+  } catch {
+    return null;
   }
 }
 
@@ -58,37 +158,57 @@ function formatEventTime(time: string): string {
   return time;
 }
 
+function useAnalyticEngine(): AnalyticEngineState {
+  const [trends, setTrends] = useState<string[]>(() => readCachedTrends() ?? buildLocalTrends());
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchAiAnalysis = useCallback(async (force = false) => {
+    const localTrends = !force ? (readCachedTrends() ?? buildLocalTrends()) : buildLocalTrends();
+    setTrends(localTrends);
+    setCurrentIndex(0);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(
+          ENGINE_CACHE_KEY,
+          JSON.stringify({
+            data: trends,
+            timestamp: Date.now(),
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [trends]);
+
+  useEffect(() => {
+    const rotateInterval = window.setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % trends.length);
+    }, 10000);
+
+    return () => window.clearInterval(rotateInterval);
+  }, [trends.length]);
+
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    await fetchAiAnalysis(true);
+  }, [fetchAiAnalysis]);
+
+  return { trends, currentIndex, isLoading, refresh };
+}
+
 export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [insight, setInsight] = useState<string>("");
   const [insightTyped, setInsightTyped] = useState<string>("");
-  const [insightSource, setInsightSource] = useState<InsightSource | null>(null);
-  const [loadingInsight, setLoadingInsight] = useState(true);
   const [events, setEvents] = useState<EconomicEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
-  const abortRef = useRef<AbortController | null>(null);
-
-  // ── Fetch AI Insight ──────────────────────────────────────────
-  const fetchInsight = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setLoadingInsight(true);
-    try {
-      const res = await fetch("/api/loading-insight", { signal: controller.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      const payload = (await res.json()) as InsightResponse;
-      setInsight(payload.insight ?? "");
-      setInsightSource(payload.source ?? "fallback");
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return;
-      setInsight("พร้อมสำหรับการวิเคราะห์ข้อมูลขั้นสูง");
-      setInsightSource("fallback");
-    } finally {
-      setLoadingInsight(false);
-    }
-  }, []);
+  const { trends, currentIndex, isLoading: loadingInsight, refresh } = useAnalyticEngine();
 
   // ── Fetch Economic Events ─────────────────────────────────────
   const fetchEvents = useCallback(async () => {
@@ -106,10 +226,10 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
   }, []);
 
   useEffect(() => {
-    fetchInsight();
     fetchEvents();
-    return () => { abortRef.current?.abort(); };
-  }, [fetchInsight, fetchEvents]);
+  }, [fetchEvents]);
+
+  const insight = trends[currentIndex] ?? "";
 
   // ── Typewriter effect ─────────────────────────────────────────
   useEffect(() => {
@@ -176,25 +296,24 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         {/* ── AI Core Insight ── */}
         <section className="ls__insight" aria-live="polite">
           <div className="ls__insight-header">
-            <span className="ls__insight-label">AI CORE INSIGHT</span>
-            <span className="ls__insight-source">{sourceLabel(insightSource)}</span>
+            <span className="ls__insight-label">AI-CORE</span>
+            <button
+              type="button"
+              className="ls__insight-refresh"
+              onClick={refresh}
+              disabled={loadingInsight || isEntering}
+              aria-label="Refresh AI-CORE insight"
+            >
+              ↻
+            </button>
           </div>
           <p className="ls__insight-text">
             {loadingInsight && !insightTyped ? (
-              <span className="ls__insight-loading">Synthesizing…<span className="ls__blink">▌</span></span>
+              <span className="ls__insight-loading">Loading AI-CORE…<span className="ls__blink">▌</span></span>
             ) : (
               <>{insightTyped}<span className="ls__caret" aria-hidden>{caret}</span></>
             )}
           </p>
-          <button
-            type="button"
-            className="ls__insight-refresh"
-            onClick={fetchInsight}
-            disabled={loadingInsight || isEntering}
-            aria-label="Regenerate insight"
-          >
-            ↻
-          </button>
         </section>
 
         {/* ── Economic Events ── */}
@@ -246,11 +365,7 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
 
         {/* ── Footer ── */}
         <footer className="ls__footer">
-          <span className="ls__footer-version">{APP_VERSION}</span>
-          <span className="ls__footer-sep" aria-hidden>·</span>
-          <span>Bangkok UTC+7</span>
-          <span className="ls__footer-sep" aria-hidden>·</span>
-          <span>AI Core</span>
+          <span>Analytic 4.0, 2026 by Therng</span>
         </footer>
       </main>
     </div>
