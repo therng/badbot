@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { EconomicEvent } from "@/app/api/economic-events/route";
+
 
 type InsightSource = "gemini" | "local" | "fallback";
 
@@ -9,28 +11,23 @@ type InsightResponse = {
   source: InsightSource;
 };
 
-type Phase = "idle" | "authenticating" | "ready" | "entering";
+type EconomicEventsResponse = {
+  events: EconomicEvent[];
+  date: string;
+};
+
+type Phase = "idle" | "entering";
 
 type AILoginGateProps = {
   onEnter: () => void;
 };
 
-const ACCESS_CODE = "ANALYTIC";
-const TYPING_SPEED_MS = 22;
 const STORAGE_KEY = "analytic.ai.session";
-
-const STATUS_CYCLES = [
-  "Calibrating market model",
-  "Reading liquidity signature",
-  "Synthesizing XAUUSD context",
-  "Aligning Bangkok session window",
-  "Stabilizing insight channel",
-];
+const TYPING_SPEED_MS = 20;
+const APP_VERSION = "v4.0";
 
 function readAuthenticatedFlag() {
-  if (typeof window === "undefined") {
-    return false;
-  }
+  if (typeof window === "undefined") return false;
   try {
     return window.sessionStorage.getItem(STORAGE_KEY) === "1";
   } catch {
@@ -39,63 +36,53 @@ function readAuthenticatedFlag() {
 }
 
 function writeAuthenticatedFlag() {
-  if (typeof window === "undefined") {
-    return;
-  }
+  if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(STORAGE_KEY, "1");
   } catch {
-    /* ignore storage failures */
+    /* ignore */
   }
 }
 
 function sourceLabel(source: InsightSource | null) {
   switch (source) {
-    case "gemini":
-      return "AI · Gemini";
-    case "local":
-      return "AI · Local Composer";
-    case "fallback":
-      return "AI · Standby";
-    default:
-      return "AI · Booting";
+    case "gemini": return "Gemini AI";
+    case "local": return "Local Composer";
+    case "fallback": return "Standby";
+    default: return "Booting…";
   }
+}
+
+function formatEventTime(time: string): string {
+  if (!time) return "All Day";
+  return time;
 }
 
 export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [insight, setInsight] = useState<string>("");
   const [insightTyped, setInsightTyped] = useState<string>("");
   const [insightSource, setInsightSource] = useState<InsightSource | null>(null);
-  const [statusIndex, setStatusIndex] = useState(0);
   const [loadingInsight, setLoadingInsight] = useState(true);
+  const [events, setEvents] = useState<EconomicEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // ── Fetch AI Insight ──────────────────────────────────────────
   const fetchInsight = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
     setLoadingInsight(true);
     try {
-      const response = await fetch("/api/loading-insight", {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        throw new Error(`status ${response.status}`);
-      }
-      const payload = (await response.json()) as InsightResponse;
+      const res = await fetch("/api/loading-insight", { signal: controller.signal, cache: "no-store" });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const payload = (await res.json()) as InsightResponse;
       setInsight(payload.insight ?? "");
       setInsightSource(payload.source ?? "fallback");
-    } catch (fetchError) {
-      if ((fetchError as Error).name === "AbortError") {
-        return;
-      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       setInsight("พร้อมสำหรับการวิเคราะห์ข้อมูลขั้นสูง");
       setInsightSource("fallback");
     } finally {
@@ -103,210 +90,167 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
     }
   }, []);
 
-  useEffect(() => {
-    fetchInsight();
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, [fetchInsight]);
+  // ── Fetch Economic Events ─────────────────────────────────────
+  const fetchEvents = useCallback(async () => {
+    setLoadingEvents(true);
+    try {
+      const res = await fetch("/api/economic-events", { cache: "no-store" });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const payload = (await res.json()) as EconomicEventsResponse;
+      setEvents(payload.events ?? []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoadingEvents(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!insight) {
-      setInsightTyped("");
-      return;
-    }
+    fetchInsight();
+    fetchEvents();
+    return () => { abortRef.current?.abort(); };
+  }, [fetchInsight, fetchEvents]);
+
+  // ── Typewriter effect ─────────────────────────────────────────
+  useEffect(() => {
+    if (!insight) { setInsightTyped(""); return; }
     setInsightTyped("");
     let index = 0;
     const handle = window.setInterval(() => {
       index += 1;
       setInsightTyped(insight.slice(0, index));
-      if (index >= insight.length) {
-        window.clearInterval(handle);
-      }
+      if (index >= insight.length) window.clearInterval(handle);
     }, TYPING_SPEED_MS);
     return () => window.clearInterval(handle);
   }, [insight]);
 
-  useEffect(() => {
-    const handle = window.setInterval(() => {
-      setStatusIndex((current) => (current + 1) % STATUS_CYCLES.length);
-    }, 2200);
-    return () => window.clearInterval(handle);
-  }, []);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (phase === "authenticating" || phase === "entering") return;
-
-      const normalized = code.trim().toUpperCase();
-      if (!normalized) {
-        setError("กรุณาป้อนรหัสเข้าระบบ");
-        return;
-      }
-
-      if (normalized !== ACCESS_CODE) {
-        setError("รหัสไม่ถูกต้อง ลองอีกครั้ง");
-        return;
-      }
-
-      setError(null);
-      setPhase("authenticating");
-
-      window.setTimeout(() => {
-        setPhase("ready");
-        window.setTimeout(() => {
-          setPhase("entering");
-          writeAuthenticatedFlag();
-          // Let the ai-login-exit animation (420ms) play before unmounting.
-          window.setTimeout(onEnter, 420);
-        }, 420);
-      }, 720);
-    },
-    [code, onEnter, phase],
-  );
-
-  const handleGuest = useCallback(() => {
-    if (phase === "authenticating" || phase === "entering") return;
-    setError(null);
-    setPhase("ready");
+  // ── Enter handler ─────────────────────────────────────────────
+  const handleEnter = useCallback(() => {
+    if (phase === "entering") return;
+    setPhase("entering");
     writeAuthenticatedFlag();
-    window.setTimeout(() => {
-      setPhase("entering");
-      // Let the ai-login-exit animation (420ms) play before unmounting.
-      window.setTimeout(onEnter, 420);
-    }, 220);
+    window.setTimeout(onEnter, 480);
   }, [onEnter, phase]);
 
   const caret = insightTyped.length < insight.length ? "▌" : "";
+  const isEntering = phase === "entering";
 
-  const statusLine = useMemo(() => {
-    if (phase === "authenticating") return "Verifying credentials…";
-    if (phase === "ready" || phase === "entering") return "Access granted — syncing dashboard";
-    return STATUS_CYCLES[statusIndex];
-  }, [phase, statusIndex]);
-
-  const buttonLabel = useMemo(() => {
-    if (phase === "authenticating") return "Authenticating";
-    if (phase === "ready" || phase === "entering") return "Entering";
-    return "Enter Analytic";
-  }, [phase]);
-
-  const isBusy = phase === "authenticating" || phase === "entering";
+  const todayLabel = useMemo(() => {
+    const now = new Date();
+    const bangkokMs = now.getTime() + 7 * 60 * 60 * 1000;
+    const d = new Date(bangkokMs);
+    return d.toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+  }, []);
 
   return (
-    <div className="ai-login" data-phase={phase} role="dialog" aria-label="Analytic AI Access">
-      <div className="ai-login__stage" aria-hidden />
-      <div className="ai-login__glow" aria-hidden />
-      <div className="ai-login__scanline" aria-hidden />
+    <div className="ls" data-phase={phase} role="dialog" aria-label="Analytic Launch Screen">
+      {/* ── Background layers ── */}
+      <div className="ls__bg" aria-hidden />
+      <div className="ls__scanline" aria-hidden />
 
-      <main className="ai-login__shell">
-        <header className="ai-login__header">
-          <div className="ai-login__brand">
-            <span className="ai-login__mark" aria-hidden>
-              <span className="ai-login__mark-core" />
-              <span className="ai-login__mark-ring" />
-            </span>
-            <div className="ai-login__brand-text">
-              <span className="ai-login__wordmark">ANALYTIC</span>
-              <span className="ai-login__subwordmark">AI Trading Intelligence · XAUUSD</span>
-            </div>
-          </div>
+      {/* ── Main shell ── */}
+      <main className="ls__shell">
 
-          <div className="ai-login__status" data-busy={isBusy ? "1" : "0"}>
-            <span className="ai-login__pulse" aria-hidden />
-            <span className="ai-login__status-text">{statusLine}</span>
+        {/* ── Logo zone ── */}
+        <section className="ls__logo-zone" aria-hidden>
+          <div className="ls__logo">
+            {/* Sonar pulses */}
+            <span className="ls__sonar ls__sonar--1" />
+            <span className="ls__sonar ls__sonar--2" />
+            <span className="ls__sonar ls__sonar--3" />
+            {/* Rings */}
+            <span className="ls__ring ls__ring--outer" />
+            <span className="ls__ring ls__ring--mid" />
+            <span className="ls__ring ls__ring--inner" />
+            {/* Radar sweep */}
+            <span className="ls__radar" />
+            {/* Core */}
+            <span className="ls__core" />
+            <span className="ls__core-glow" />
           </div>
-        </header>
+          <h1 className="ls__wordmark">ANALYTIC</h1>
+        </section>
 
-        <section className="ai-login__insight" aria-live="polite">
-          <div className="ai-login__insight-head">
-            <span className="ai-login__insight-label">AI MARKET INSIGHT</span>
-            <span className="ai-login__insight-source">{sourceLabel(insightSource)}</span>
+        {/* ── AI Core Insight ── */}
+        <section className="ls__insight" aria-live="polite">
+          <div className="ls__insight-header">
+            <span className="ls__insight-label">AI CORE INSIGHT</span>
+            <span className="ls__insight-source">{sourceLabel(insightSource)}</span>
           </div>
-          <p className="ai-login__insight-text">
+          <p className="ls__insight-text">
             {loadingInsight && !insightTyped ? (
-              <span className="ai-login__insight-skeleton">Synthesizing insight…</span>
+              <span className="ls__insight-loading">Synthesizing…<span className="ls__blink">▌</span></span>
             ) : (
-              <>
-                {insightTyped}
-                <span className="ai-login__caret" aria-hidden>
-                  {caret}
-                </span>
-              </>
+              <>{insightTyped}<span className="ls__caret" aria-hidden>{caret}</span></>
             )}
           </p>
           <button
             type="button"
-            className="ai-login__refresh"
+            className="ls__insight-refresh"
             onClick={fetchInsight}
-            disabled={loadingInsight || isBusy}
+            disabled={loadingInsight || isEntering}
+            aria-label="Regenerate insight"
           >
-            <span aria-hidden>↻</span>
-            <span>Regenerate</span>
+            ↻
           </button>
         </section>
 
-        <form className="ai-login__form" onSubmit={handleSubmit}>
-          <label className="ai-login__field" htmlFor="ai-login-code">
-            <span className="ai-login__field-label">ACCESS CODE</span>
-            <input
-              id="ai-login-code"
-              ref={inputRef}
-              type="text"
-              inputMode="text"
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              value={code}
-              onChange={(event) => {
-                setCode(event.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="ANALYTIC"
-              disabled={isBusy}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? "ai-login-error" : undefined}
-            />
-            <span className="ai-login__field-hint">
-              ใช้รหัส <code>ANALYTIC</code> หรือเข้าระบบในโหมด Guest
-            </span>
-          </label>
-
-          {error ? (
-            <p id="ai-login-error" className="ai-login__error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="ai-login__actions">
-            <button type="submit" className="ai-login__primary" disabled={isBusy}>
-              <span>{buttonLabel}</span>
-              <span aria-hidden className="ai-login__primary-arrow">
-                →
-              </span>
-            </button>
-            <button
-              type="button"
-              className="ai-login__secondary"
-              onClick={handleGuest}
-              disabled={isBusy}
-            >
-              Continue as Guest
-            </button>
+        {/* ── Economic Events ── */}
+        <section className="ls__events" aria-label="Today's USD economic events">
+          <div className="ls__events-header">
+            <span className="ls__events-label">USD EVENTS</span>
+            <span className="ls__events-date">{todayLabel}</span>
           </div>
-        </form>
+          <div className="ls__events-list">
+            {loadingEvents ? (
+              <div className="ls__events-loading">
+                <span className="ls__events-dot ls__events-dot--pulse" />
+                <span className="ls__events-loading-text">Loading calendar…</span>
+              </div>
+            ) : events.length === 0 ? (
+              <div className="ls__events-empty">No high-impact USD events today</div>
+            ) : (
+              events.map((ev) => (
+                <div key={ev.id} className="ls__event" data-holiday={ev.impact === "Holiday" ? "1" : "0"}>
+                  <span className="ls__event-time">{ev.impact === "Holiday" ? "—" : formatEventTime(ev.time)}</span>
+                  <span className="ls__event-name">{ev.name}</span>
+                  {ev.impact === "Holiday" ? (
+                    <span className="ls__event-badge ls__event-badge--holiday">HOLIDAY</span>
+                  ) : (
+                    <span className="ls__event-badge ls__event-badge--high">HIGH</span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
 
-        <footer className="ai-login__footer">
-          <span>Bangkok · UTC+7</span>
-          <span className="ai-login__footer-sep" aria-hidden>
-            ·
-          </span>
-          <span>Zero-cost AI composer · no external billing</span>
+        {/* ── Enter button ── */}
+        <button
+          type="button"
+          className="ls__enter"
+          onClick={handleEnter}
+          disabled={isEntering}
+        >
+          {isEntering ? (
+            <span className="ls__enter-text">Entering…</span>
+          ) : (
+            <>
+              <span className="ls__enter-text">TAP TO ENTER</span>
+              <span className="ls__enter-arrow" aria-hidden>→</span>
+            </>
+          )}
+        </button>
+
+        {/* ── Footer ── */}
+        <footer className="ls__footer">
+          <span className="ls__footer-version">{APP_VERSION}</span>
+          <span className="ls__footer-sep" aria-hidden>·</span>
+          <span>Bangkok UTC+7</span>
+          <span className="ls__footer-sep" aria-hidden>·</span>
+          <span>AI Core</span>
         </footer>
       </main>
     </div>
