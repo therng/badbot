@@ -115,7 +115,8 @@ Avoid reverting to a generic card mosaic layout.
 ## Account and Metric Rules
 
 ### Ordering
-- Default account ordering is balance descending.
+- Default account ordering is the `Growth` KPI value from timeframe `1D`, sorted descending.
+- If `Growth` `1D` ties, fall back to `Pips` `1D`, then balance descending, then account number ascending.
 - The same ordering should be preserved across breakpoints.
 - Selection changes focus only; it should not rewrite the default sort.
 

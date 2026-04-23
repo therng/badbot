@@ -4,6 +4,57 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { type MetricTone } from "@/components/trading-monitor/formatters";
 
+export type KpiHintContent = {
+  definition: string;
+  purpose: string;
+  howToRead?: string;
+};
+
+function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
+  if (typeof hint === "string") {
+    return {
+      definition: hint,
+      purpose: "",
+    };
+  }
+
+  return hint;
+}
+
+// ── Shared hint sections ────────────────────────────────────
+function KpiHintSections({
+  content,
+  classPrefix,
+}: {
+  content: KpiHintContent;
+  classPrefix: "kpi-tooltip" | "kpi-sheet";
+}) {
+  const labelCls = `${classPrefix}__section-label`;
+  const textCls = classPrefix === "kpi-tooltip" ? `${classPrefix}__text` : `${classPrefix}__hint`;
+  const sectionCls = `${classPrefix}__section`;
+
+  return (
+    <>
+      <div className={sectionCls}>
+        <span className={labelCls}>นิยาม</span>
+        <p className={textCls}>{content.definition}</p>
+      </div>
+      {content.purpose ? (
+        <div className={sectionCls}>
+          <span className={labelCls}>ใช้ดูอะไร</span>
+          <p className={textCls}>{content.purpose}</p>
+        </div>
+      ) : null}
+      {content.howToRead ? (
+        <div className={sectionCls}>
+          <span className={labelCls}>ตีความเร็ว</span>
+          <p className={textCls}>{content.howToRead}</p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 // ── Detect coarse-pointer (touch) device ─────────────────────
 function isTouchPrimary(): boolean {
   if (typeof window === "undefined") return false;
@@ -16,22 +67,22 @@ function KpiTooltip({
   label,
   anchorRect,
 }: {
-  hint: string;
+  hint: string | KpiHintContent;
   label: string;
   anchorRect: DOMRect;
 }) {
-  const TOOLTIP_W = 252;
+  const TOOLTIP_W = 300;
   const GAP = 10;
+  const content = normalizeKpiHint(hint);
 
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 800;
-  const viewportH = typeof window !== "undefined" ? window.innerHeight : 600;
 
   const rawLeft = anchorRect.left + anchorRect.width / 2 - TOOLTIP_W / 2;
   const left = Math.max(8, Math.min(rawLeft, viewportW - TOOLTIP_W - 8));
 
   // Prefer above; fall back to below if not enough room
   const spaceAbove = anchorRect.top;
-  const openAbove = spaceAbove > 120;
+  const openAbove = spaceAbove > 220;
 
   const top = openAbove
     ? anchorRect.top - GAP
@@ -43,8 +94,10 @@ function KpiTooltip({
       style={{ top, left, width: TOOLTIP_W }}
       role="tooltip"
     >
-      <span className="kpi-tooltip__label">{label}</span>
-      <p className="kpi-tooltip__text">{hint}</p>
+      <div className="kpi-tooltip__inner">
+        <span className="kpi-tooltip__label">{label}</span>
+        <KpiHintSections content={content} classPrefix="kpi-tooltip" />
+      </div>
       {openAbove && (
         <span className="kpi-tooltip__arrow kpi-tooltip__arrow--down" aria-hidden />
       )}
@@ -64,7 +117,7 @@ function KpiActionSheet({
   tone,
   onClose,
 }: {
-  hint: string;
+  hint: string | KpiHintContent;
   label: string;
   value: string;
   tone: MetricTone;
@@ -73,6 +126,7 @@ function KpiActionSheet({
   // Swipe-down to dismiss
   const startYRef = useRef<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const content = normalizeKpiHint(hint);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startYRef.current = e.touches[0]?.clientY ?? null;
@@ -112,7 +166,8 @@ function KpiActionSheet({
         <div className="kpi-sheet__divider" aria-hidden />
 
         {/* Hint text */}
-        <p className="kpi-sheet__hint">{hint}</p>
+        <span className="kpi-sheet__hint-title">คำอธิบาย KPI</span>
+        <KpiHintSections content={content} classPrefix="kpi-sheet" />
 
         {/* Dismiss */}
         <button
@@ -133,14 +188,18 @@ function useKpiHint(hasHint: boolean) {
   const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const chipRef = useRef<HTMLElement | null>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
   const autoDismissTimer = useRef<ReturnType<typeof setTimeout>>();
-  const longPressTriggered = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
+  const tooltipOpenTimer = useRef<ReturnType<typeof setTimeout>>();
+  const tooltipCloseTimer = useRef<ReturnType<typeof setTimeout>>();
+  const longPressTriggeredRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      clearTimeout(longPressTimer.current);
       clearTimeout(autoDismissTimer.current);
+      clearTimeout(longPressTimer.current);
+      clearTimeout(tooltipOpenTimer.current);
+      clearTimeout(tooltipCloseTimer.current);
     };
   }, []);
 
@@ -158,12 +217,60 @@ function useKpiHint(hasHint: boolean) {
 
   const openTooltip = useCallback(() => {
     if (!chipRef.current) return;
-    setTooltipRect(chipRef.current.getBoundingClientRect());
+    clearTimeout(tooltipOpenTimer.current);
+    clearTimeout(tooltipCloseTimer.current);
+    tooltipOpenTimer.current = setTimeout(() => {
+      if (!chipRef.current) return;
+      setTooltipRect(chipRef.current.getBoundingClientRect());
+    }, 5000);
   }, []);
 
   const closeTooltip = useCallback(() => {
-    setTooltipRect(null);
+    clearTimeout(tooltipOpenTimer.current);
+    clearTimeout(tooltipCloseTimer.current);
+    tooltipCloseTimer.current = setTimeout(() => {
+      setTooltipRect(null);
+    }, 260);
   }, []);
+
+  const clearLongPress = useCallback(() => {
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = undefined;
+  }, []);
+
+  const handleTouchStart = useCallback(() => {
+    if (!hasHint || !isTouchPrimary()) return;
+    longPressTriggeredRef.current = false;
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      openSheet();
+    }, 300);
+  }, [clearLongPress, hasHint, openSheet]);
+
+  const handleTouchMove = useCallback(() => {
+    if (!hasHint || !isTouchPrimary()) return;
+    clearLongPress();
+  }, [clearLongPress, hasHint]);
+
+  const handleTouchCancel = useCallback(() => {
+    if (!hasHint || !isTouchPrimary()) return;
+    clearLongPress();
+  }, [clearLongPress, hasHint]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!hasHint || !isTouchPrimary()) return;
+    clearLongPress();
+
+    if (longPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    window.setTimeout(() => {
+      longPressTriggeredRef.current = false;
+    }, 0);
+  }, [clearLongPress, hasHint]);
 
   const hintHandlers = hasHint
     ? {
@@ -175,28 +282,15 @@ function useKpiHint(hasHint: boolean) {
           if (isTouchPrimary()) return;
           closeTooltip();
         },
-        onTouchStart: () => {
-          longPressTriggered.current = false;
-          longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true;
-            openSheet();
-          }, 480);
-        },
-        onTouchEnd: () => {
-          clearTimeout(longPressTimer.current);
-        },
-        onTouchMove: () => {
-          clearTimeout(longPressTimer.current);
-        },
       }
     : {};
 
   function wrapClick(onClick?: () => void) {
     return (e: React.MouseEvent) => {
-      if (longPressTriggered.current) {
+      if (hasHint && isTouchPrimary() && longPressTriggeredRef.current) {
         e.preventDefault();
         e.stopPropagation();
-        longPressTriggered.current = false;
+        longPressTriggeredRef.current = false;
         return;
       }
       onClick?.();
@@ -209,6 +303,10 @@ function useKpiHint(hasHint: boolean) {
     sheetOpen,
     closeSheet,
     hintHandlers,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchCancel,
+    handleTouchEnd,
     wrapClick,
   };
 }
@@ -229,11 +327,11 @@ export function SummaryChip({
   tone?: MetricTone;
   meta?: string;
   fullValue?: string;
-  hint?: string;
+  hint?: string | KpiHintContent;
   onClick?: () => void;
   isSelected?: boolean;
 }) {
-  const { chipRef, tooltipRect, sheetOpen, closeSheet, hintHandlers, wrapClick } =
+  const { chipRef, tooltipRect, sheetOpen, closeSheet, hintHandlers, handleTouchStart, handleTouchMove, handleTouchCancel, handleTouchEnd, wrapClick } =
     useKpiHint(Boolean(hint));
 
   const tooltip = fullValue ? `${label}: ${fullValue}` : undefined;
@@ -243,7 +341,15 @@ export function SummaryChip({
 
   const inner = (
     <>
-      <span className="kl">{label}</span>
+      <span className="kl">
+        {label}
+        {hint ? (
+          <span
+            className="kchip__hint-badge"
+            aria-label="ดูคำอธิบาย"
+          >?</span>
+        ) : null}
+      </span>
       <strong className={`kv tone-${tone}`}>{value}</strong>
       {meta ? <span className="kchip__meta">{meta}</span> : null}
 
@@ -252,7 +358,7 @@ export function SummaryChip({
         <KpiTooltip hint={hint} label={label} anchorRect={tooltipRect} />
       ) : null}
 
-      {/* Mobile action sheet (long-press) */}
+      {/* Mobile action sheet (tap) */}
       {hint && sheetOpen ? (
         <KpiActionSheet
           hint={hint}
@@ -273,6 +379,10 @@ export function SummaryChip({
         title={tooltip}
         aria-label={tooltip}
         {...hintHandlers}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchCancel={handleTouchCancel}
+        onTouchEnd={handleTouchEnd}
       >
         {inner}
       </div>
@@ -289,6 +399,10 @@ export function SummaryChip({
       aria-pressed={isSelected}
       onClick={wrapClick(onClick)}
       {...hintHandlers}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchCancel={handleTouchCancel}
+      onTouchEnd={handleTouchEnd}
     >
       {inner}
     </button>

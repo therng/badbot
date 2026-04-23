@@ -34,12 +34,52 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&family=Manrope:wght@500;600;700;800&display=swap"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var root = document.documentElement;
+                var frame = 0;
+
+                function syncViewportHeight() {
+                  frame = 0;
+                  if (!window.innerHeight) return;
+                  root.style.setProperty("--viewport-height", window.innerHeight + "px");
+                }
+
+                function queueSync() {
+                  if (frame) window.cancelAnimationFrame(frame);
+                  frame = window.requestAnimationFrame(syncViewportHeight);
+                }
+
+                syncViewportHeight();
+                window.addEventListener("resize", queueSync, { passive: true });
+                window.addEventListener("orientationchange", queueSync, { passive: true });
+                window.addEventListener("pageshow", queueSync, { passive: true });
+                document.addEventListener("visibilitychange", function() {
+                  if (!document.hidden) queueSync();
+                });
+
+                if (window.visualViewport) {
+                  window.visualViewport.addEventListener("resize", queueSync, { passive: true });
+                }
+              })();
+            `,
+          }}
+        />
         {shouldLoadGtm ? (
           <script
             dangerouslySetInnerHTML={{
@@ -61,6 +101,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Analytic" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#08090b" />
         <meta name="msapplication-TileColor" content="#08090b" />

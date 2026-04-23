@@ -3,6 +3,8 @@ const BANGKOK_OFFSET_MS = BANGKOK_OFFSET_HOURS * 60 * 60 * 1000;
 const TABLE_TO_BANGKOK_OFFSET_HOURS = 4;
 const TABLE_TO_BANGKOK_OFFSET_MS = TABLE_TO_BANGKOK_OFFSET_HOURS * 60 * 60 * 1000;
 
+export type SessionKey = "asia" | "london" | "ny" | "overnight";
+
 function padTwo(value: number) {
   return String(value).padStart(2, "0");
 }
@@ -90,6 +92,27 @@ export function getBangkokDateKey(value: Date | string | number | null | undefin
 export function getBangkokHour(value: Date | string | number | null | undefined) {
   const parts = getBangkokDateParts(value);
   return parts ? parts.hours : null;
+}
+
+export function resolveMarketSession(date: Date | string | number = new Date()): SessionKey {
+  const hour = getBangkokHour(date);
+  if (hour == null) {
+    return "overnight";
+  }
+
+  if (hour >= 7 && hour < 14) {
+    return "asia";
+  }
+
+  if (hour >= 14 && hour < 20) {
+    return "london";
+  }
+
+  if (hour >= 20 || hour < 2) {
+    return "ny";
+  }
+
+  return "overnight";
 }
 
 export function startOfBangkokDayTimestamp(value: Date | string | number | null | undefined) {

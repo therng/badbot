@@ -8,6 +8,8 @@ export interface SerializedAccount {
   server: string;
   status: "Active" | "Inactive";
   last_updated: Date | null;
+  today_growth_percent: number;
+  today_net_pips: number;
   balance: number;
   equity: number;
   floating_pl: number;
@@ -127,6 +129,9 @@ export interface BalanceDetailResponse {
     averageLossTrade: number | null;
     maximalDepositLoad: number | null;
     maximumConsecutiveLossAmount: number | null;
+    sharpeRatio: number | null;
+    profitFactor: number | null;
+    recoveryFactor: number | null;
   };
   mfeMae: {
     available: boolean;

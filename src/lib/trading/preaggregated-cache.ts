@@ -187,8 +187,36 @@ const FX_CODES = new Set([
   "ZAR",
 ]);
 
-function resolveFxPointSize(symbol: string | undefined) {
-  const normalizedSymbol = (symbol ?? "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+type InstrumentSpec = { pointSize: number; pointsPerPip: number };
+
+const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
+  XAUUSD: { pointSize: 0.01, pointsPerPip: 10 },
+  BTCUSD: { pointSize: 1, pointsPerPip: 100 },
+};
+
+function normalizeSymbol(symbol: string | undefined) {
+  return (symbol ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function resolveInstrumentSpec(symbol: string | undefined, openPrice: number | null | undefined, closePrice: number | null | undefined): InstrumentSpec {
+  const normalized = normalizeSymbol(symbol);
+
+  const explicit = INSTRUMENT_SPECS[normalized];
+  if (explicit) {
+    return explicit;
+  }
+
+  const fxPointSize = resolveFxPointSize(normalized);
+  if (fxPointSize !== null) {
+    return { pointSize: fxPointSize, pointsPerPip: 10 };
+  }
+
+  const precision = Math.max(getPricePrecision(openPrice), getPricePrecision(closePrice));
+  const pointSize = precision > 0 ? 10 ** -precision : 1;
+  return { pointSize, pointsPerPip: 10 };
+}
+
+function resolveFxPointSize(normalizedSymbol: string) {
   if (normalizedSymbol.length < 6) {
     return null;
   }
@@ -204,16 +232,6 @@ function resolveFxPointSize(symbol: string | undefined) {
   return null;
 }
 
-function resolvePointSize(symbol: string | undefined, openPrice: number | null | undefined, closePrice: number | null | undefined) {
-  const fxPointSize = resolveFxPointSize(symbol);
-  if (fxPointSize !== null) {
-    return fxPointSize;
-  }
-
-  const precision = Math.max(getPricePrecision(openPrice), getPricePrecision(closePrice));
-  return precision > 0 ? 10 ** -precision : 1;
-}
-
 function positionPips(position: PositionRow) {
   const openPrice = Number(position.openPrice ?? Number.NaN);
   const closePrice = Number(position.closePrice ?? Number.NaN);
@@ -226,13 +244,13 @@ function positionPips(position: PositionRow) {
     return null;
   }
 
-  const pointSize = resolvePointSize(position.symbol, openPrice, closePrice);
-  if (!Number.isFinite(pointSize) || pointSize <= 0) {
+  const spec = resolveInstrumentSpec(position.symbol, openPrice, closePrice);
+  if (!Number.isFinite(spec.pointSize) || spec.pointSize <= 0) {
     return null;
   }
 
-  const rawPoints = side === "buy" ? (closePrice - openPrice) / pointSize : (openPrice - closePrice) / pointSize;
-  const rawPips = rawPoints / 10;
+  const rawPoints = side === "buy" ? (closePrice - openPrice) / spec.pointSize : (openPrice - closePrice) / spec.pointSize;
+  const rawPips = rawPoints / spec.pointsPerPip;
   return Number.isFinite(rawPips) ? rawPips : null;
 }
 
@@ -834,6 +852,15 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       .map((deal) => dealNet(deal)),
   );
 
+  // Risk-adjusted KPIs surfaced via the DD panel gauge (sharpe/profit factor/recovery)
+  const balanceDetailPositionsDrawdown = computeBalanceDrawdown(deals, since, null);
+  const balanceDetailTotalNet = closedPositionSummary.totalNetProfit;
+  const balanceDetailRecoveryFactor =
+    balanceDetailPositionsDrawdown.maximalAmount > 0
+      ? balanceDetailTotalNet / balanceDetailPositionsDrawdown.maximalAmount
+      : null;
+  const balanceDetailSharpeRatio = computeSharpeRatio(closedPositionSummary.netValues);
+
   const balanceDetail: BalanceDetailResponse = {
     timeframe,
     account,
@@ -845,6 +872,9 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       averageLossTrade: closedPositionSummary.averageLossTrade,
       maximalDepositLoad: currentDepositLoad,
       maximumConsecutiveLossAmount: runAmounts.maxConsecutiveLossAmount,
+      sharpeRatio: balanceDetailSharpeRatio,
+      profitFactor: closedPositionSummary.profitFactor,
+      recoveryFactor: balanceDetailRecoveryFactor,
     },
     mfeMae: {
       available: false,

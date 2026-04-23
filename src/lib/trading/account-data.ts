@@ -1,7 +1,9 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { startOfBangkokDay, startOfThaiDayInTableTime } from "@/lib/time";
 import {
+  computeCompoundedGrowth,
   getAccountStatus,
   getLatestDealBalance,
   sanitizeOptionalText,
@@ -67,6 +69,7 @@ type AccountRecord = any;
 type NumericLike = Prisma.Decimal | number;
 type NullableNumericLike = NumericLike | null | undefined;
 const BALANCE_SORT_EPSILON = 0.000001;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface AccountBundle {
   account: AccountRecord;
@@ -100,7 +103,22 @@ function toNumber(value: NullableNumericLike, fallback = 0) {
   return toNullableNumber(value) ?? fallback;
 }
 
-function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
+type ReportAnchoredPosition = {
+  closeTime?: Date | string | null;
+  pips?: NullableNumericLike;
+};
+
+export function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
+  const growthDelta = b.today_growth_percent - a.today_growth_percent;
+  if (Math.abs(growthDelta) > BALANCE_SORT_EPSILON) {
+    return growthDelta;
+  }
+
+  const pipsDelta = b.today_net_pips - a.today_net_pips;
+  if (Math.abs(pipsDelta) > BALANCE_SORT_EPSILON) {
+    return pipsDelta;
+  }
+
   const balanceDelta = b.balance - a.balance;
   if (Math.abs(balanceDelta) > BALANCE_SORT_EPSILON) {
     return balanceDelta;
@@ -110,6 +128,62 @@ function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+export function sortAccountListItems(items: SerializedAccount[]) {
+  return [...items].sort(compareAccountListItems);
+}
+
+export function applyTodayNetPips(items: SerializedAccount[], todayNetPipsByAccountId: Map<string, number>) {
+  return items.map((item) => ({
+    ...item,
+    today_net_pips: todayNetPipsByAccountId.get(item.id) ?? 0,
+  }));
+}
+
+export function getReportDayWindow(anchorDate: Date) {
+  const start = startOfThaiDayInTableTime(anchorDate) ?? startOfBangkokDay(anchorDate) ?? anchorDate;
+  return {
+    start,
+    end: new Date(start.getTime() + ONE_DAY_MS),
+  };
+}
+
+function getTodayGrowthPercent(
+  deals: Array<{
+    time: Date | string;
+    dealNo?: string;
+    type?: string | null;
+    comment?: string | null;
+    profit?: NullableNumericLike;
+    commission?: NullableNumericLike;
+    swap?: NullableNumericLike;
+    balance?: NullableNumericLike;
+  }>,
+  anchorDate: Date,
+) {
+  return computeCompoundedGrowth(deals as any, getReportDayWindow(anchorDate).start, null);
+}
+
+export function getTodayNetPips(
+  positions: ReportAnchoredPosition[],
+  anchorDate: Date,
+) {
+  const { start, end } = getReportDayWindow(anchorDate);
+
+  return positions.reduce((total, position) => {
+    if (position.pips == null || position.closeTime == null) {
+      return total;
+    }
+
+    const closeTime = new Date(position.closeTime);
+    const timestamp = closeTime.getTime();
+    if (!Number.isFinite(timestamp) || timestamp < start.getTime() || timestamp >= end.getTime()) {
+      return total;
+    }
+
+    return total + Number(position.pips ?? 0);
+  }, 0);
 }
 
 export function serializeOpenPositions(
@@ -197,6 +271,7 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
     },
     latestSnapshot,
   );
+  const anchorDate = latestReportTimestamp ? new Date(latestReportTimestamp) : new Date();
 
   return {
     id: account.id,
@@ -206,6 +281,8 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
     server: sanitizeOptionalText(account.serverName) ?? "",
     status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
     last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
+    today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+    today_net_pips: getTodayNetPips(account.positions, anchorDate),
     balance: getLatestDealBalance(account.deals, latestSnapshot?.balance ?? 0),
     equity: toNumber(latestSnapshot?.equity, getLatestDealBalance(account.deals, 0)),
     floating_pl: toNumber(
@@ -228,18 +305,17 @@ export async function getAccountListItems() {
       reportDate: true,
       accountSnapshot: true,
       deals: {
-        where: {
-          balance: {
-            not: null,
-          },
-        },
-        orderBy: [{ time: "desc" }, { dealNo: "desc" }],
-        take: 1,
         select: {
           time: true,
           dealNo: true,
+          type: true,
+          comment: true,
+          profit: true,
+          commission: true,
+          swap: true,
           balance: true,
         },
+        orderBy: [{ time: "asc" }, { dealNo: "asc" }],
       },
       openPositions: {
         select: {
@@ -247,12 +323,17 @@ export async function getAccountListItems() {
           profit: true,
         },
       },
+      positions: {
+        select: {
+          closeTime: true,
+          pips: true,
+        },
+      },
     },
     orderBy: {
       accountNo: "asc",
     },
   });
-
   const items = accounts.map((account: any) => {
     const openPositions = account.openPositions as Array<{
       reportDate?: Date | string | null;
@@ -265,6 +346,7 @@ export async function getAccountListItems() {
       },
       account.accountSnapshot,
     );
+    const anchorDate = latestReportTimestamp ? new Date(latestReportTimestamp) : new Date();
 
     return {
       id: account.id,
@@ -273,6 +355,8 @@ export async function getAccountListItems() {
       currency: sanitizeOptionalText(account.currency) ?? "USD",
       server: sanitizeOptionalText(account.serverName) ?? "",
       status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
+      today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+      today_net_pips: getTodayNetPips(account.positions, anchorDate),
       balance: getLatestDealBalance(account.deals, account.accountSnapshot?.balance ?? 0),
       equity: toNumber(account.accountSnapshot?.equity, getLatestDealBalance(account.deals, 0)),
       floating_pl: toNumber(
@@ -285,5 +369,5 @@ export async function getAccountListItems() {
     } satisfies SerializedAccount;
   });
 
-  return items.sort(compareAccountListItems);
+  return sortAccountListItems(items);
 }

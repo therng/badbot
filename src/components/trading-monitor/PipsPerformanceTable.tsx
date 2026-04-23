@@ -1,11 +1,11 @@
 import { type PipsSummaryRow } from "@/lib/trading/types";
 import {
   formatCompactNumber,
+  formatCompactSignedNumber,
   formatPercent,
   formatSignedCurrency,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
-import { formatSignedPlainNumberValue } from "@/components/trading-monitor/DashboardFormatters";
 
 export function PipsPerformanceTable({
   rows,
@@ -34,7 +34,7 @@ export function PipsPerformanceTable({
               <tr key={row.label}>
                 <th scope="row">{row.label}</th>
                 <td className={`tone-${toneFromNumber(row.pips)}`}>
-                  {formatSignedPlainNumberValue(row.pips, 1)}
+                  {formatCompactSignedNumber(row.pips, 1)}
                 </td>
                 <td>
                   {formatCompactNumber(row.volume, 1)}

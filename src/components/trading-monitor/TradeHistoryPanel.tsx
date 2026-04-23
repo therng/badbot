@@ -34,7 +34,6 @@ export function TradeHistoryPanel({
         {historyPositions.map((position) => {
           const rowKey = position.positionId || `${position.symbol}-${position.closedAt}-${position.volume}`;
           const isExpanded = expandedRowKey === rowKey;
-          const comment = position.comment?.trim() || "-";
           const sideLabel = formatPositionSide(position.type);
           const volumeLabel = formatPlainNumberValue(position.volume, 2);
           const rowNetPnl = positionHistoryNetPnl(position);
@@ -64,7 +63,6 @@ export function TradeHistoryPanel({
                 </div>
                 <div className="trade-history-row__line trade-history-row__line--secondary">
                   <div className="trade-history-row__prices">
-                    <span className="trade-history-row__comment trade-history-row__comment--secondary">{comment}</span>
                     <span>{`${formatTradePrice(position.openPrice)} -> ${formatTradePrice(position.closePrice)}`}</span>
                   </div>
                   <div className="trade-history-row__trail trade-history-row__trail--secondary">

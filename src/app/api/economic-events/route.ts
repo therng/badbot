@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { getBangkokDateKey, getBangkokDateParts } from "@/lib/time";
+
 export const dynamic = "force-dynamic";
 
 export type EconomicEvent = {
@@ -11,11 +13,19 @@ export type EconomicEvent = {
   forecast: string | null;
   previous: string | null;
   actual: string | null;
+  dateLabel: string;
+  isToday: boolean;
+  status: "upcoming" | "released" | "holiday";
 };
 
-type EconomicEventsResponse = {
+export type EconomicEventsResponse = {
   events: EconomicEvent[];
   date: string;
+  scope: "today" | "week" | "empty";
+};
+
+type DerivedEconomicEvent = EconomicEvent & {
+  startsAt: number;
 };
 
 // Forex Factory public calendar JSON
@@ -31,60 +41,72 @@ type FFEvent = {
 };
 
 function bangkokDateString(now = new Date()): string {
-  const bkMs = now.getTime() + 7 * 60 * 60 * 1000;
-  return new Date(bkMs).toISOString().split("T")[0];
+  return getBangkokDateKey(now) ?? "";
 }
 
 function utcToBangkokHHMM(isoDate: string): string {
-  try {
-    const d = new Date(isoDate);
-    if (isNaN(d.getTime())) return "";
-    const bkMs = d.getTime() + 7 * 60 * 60 * 1000;
-    const bk = new Date(bkMs);
-    const hh = String(bk.getUTCHours()).padStart(2, "0");
-    const mm = String(bk.getUTCMinutes()).padStart(2, "0");
-    return `${hh}:${mm}`;
-  } catch {
-    return "";
-  }
+  const parts = getBangkokDateParts(isoDate);
+  if (!parts) return "";
+  return `${String(parts.hours).padStart(2, "0")}:${String(parts.minutes).padStart(2, "0")}`;
 }
 
 function bangkokDateFromISO(isoDate: string): string {
-  try {
-    const d = new Date(isoDate);
-    if (isNaN(d.getTime())) return "";
-    const bkMs = d.getTime() + 7 * 60 * 60 * 1000;
-    return new Date(bkMs).toISOString().split("T")[0];
-  } catch {
-    return "";
-  }
+  return getBangkokDateKey(isoDate) ?? "";
 }
 
-export async function GET(): Promise<NextResponse<EconomicEventsResponse>> {
-  const todayBKK = bangkokDateString();
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  try {
-    const response = await fetch(
-      "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
-      {
+function formatEventDateLabel(isoDate: string): string {
+  const parts = getBangkokDateParts(isoDate);
+  if (!parts) return "";
+  const d = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  return `${WEEKDAYS[d.getUTCDay()]}, ${MONTHS[parts.month - 1]} ${parts.day}`;
+}
+
+async function fetchCalendarFeed() {
+  const urls = [
+    "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json",
+  ];
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
         headers: {
           "Accept": "application/json",
           "User-Agent": "Mozilla/5.0 (compatible; Analytic/1.0)",
         },
         next: { revalidate: 300 },
-      },
-    );
+      });
 
-    if (!response.ok) {
-      return NextResponse.json({ events: [], date: todayBKK });
+      if (!response.ok) {
+        continue;
+      }
+
+      const raw = (await response.json()) as FFEvent[] | null;
+      if (Array.isArray(raw)) {
+        return raw;
+      }
+    } catch {
+      /* try next feed */
     }
+  }
 
-    const raw = (await response.json()) as FFEvent[] | null;
+  return null;
+}
+
+export async function GET(): Promise<NextResponse<EconomicEventsResponse>> {
+  const todayBKK = bangkokDateString();
+  const now = new Date();
+
+  try {
+    const raw = await fetchCalendarFeed();
     if (!Array.isArray(raw)) {
-      return NextResponse.json({ events: [], date: todayBKK });
+      return NextResponse.json({ events: [], date: todayBKK, scope: "empty" });
     }
 
-    const events: EconomicEvent[] = raw
+    const allUsdHighImpactEvents: DerivedEconomicEvent[] = raw
       .filter((ev) => {
         if (!ev.date || !ev.country) return false;
         const currency = ev.country.toUpperCase();
@@ -92,27 +114,72 @@ export async function GET(): Promise<NextResponse<EconomicEventsResponse>> {
         const impact = ev.impact ?? "";
         if (impact !== "High" && impact !== "Holiday") return false;
         // Only today in Bangkok time
-        const evDateBKK = bangkokDateFromISO(ev.date);
-        return evDateBKK === todayBKK;
+        return bangkokDateFromISO(ev.date).length > 0;
       })
-      .map((ev, i) => ({
-        id: `${ev.country}-${i}-${ev.date ?? ""}`,
-        name: ev.title ?? "Unknown Event",
-        currency: (ev.country ?? "USD").toUpperCase(),
-        impact: (ev.impact === "Holiday" ? "Holiday" : "High") as EconomicEvent["impact"],
-        time: ev.impact === "Holiday" ? "" : utcToBangkokHHMM(ev.date ?? ""),
-        forecast: ev.forecast || null,
-        previous: ev.previous || null,
-        actual: ev.actual || null,
-      }))
+      .map((ev, i) => {
+        const isoDate = ev.date ?? "";
+        const isHoliday = ev.impact === "Holiday";
+        const eventDateBKK = bangkokDateFromISO(isoDate);
+        const eventTime = isHoliday ? "" : utcToBangkokHHMM(isoDate);
+        const eventDate = new Date(isoDate);
+        const isValidDate = !isNaN(eventDate.getTime());
+        const isToday = eventDateBKK === todayBKK;
+        const status: EconomicEvent["status"] = isHoliday
+          ? "holiday"
+          : isValidDate && eventDate.getTime() > now.getTime()
+            ? "upcoming"
+            : "released";
+
+        return {
+          id: `${ev.country}-${i}-${isoDate}`,
+          name: ev.title ?? "Unknown Event",
+          currency: (ev.country ?? "USD").toUpperCase(),
+          impact: (isHoliday ? "Holiday" : "High") as EconomicEvent["impact"],
+          time: eventTime,
+          forecast: ev.forecast || null,
+          previous: ev.previous || null,
+          actual: ev.actual || null,
+          dateLabel: isToday ? "Today" : formatEventDateLabel(isoDate),
+          isToday,
+          status,
+          startsAt: isValidDate ? eventDate.getTime() : Number.MAX_SAFE_INTEGER,
+        };
+      })
       .sort((a, b) => {
         if (a.impact === "Holiday" && b.impact !== "Holiday") return 1;
         if (a.impact !== "Holiday" && b.impact === "Holiday") return -1;
-        return (a.time ?? "").localeCompare(b.time ?? "");
+        return a.startsAt - b.startsAt;
       });
 
-    return NextResponse.json({ events, date: todayBKK });
+    const todayEvents = allUsdHighImpactEvents.filter((event) => event.isToday);
+    const upcomingEvents = allUsdHighImpactEvents.filter((event) => event.status === "upcoming");
+    const releasedEvents = allUsdHighImpactEvents.filter((event) => event.status === "released");
+
+    const selectedEvents =
+      todayEvents.length > 0
+        ? todayEvents
+        : upcomingEvents.length > 0
+          ? upcomingEvents.slice(0, 4)
+          : releasedEvents.slice(-4);
+
+    const events: EconomicEvent[] = selectedEvents.map((event) => ({
+      id: event.id,
+      name: event.name,
+      currency: event.currency,
+      impact: event.impact,
+      time: event.time,
+      forecast: event.forecast,
+      previous: event.previous,
+      actual: event.actual,
+      dateLabel: event.dateLabel,
+      isToday: event.isToday,
+      status: event.status,
+    }));
+    const scope: EconomicEventsResponse["scope"] =
+      todayEvents.length > 0 ? "today" : events.length > 0 ? "week" : "empty";
+
+    return NextResponse.json({ events, date: todayBKK, scope });
   } catch {
-    return NextResponse.json({ events: [], date: todayBKK });
+    return NextResponse.json({ events: [], date: todayBKK, scope: "empty" });
   }
 }

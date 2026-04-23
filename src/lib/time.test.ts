@@ -5,6 +5,7 @@ import {
   getThaiDateKeyFromTableTime,
   getThaiHourFromTableTime,
   parseBangkokDate,
+  resolveMarketSession,
 } from "./time";
 
 test("maps table midnight boundary to the Thai account day", () => {
@@ -32,4 +33,20 @@ test("parses account dates as Bangkok time", () => {
   const parsed = parseBangkokDate("2026.04.15 17:30:00");
 
   assert.equal(parsed.toISOString(), "2026-04-15T10:30:00.000Z");
+});
+
+test("resolves Bangkok 07:00 to the asia session", () => {
+  assert.equal(resolveMarketSession(new Date("2026-04-22T00:00:00.000Z")), "asia");
+});
+
+test("resolves Bangkok 14:00 to the london session", () => {
+  assert.equal(resolveMarketSession(new Date("2026-04-22T07:00:00.000Z")), "london");
+});
+
+test("resolves Bangkok 20:00 to the ny session", () => {
+  assert.equal(resolveMarketSession(new Date("2026-04-22T13:00:00.000Z")), "ny");
+});
+
+test("resolves Bangkok 02:00 to the overnight session", () => {
+  assert.equal(resolveMarketSession(new Date("2026-04-21T19:00:00.000Z")), "overnight");
 });

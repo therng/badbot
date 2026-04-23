@@ -1,160 +1,147 @@
 import { NextResponse } from "next/server";
 
+import { resolveMarketSession, type SessionKey } from "@/lib/time";
+
 export const dynamic = "force-dynamic";
 
-type InsightSource = "gemini" | "local" | "fallback";
+// ── Response schema ───────────────────────────────────────────
+export type InsightSource = "gemini" | "local";
 
-type LoadingInsightResponse = {
-  insight: string;
+export type LoadingInsightResponse = {
+  insights: string[];   // 6 items: Trend, Liquidity, Risk, Strategy, News, Price Action (2-3 Thai sentences each)
   source: InsightSource;
 };
 
-type GeminiGenerateContentResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-  }>;
-};
-
-const FALLBACK_INSIGHT = "พร้อมสำหรับการวิเคราะห์ข้อมูลขั้นสูง";
+// ── Gemini config ─────────────────────────────────────────────
 const GEMINI_MODEL = process.env.GEMINI_LOADING_MODEL ?? "gemini-2.5-flash-preview-09-2025";
-const REQUEST_TIMEOUT_MS = 2500;
-const MAX_RETRIES = 2;
+const REQUEST_TIMEOUT_MS = 6000;
 
-function json(payload: LoadingInsightResponse) {
-  const response = NextResponse.json(payload);
-  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  return response;
-}
-
-function normalizeInsight(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.replace(/(\*\*|__)(.*?)\1/g, "$2");
-  normalized = normalized.replace(/(\*|_)(.*?)\1/g, "$2");
-  normalized = normalized.replace(/#/g, "");
-
-  normalized = normalized.replace(/\s+/g, " ").trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-async function fetchWithRetry(url: string, init: RequestInit, retries = MAX_RETRIES, backoff = 350): Promise<Response> {
-  try {
-    const response = await fetch(url, init);
-    if (!response.ok && retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, backoff));
-      return fetchWithRetry(url, init, retries - 1, backoff * 2);
-    }
-
-    return response;
-  } catch (error) {
-    if (retries <= 0) {
-      throw error;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, backoff));
-    return fetchWithRetry(url, init, retries - 1, backoff * 2);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Local insight composer — zero external API cost.
-// Produces Thai XAUUSD-style insights by combining curated
-// bias / structure / risk fragments. Time-of-day awareness uses
-// Bangkok hour to pick the relevant trading session context.
-// ─────────────────────────────────────────────────────────────
-
-type SessionKey = "asia" | "london" | "ny" | "overnight";
-
-function bangkokHour(date = new Date()) {
-  // Bangkok = UTC+7, no DST
-  const utc = date.getUTCHours() * 60 + date.getUTCMinutes();
-  return Math.floor(((utc + 7 * 60) % (24 * 60)) / 60);
-}
-
-function resolveSession(hour: number): SessionKey {
-  if (hour >= 7 && hour < 14) return "asia";
-  if (hour >= 14 && hour < 20) return "london";
-  if (hour >= 20 || hour < 2) return "ny";
-  return "overnight";
-}
-
-const BIAS_OPENERS: Record<SessionKey, string[]> = {
+// ── Local fallback bank — 2-3 Thai sentences per topic ────────
+// Each entry = [Trend, Liquidity, Risk, Strategy, News, PriceAction]
+const LOCAL_INSIGHTS: Record<SessionKey, string[][]> = {
   asia: [
-    "ช่วงเอเชียแรงซื้อเบาบางแต่โครงสร้างระยะสั้นยังเอนเอียงฝั่งบน",
-    "ตลาดเอเชียเดินกรอบแคบพร้อมสะสมโมเมนตัมก่อนเซสชันยุโรป",
-    "ราคาทองยังพักตัวเหนือแนวรับสำคัญในกรอบเอเชีย",
+    [
+      "โครงสร้างระยะสั้นยังเอนเอียงฝั่งบน higher low ล่าสุดยังคงสมบูรณ์ ราคาทรงตัวเหนือ EMA สำคัญในกรอบเอเชีย",
+      "สภาพคล่องสะสมใต้ swing low ล่าสุดยังไม่ถูกเก็บ ความเสี่ยง liquidity sweep ก่อนขึ้นต่อยังมีนัยสำคัญ ควรระวังการหลุดฐานระยะสั้น",
+      "โซน supply เดิมระดับ H4 ยังไม่ถูก retest แรงขาย rejection ที่แนวต้านต้องติดตามใกล้ชิด หากยืนไม่ได้คือสัญญาณรอบใหม่",
+      "รอ pullback เข้าโซน demand ก่อนเปิดไม้ตามแนวโน้มหลัก หลีกเลี่ยงซื้อในพื้นที่ premium ที่ราคาวิ่งออกไปแล้ว",
+      "ตลาดเอเชียแกว่งกรอบแคบรอ catalyst จากยุโรป ยังไม่มีข่าวสำคัญที่เปลี่ยนทิศทางในช่วงเช้า",
+      "ราคาทดสอบ premium zone ใน asia session พร้อม volume ที่ลดลง บ่งชี้แรงซื้อชะลอตัว ระวังการ fake breakout",
+    ],
+    [
+      "Higher timeframe bullish structure ยังสมบูรณ์ pullback ตื้นผิดปกติสะท้อนว่า sellers ขาด conviction จริง ทิศทางหลักยังบวก",
+      "Volume delta ช่วง NY สวนทาง price action บ่งชี้การดูดซับออเดอร์ขายเงียบๆ ซึ่งมักนำมาซึ่งการ squeeze ฝั่งขาขึ้น",
+      "DXY ยังอ่อนตัวต่อเนื่อง real yield ลดลง เป็น headwind ฝั่งขาลงสำหรับ gold ในระยะกลาง",
+      "เน้นหา buy setup ที่ discount zone หลัง pullback สะอาด ไม่ไล่ราคาในพื้นที่ที่ขึ้นมามากแล้ว",
+      "ไม่มีข่าว USD สำคัญในช่วงเช้า ตลาดเคลื่อนไหวด้วย technical ล้วนๆ ให้น้ำหนักกับ price action",
+      "รูปแบบ candle ล่าสุดแสดง absorption ที่ฐานรองรับ momentum อาจกลับมาฝั่งบวกในช่วงบ่าย",
+    ],
   ],
   london: [
-    "ลอนดอนเปิดมาพร้อมการทดสอบสภาพคล่องฝั่งสูงอย่างมีนัย",
-    "เซสชันยุโรปจังหวะการไหลของออเดอร์เริ่มเอนไปฝั่งผู้ซื้อ",
-    "โมเมนตัมลอนดอนหนุนการ breakout กรอบเอเชียอย่างต่อเนื่อง",
+    [
+      "London session เปิดด้วย momentum ต่อเนื่องจาก asia พร้อม order flow ฝั่งซื้อที่ชัดเจนขึ้น แนวโน้มระยะสั้นยังเป็นบวก",
+      "Liquidity ฝั่งบนยังเปิดอยู่เป็น magnet ดึงดูดราคา โซน sweep เหนือ high ล่าสุดยังน่าจับตามอง",
+      "โดน rejection แรงที่ supply zone คือสัญญาณเสี่ยงชัดเจน หากเกิดขึ้นให้รอ retest ก่อนตัดสินใจ",
+      "เลือกเทรด continuation หลัง pullback เข้า demand zone ที่สะอาด รอ confirmation จาก price action ก่อนเปิดไม้",
+      "ข้อมูลยุโรปออกมาผสมผสาน ไม่มีตัวเลขที่เปลี่ยน sentiment หลักได้ทันที ให้น้ำหนักกับ flow มากกว่าข่าว",
+      "Break of structure ระดับ H4 ยังไม่มี retest สะอาด เปิดโอกาสเทรด continuation คุณภาพสูงในช่วงบ่าย",
+    ],
+    [
+      "London momentum หนุน bias บวกต่อเนื่อง order flow สถาบันเริ่มเด่นชัดในช่วง European open ทิศทางยังไปได้",
+      "Sweep ใต้ asia low เรียบร้อยแล้ว โครงสร้างพร้อมสำหรับ long กลับ liquidity ใต้ฐานถูกเก็บไปแล้ว",
+      "Risk-off sentiment ยังคงเป็นปัจจัยหนุน gold ในระยะสั้น ให้ระวัง reversal เมื่อ DXY ดีดกลับ",
+      "ใช้ London close เป็น reference level สำหรับ NY session รักษา bias เดิมจนกว่าจะเสียโครงสร้าง",
+      "European data อ่อนแอกว่าคาด หนุน safe-haven demand แต่ไม่ถึงกับเปลี่ยนทิศทางหลักได้",
+      "Price action ช่วง London แสดง controlled retracement บ่งชี้แรงซื้อที่มีโครงสร้าง ไม่ใช่การขายทิ้ง",
+    ],
   ],
   ny: [
-    "เซสชันนิวยอร์กเปิดพร้อมแรงหนุนจากบอนด์ยิลด์ที่อ่อนตัว",
-    "ช่วงนิวยอร์กมักเป็นช่วงที่สถาบันรีบาลานซ์พอร์ต liquidity จึงบางกว่าปกติ",
-    "นิวยอร์กเข้ามาพร้อมโมเมนตัมต่อเนื่องจากลอนดอน ผู้ขายยังไม่สามารถคืนพื้นที่",
+    [
+      "NY open เปิดด้วย momentum ต่อเนื่องจาก London bias ยังคงเป็นบวก แต่ต้องระวัง reversal หลัง CPI data",
+      "Liquidity ฝั่งบนถูกเก็บบางส่วนแล้ว อาจเกิด distribution ก่อนปิด session ระวังการ fade ที่ high",
+      "US data สำคัญวันนี้อาจพลิก bias ทันที เตรียมแผนรับมือทั้งสองทิศทางและลดขนาดไม้ก่อนข่าว",
+      "ถือ bias บวกจนกว่าจะเสียฐาน H1 อย่าสวนกระแสหลักโดยไม่มี confirmation ชัดเจน",
+      "FOMC minutes และ Fed speakers เป็นปัจจัยหลักที่ตลาดจับตา ความผันผวนอาจเพิ่มสูงในช่วงนี้",
+      "NY session มักเป็นช่วงที่สถาบันรีบาลานซ์ portfolio ราคาอาจแกว่งแรงก่อนหาทิศทางที่แท้จริง",
+    ],
+    [
+      "DXY breakdown ยืนยันแล้ว gold มีแนวโน้มวิ่งต่อในทิศทางบวก correlation ยังทำงานปกติ",
+      "Retail positioning net-short สูงผิดปกติ เป็น fuel สำหรับ short squeeze ขาขึ้นในระยะสั้น",
+      "Bond yield ปรับตัวขึ้น เป็น headwind สำหรับ gold ต้องติดตามว่า price action จะชนะได้ไหม",
+      "เทรดตาม institutional order flow อย่าสวนกระแสสถาบันโดยไม่มีเหตุผลที่แข็งแกร่งพอ",
+      "FOMC แสดงท่าที dovish มากกว่าคาด เป็น bullish catalyst สำหรับ gold ในระยะกลาง",
+      "NY session close เหนือ key resistance ระดับสัปดาห์จะยืนยัน weekly bias บวกได้อย่างสมบูรณ์",
+    ],
   ],
   overnight: [
-    "ช่วงดึกสภาพคล่องบางราคาแกว่งในกรอบหลังปิด NY",
-    "หลัง NY ปิด ตลาดทองเข้าสู่โหมดสะสมโครงสร้างสำหรับเซสชันถัดไป",
-    "ดึกคืนนี้โมเมนตัมชะลอ ตลาดรอ catalyst ใหม่ช่วงเอเชียเปิด",
+    [
+      "ตลาดดึกสภาพคล่องบางมาก ราคาแกว่งในกรอบหลัง NY close โครงสร้างยังไม่เสียแต่ momentum ชะลอ",
+      "โซน demand ระดับ daily ยังไม่ถูกทดสอบ อาจเป็นจุดที่ราคาวิ่งไปหาก่อนเปิดเซสชันถัดไป",
+      "ระวัง gap risk ช่วงดึก ลดขนาดตำแหน่งค้างคืนและตั้ง stop ที่กว้างพอรับกับ thin liquidity",
+      "รอ asia open เพื่อยืนยัน direction ที่ชัดเจนก่อนเปิดไม้ใหม่ อย่าตัดสินใจใหญ่ในช่วงที่ตลาดบาง",
+      "ไม่มีข่าวสำคัญในช่วงดึก ตลาดเคลื่อนไหวด้วย technical และ thin order book เป็นหลัก",
+      "Overnight range จะเป็น reference level สำคัญสำหรับ asia session ในวันถัดไป จับตา high-low ของคืนนี้",
+    ],
   ],
 };
 
-const STRUCTURE_INSIGHTS = [
-  "สิ่งที่นักเทรดส่วนใหญ่มองข้ามคือโซน liquidity ใต้ swing low ล่าสุดที่ยังไม่ถูกเก็บ ทำให้ความเสี่ยง sweep ก่อนขึ้นต่อสูงกว่าที่ราคาบอก",
-  "สิ่งที่ไม่ชัดในกราฟรายชั่วโมงคือ การกระจายตำแหน่ง retail ที่ยัง net-short อยู่ ซึ่งมักเป็นเชื้อให้เกิด squeeze ขาขึ้น",
-  "โครงสร้างไทม์เฟรมใหญ่ยัง bullish แต่การ pullback ตื้นผิดปกติคือสัญญาณว่า sellers ไม่มี conviction จริง",
-  "ความน่าสนใจอยู่ที่ volume delta ช่วง NY ที่สวนทาง price action บ่งชี้การดูดซับออเดอร์ขายเงียบๆ",
-  "ส่วนที่ไม่มีใครพูดถึงคือ correlation ระหว่างทองกับ real yields เริ่มจางลง ตลาดกำลังให้ค่ากับ geopolitical premium มากกว่าปกติ",
-  "ประเด็นซ่อนอยู่คือ การ break of structure ระดับ H4 ยังไม่มี retest สะอาด เปิดโอกาสเทรด continuation คุณภาพสูง",
-];
-
-const RISK_FLAGS = [
-  "เงื่อนไขสำคัญที่ต้องจับตาคือการหลุดแนวรับ intraday พร้อม volume spike ซึ่งจะพลิก bias ทันที",
-  "ต้องระวังการเปิดออเดอร์ต้นชั่วโมงที่มีข่าว US data เพราะ spread และ slippage มักเป็นเรื่องที่ทำลาย edge",
-  "เงื่อนไขที่ต้องติดตามคือการปฏิเสธที่โซน supply ก่อนหน้า หากยืนไม่อยู่คือสัญญาณรอบใหม่",
-  "จุดที่เปลี่ยนเกมคือการปิด H1 ใต้โซนฐาน หากไม่เกิดขึ้นให้ยังถือ bias เดิม",
-  "สิ่งที่ต้องเฝ้าคือ DXY ถ้ากลับขึ้นเหนือระดับกลางของช่วงสัปดาห์จะกดดันทองอย่างรวดเร็ว",
-  "จุดสำคัญคือการรักษา higher-low ล่าสุด หากหลุดจะยืนยันโครงสร้างใหม่ฝั่งลง",
-];
-
-function pickDeterministic<T>(list: T[], seed: number, salt: number) {
-  if (list.length === 0) {
-    throw new Error("cannot pick from empty list");
-  }
+function pickDeterministic<T>(list: T[], seed: number, salt: number): T {
   const index = Math.abs(Math.floor(seed * 9301 + salt * 49297)) % list.length;
-  return list[index];
+  return list[index]!;
 }
 
-function composeLocalInsight(now = new Date()): string {
-  const hour = bangkokHour(now);
-  const session = resolveSession(hour);
-  // Rotate every 10 minutes so reloads feel fresh but stay stable for a window.
+function composeLocalResponse(now = new Date()): LoadingInsightResponse {
+  const session = resolveMarketSession(now);
   const rotation = Math.floor(now.getTime() / (10 * 60 * 1000));
   const jitter = (rotation % 997) / 997;
 
-  const opener = pickDeterministic(BIAS_OPENERS[session], jitter, 1);
-  const structure = pickDeterministic(STRUCTURE_INSIGHTS, jitter, 2);
-  const risk = pickDeterministic(RISK_FLAGS, jitter, 3);
+  const bank = LOCAL_INSIGHTS[session];
+  const insights = pickDeterministic(bank, jitter, 1);
 
-  return `${opener} ${structure} ${risk}`;
+  return { insights, source: "local" };
 }
 
-// ─────────────────────────────────────────────────────────────
+// ── Gemini fetch ──────────────────────────────────────────────
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+  }>;
+};
 
-async function generateWithGemini(apiKey: string) {
+function stripMarkdown(s: string): string {
+  return s
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/#/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function generateWithGemini(apiKey: string): Promise<LoadingInsightResponse | null> {
+  const now = new Date();
+  const session = resolveMarketSession(now);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const tid = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const systemPrompt = `คุณคือ AI วิเคราะห์ตลาด XAUUSD ระดับสถาบัน ตอบเฉพาะภาษาไทย กระชับ คม ไม่มี markdown ไม่มี bullet ไม่มี emoji
+
+ให้ output เป็น JSON เท่านั้น:
+{
+  "insights": [string, string, string, string, string, string]
+}
+
+insights คือ array 6 ประโยค ครอบคลุมหัวข้อตามลำดับ:
+0: Trend — ทิศทางหลักและโครงสร้างตลาด (2-3 ประโยค รวมเป็น string เดียว)
+1: Liquidity — สภาพคล่องและโซน sweep (2-3 ประโยค)
+2: Risk — ความเสี่ยงและจุดที่ต้องระวัง (2-3 ประโยค)
+3: Strategy — กลยุทธ์การเทรด (2-3 ประโยค)
+4: News — ข่าวและ fundamental ที่กระทบ (2-3 ประโยค)
+5: Price Action — สัญญาณ price action และ candle pattern (2-3 ประโยค)
+
+แต่ละ string คือ 2-3 ประโยคต่อเนื่องกัน ไม่มีขึ้นบรรทัดใหม่ในระหว่างประโยค`;
 
   try {
-    const response = await fetchWithRetry(
+    const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
@@ -162,37 +149,51 @@ async function generateWithGemini(apiKey: string) {
         cache: "no-store",
         signal: controller.signal,
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: "Write a short, sharp trading insight in Thai for XAUUSD (3-5 sentences). Include current bias, one non-obvious insight, and one key condition to watch.",
-                },
-              ],
-            },
-          ],
-          systemInstruction: {
-            parts: [
-              {
-                text: "You are a senior XAUUSD analyst and insightful synthesizer for a premium trading platform. Provide concise, high-value market insights in Thai for experienced traders. Focus on market structure, liquidity dynamics, positioning, and underlying market intent. Go beyond obvious price description and highlight non-obvious insight, hidden risk, or second-order effect when relevant. Provide a clear bias with reasoning, and if signals are mixed, explain the conflict instead of forcing direction. Use clean Thai prose with no markdown, no bullet points, no bolding, and no emojis. Keep the tone professional, sharp, and composed.",
-              },
-            ],
+          contents: [{ parts: [{ text: `วิเคราะห์ตลาด XAUUSD ณ ตอนนี้ ครอบคลุม 6 มิติ โดยยึดบริบท session ปัจจุบันเป็น ${session}` }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          tools: [{ googleSearch: {} }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.65,
+            maxOutputTokens: 1200,
           },
         }),
       },
     );
 
-    if (!response.ok) {
-      return null;
-    }
+    clearTimeout(tid);
+    if (!res.ok) return null;
 
-    const payload = (await response.json().catch(() => null)) as GeminiGenerateContentResponse | null;
-    return normalizeInsight(payload?.candidates?.[0]?.content?.parts?.[0]?.text);
+    const payload = (await res.json().catch(() => null)) as GeminiResponse | null;
+    const raw = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) return null;
+
+    let parsed: unknown;
+    try {
+      const cleaned = raw.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch { return null; }
+
+    if (typeof parsed !== "object" || parsed === null || !("insights" in parsed)) return null;
+
+    const p = parsed as Record<string, unknown>;
+    const insights = Array.isArray(p.insights)
+      ? (p.insights as unknown[]).filter((x): x is string => typeof x === "string").map(stripMarkdown).slice(0, 6)
+      : [];
+
+    if (insights.length < 6) return null;
+    return { insights, source: "gemini" };
   } catch {
+    clearTimeout(tid);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
+}
+
+// ── Handler ───────────────────────────────────────────────────
+function jsonResponse(payload: LoadingInsightResponse) {
+  const res = NextResponse.json(payload);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  return res;
 }
 
 export async function GET() {
@@ -200,16 +201,9 @@ export async function GET() {
   const allowGemini = apiKey && process.env.AI_INSIGHT_PROVIDER !== "local";
 
   if (allowGemini) {
-    const geminiInsight = await generateWithGemini(apiKey);
-    if (geminiInsight) {
-      return json({ insight: geminiInsight, source: "gemini" });
-    }
+    const result = await generateWithGemini(apiKey);
+    if (result) return jsonResponse(result);
   }
 
-  try {
-    const local = composeLocalInsight();
-    return json({ insight: local, source: "local" });
-  } catch {
-    return json({ insight: FALLBACK_INSIGHT, source: "fallback" });
-  }
+  return jsonResponse(composeLocalResponse());
 }
