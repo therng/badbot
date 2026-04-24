@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EconomicEvent } from "@/app/api/economic-events/route";
 import {
   getInitialAiLoginTrends,
   resolveAiLoginTrends,
 } from "@/components/trading-monitor/ai-login-engine";
 
-const APP_VERSION = "4.1";
+const APP_VERSION = "5.0";
+const STORAGE_KEY = "analytic.ai.session";
+const TYPING_SPEED_MS = 18;
 
 type EconomicEventsResponse = {
   events: EconomicEvent[];
@@ -19,9 +21,6 @@ type Phase = "idle" | "entering";
 type AILoginGateProps = {
   onEnter: () => void;
 };
-
-const STORAGE_KEY = "analytic.ai.session";
-const TYPING_SPEED_MS = 20;
 
 type AnalyticEngineState = {
   trends: string[];
@@ -50,7 +49,9 @@ function writeAuthenticatedFlag() {
 
 function useAnalyticEngine(): AnalyticEngineState {
   const [trends, setTrends] = useState<string[]>(() =>
-    typeof window === "undefined" ? getInitialAiLoginTrends(null) : getInitialAiLoginTrends(window.localStorage),
+    typeof window === "undefined"
+      ? getInitialAiLoginTrends(null)
+      : getInitialAiLoginTrends(window.localStorage),
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,7 +79,6 @@ function useAnalyticEngine(): AnalyticEngineState {
     const rotateInterval = window.setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % trends.length);
     }, 10000);
-
     return () => window.clearInterval(rotateInterval);
   }, [trends.length]);
 
@@ -90,6 +90,50 @@ function useAnalyticEngine(): AnalyticEngineState {
   return { trends, currentIndex, isLoading, refresh };
 }
 
+function useLocalClock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const id = window.setInterval(tick, 1000);
+    const raf = window.requestAnimationFrame(tick);
+    return () => {
+      window.clearInterval(id);
+      window.cancelAnimationFrame(raf);
+    };
+  }, []);
+  return now;
+}
+
+function formatClock(now: Date | null) {
+  if (!now) return "—— : ——";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Bangkok",
+    }).format(now);
+  } catch {
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  }
+}
+
+function formatDateLabel(now: Date | null) {
+  if (!now) return "";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      timeZone: "Asia/Bangkok",
+    })
+      .format(now)
+      .toUpperCase();
+  } catch {
+    return "";
+  }
+}
+
 export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [insightTyped, setInsightTyped] = useState<string>("");
@@ -97,8 +141,8 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const [loadingEvents, setLoadingEvents] = useState(true);
 
   const { trends, currentIndex, isLoading: loadingInsight } = useAnalyticEngine();
+  const now = useLocalClock();
 
-  // ── Fetch Economic Events ─────────────────────────────────────
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
@@ -119,9 +163,11 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
 
   const insight = trends[currentIndex] ?? "";
 
-  // ── Typewriter effect ─────────────────────────────────────────
   useEffect(() => {
-    if (!insight) { setInsightTyped(""); return; }
+    if (!insight) {
+      setInsightTyped("");
+      return;
+    }
     setInsightTyped("");
     let index = 0;
     const handle = window.setInterval(() => {
@@ -132,83 +178,143 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
     return () => window.clearInterval(handle);
   }, [insight]);
 
-  // ── Enter handler ─────────────────────────────────────────────
   const handleEnter = useCallback(() => {
     if (phase === "entering") return;
     setPhase("entering");
     writeAuthenticatedFlag();
-    window.setTimeout(onEnter, 480);
+    window.setTimeout(onEnter, 420);
   }, [onEnter, phase]);
 
-  const caret = insightTyped.length < insight.length ? "▌" : "";
+  const caret = insightTyped.length < insight.length ? "▍" : "";
   const isEntering = phase === "entering";
 
+  const clockStr = useMemo(() => formatClock(now), [now]);
+  const dateStr = useMemo(() => formatDateLabel(now), [now]);
+
+  const topEvents = events.slice(0, 3);
+
   return (
-    <div className="ls" data-phase={phase} role="dialog" aria-label="Analytic Launch Screen">
-      {/* ── Background layers ── */}
+    <div className="ls" data-phase={phase} role="dialog" aria-label="Analytic — Launch">
       <div className="ls__bg" aria-hidden />
       <div className="ls__scanline" aria-hidden />
 
-      {/* ── Main shell ── */}
       <main className="ls__shell">
-
-        {/* ── Logo zone ── */}
-        <section className="ls__logo-zone" aria-hidden>
-          <div className="ls__logo">
-            {/* Sonar pulses */}
-            <span className="ls__sonar ls__sonar--1" />
-            <span className="ls__sonar ls__sonar--2" />
-            <span className="ls__sonar ls__sonar--3" />
-            {/* Rings */}
-            <span className="ls__ring ls__ring--outer" />
-            <span className="ls__ring ls__ring--mid" />
-            <span className="ls__ring ls__ring--inner" />
-            {/* Radar sweep */}
-            <span className="ls__radar" />
-            {/* Core */}
-            <span className="ls__core" />
-            <span className="ls__core-glow" />
+        {/* ── Top bar ── */}
+        <header className="ls__topbar">
+          <div className="ls__runmark">
+            <span className="ls__runmark-dot" aria-hidden />
+            <span>Analytic · Operations Deck</span>
           </div>
-          <h1 className="ls__wordmark">Analytic</h1>
+          <div className="ls__topbar-right">
+            <span>{dateStr || "———"}</span>
+            <span className="ls__topbar-sep" aria-hidden />
+            <span>{clockStr} BKK</span>
+          </div>
+        </header>
+
+        {/* ── Stage: eyebrow + wordmark + signature chart ── */}
+        <section className="ls__stage" aria-hidden>
+          <span className="ls__eyebrow">A Quiet Ledger for Trading Operators</span>
+
+          <h1 className="ls__wordmark">
+            Analytic<em>.</em>
+          </h1>
+
+          <div className="ls__chart" aria-hidden>
+            {/* L-axis (graphite) — drawn from logo */}
+            <span className="ls__chart-axis-y" />
+            <span className="ls__chart-axis-x" />
+
+            {/* Axis ticks */}
+            <span
+              className="ls__chart-tick ls__chart-tick--x"
+              style={{ left: "26%" }}
+            />
+            <span
+              className="ls__chart-tick ls__chart-tick--x"
+              style={{ left: "48%" }}
+            />
+            <span
+              className="ls__chart-tick ls__chart-tick--x"
+              style={{ left: "70%" }}
+            />
+            <span
+              className="ls__chart-tick ls__chart-tick--y"
+              style={{ top: "22%" }}
+            />
+            <span
+              className="ls__chart-tick ls__chart-tick--y"
+              style={{ top: "54%" }}
+            />
+
+            {/* Polyline — matches logo cadence: rise · small dip · rise */}
+            <svg
+              className="ls__chart-svg"
+              viewBox="0 0 800 350"
+              preserveAspectRatio="none"
+              aria-hidden
+            >
+              <polyline
+                className="ls__chart-line"
+                points="120,240 300,130 500,200 700,80"
+              />
+              <circle className="ls__chart-node ls__chart-node--1" cx="120" cy="240" r="12" />
+              <circle className="ls__chart-node ls__chart-node--2" cx="300" cy="130" r="12" />
+              <circle className="ls__chart-node ls__chart-node--3" cx="500" cy="200" r="12" />
+              <circle className="ls__chart-node ls__chart-node--4" cx="700" cy="80" r="12" />
+            </svg>
+          </div>
         </section>
 
-        {/* ── Content area — AI + Events side by side on desktop ── */}
-        <div className="ls__content">
-          {/* ── AI Core Insight ── */}
-          <section className="ls__insight" aria-live="polite">
-            <div className="ls__section-header">
-              <span className="ls__section-tag">AI-Core</span>
-              <span className="ls__section-dot" />
+        {/* ── Meta row: insight + events ── */}
+        <section className="ls__meta">
+          <article className="ls__card" aria-live="polite">
+            <div className="ls__card-header">
+              <span className="ls__card-tag">
+                <span className="ls__card-tag-dot" aria-hidden />
+                Today · AI Reading
+              </span>
+              <span className="ls__card-spacer" />
+              <span className="ls__card-subtag">Refreshed</span>
             </div>
-            <div className="ls__insight-body">
-              {loadingInsight && !insightTyped ? (
-                <span className="ls__insight-loading">กำลังประมวลผล<span className="ls__blink">▌</span></span>
-              ) : (
-                <p className="ls__insight-text">
-                  {insightTyped}
-                  <span className="ls__caret" aria-hidden>{caret}</span>
-                </p>
-              )}
-            </div>
-          </section>
+            {loadingInsight && !insightTyped ? (
+              <span className="ls__insight-loading">
+                กำลังประมวลผล<span className="ls__blink">▍</span>
+              </span>
+            ) : (
+              <p className="ls__insight-text">
+                {insightTyped}
+                <span className="ls__caret" aria-hidden>
+                  {caret}
+                </span>
+              </p>
+            )}
+          </article>
 
-          {/* ── Economic Events ── */}
-          <section className="ls__events" aria-label="USD economic events">
-            <div className="ls__section-header">
-              <span className="ls__section-tag">Up Next</span>
-              <span className="ls__section-badge">HIGH IMPACT</span>
+          <article className="ls__card" aria-label="USD high impact calendar">
+            <div className="ls__card-header">
+              <span className="ls__card-tag">
+                <span className="ls__card-tag-dot" aria-hidden />
+                Calendar · USD
+              </span>
+              <span className="ls__card-spacer" />
+              <span className="ls__card-subtag">High Impact</span>
             </div>
             <div className="ls__events-list">
               {loadingEvents ? (
                 <div className="ls__events-loading">
-                  <span className="ls__events-dot ls__events-dot--pulse" />
-                  <span className="ls__events-loading-text">Loading calendar…</span>
+                  <span className="ls__events-dot ls__events-dot--pulse" aria-hidden />
+                  <span>Loading calendar…</span>
                 </div>
-              ) : events.length === 0 ? (
+              ) : topEvents.length === 0 ? (
                 <div className="ls__events-empty">No high-impact USD events scheduled</div>
               ) : (
-                events.map((ev) => (
-                  <div key={ev.id} className="ls__event" data-holiday={ev.impact === "Holiday" ? "1" : "0"}>
+                topEvents.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="ls__event"
+                    data-holiday={ev.impact === "Holiday" ? "1" : "0"}
+                  >
                     <div className="ls__event-left">
                       {ev.impact === "Holiday" ? (
                         <span className="ls__event-time ls__event-time--holiday">—</span>
@@ -219,45 +325,48 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
                     </div>
                     <span className="ls__event-name">{ev.name}</span>
                     {ev.impact === "Holiday" ? (
-                      <span className="ls__event-badge ls__event-badge--holiday">HOLIDAY</span>
+                      <span className="ls__event-badge ls__event-badge--holiday">Holiday</span>
                     ) : (
-                      <span className="ls__event-badge ls__event-badge--high">HIGH</span>
+                      <span className="ls__event-badge ls__event-badge--high">High</span>
                     )}
                   </div>
                 ))
               )}
             </div>
-          </section>
-        </div>
+          </article>
+        </section>
 
-        {/* ── Enter button ── */}
-        <button
-          type="button"
-          className="ls__enter"
-          onClick={handleEnter}
-          disabled={isEntering}
-        >
-          <span className="ls__enter-edge ls__enter-edge--l" aria-hidden />
-          {isEntering ? (
-            <span className="ls__enter-text">Initializing…</span>
-          ) : (
-            <>
-              <span className="ls__enter-text">Enter Dashboard</span>
-              <span className="ls__enter-icon" aria-hidden>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M7.5 4.5L12 9L7.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 9H12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </span>
-            </>
-          )}
-          <span className="ls__enter-edge ls__enter-edge--r" aria-hidden />
-          <span className="ls__enter-glow" aria-hidden />
-        </button>
+        {/* ── Footer row: progress · enter · signature ── */}
+        <footer className="ls__footer-row">
+          <div className="ls__footer-label">
+            <div className="ls__progress" aria-hidden />
+          </div>
 
-        {/* ── Footer ── */}
-        <footer className="ls__footer">
-          Analytic {APP_VERSION} by Therng
+          <button
+            type="button"
+            className="ls__enter"
+            onClick={handleEnter}
+            disabled={isEntering}
+          >
+            <span className="ls__enter-text">
+              {isEntering ? "Opening…" : "Enter Dashboard"}
+            </span>
+            <span className="ls__enter-icon" aria-hidden>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M2.5 6h7M6 2.5L9.5 6 6 9.5"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </button>
+
+          <div className="ls__footer-label ls__footer-label--right">
+            v{APP_VERSION} · by Therng
+          </div>
         </footer>
       </main>
     </div>
