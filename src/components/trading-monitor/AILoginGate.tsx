@@ -10,8 +10,8 @@ const STORAGE_KEY = "analytic.ai.session";
 const TYPING_SPEED_MS = 18;
 
 // ── Candlestick realtime chart ──────────────────────────────
-const MAX_VISIBLE = 14;
-const TICK_MS = 800;
+const MAX_VISIBLE = 24;
+const TICK_MS = 380;
 
 type Candle = {
   key: number;
@@ -34,9 +34,9 @@ type CandlePattern = {
   bars: PatternBar[];
 };
 
-const PRICE_MIN = 6;
-const PRICE_MAX = 94;
-const BODY_STRETCH = 1.28;
+const PRICE_MIN = 4;
+const PRICE_MAX = 96;
+const BODY_STRETCH = 1.4;
 
 const CANDLE_PATTERNS: CandlePattern[] = [
   {
@@ -152,15 +152,31 @@ function toCandle(key: number, bar: PatternBar): { candle: Candle; close: number
 
 function buildPatternBars(prevClose: number): PatternBar[] {
   const pattern = CANDLE_PATTERNS[Math.floor(Math.random() * CANDLE_PATTERNS.length)];
-  const scale = randomBetween(1.02, 1.34);
-  const entryPrice = clamp(prevClose + randomBetween(-4, 4), 24, 76);
-  const firstOpen = pattern.bars[0].open * scale;
+  const scale = randomBetween(0.55, 1.85);
+
+  // Anchor first bar's open exactly to prevClose for price continuity
+  const anchorOpen = clamp(prevClose, PRICE_MIN + 4, PRICE_MAX - 4);
+  const firstPatternOpen = pattern.bars[0].open * scale;
+  const shift = anchorOpen - firstPatternOpen;
+
   let shiftedBars = pattern.bars.map((bar) => ({
-    open: bar.open * scale + entryPrice - firstOpen,
-    high: bar.high * scale + entryPrice - firstOpen,
-    low: bar.low * scale + entryPrice - firstOpen,
-    close: bar.close * scale + entryPrice - firstOpen,
+    open:  bar.open  * scale + shift,
+    high:  bar.high  * scale + shift,
+    low:   bar.low   * scale + shift,
+    close: bar.close * scale + shift,
   }));
+
+  // Chain bars within pattern: each bar opens at previous bar's close
+  for (let i = 1; i < shiftedBars.length; i++) {
+    const prevBarClose = shiftedBars[i - 1].close;
+    const barShift = prevBarClose - shiftedBars[i].open;
+    shiftedBars[i] = {
+      open:  shiftedBars[i].open  + barShift,
+      high:  shiftedBars[i].high  + barShift,
+      low:   shiftedBars[i].low   + barShift,
+      close: shiftedBars[i].close + barShift,
+    };
+  }
 
   shiftedBars = shiftedBars.map((bar) => {
     const bodySize = Math.abs(bar.close - bar.open);
@@ -173,13 +189,14 @@ function buildPatternBars(prevClose: number): PatternBar[] {
     return {
       open,
       high: Math.max(bar.high, open, close),
-      low: Math.min(bar.low, open, close),
+      low:  Math.min(bar.low,  open, close),
       close,
     };
   });
 
-  const patternLow = Math.min(...shiftedBars.map((bar) => bar.low));
-  const patternHigh = Math.max(...shiftedBars.map((bar) => bar.high));
+  // Clamp entire pattern to price range without distorting shape
+  const patternLow  = Math.min(...shiftedBars.map((b) => b.low));
+  const patternHigh = Math.max(...shiftedBars.map((b) => b.high));
   const rangeShift =
     patternLow < PRICE_MIN
       ? PRICE_MIN - patternLow
@@ -189,9 +206,9 @@ function buildPatternBars(prevClose: number): PatternBar[] {
 
   if (rangeShift !== 0) {
     shiftedBars = shiftedBars.map((bar) => ({
-      open: bar.open + rangeShift,
-      high: bar.high + rangeShift,
-      low: bar.low + rangeShift,
+      open:  bar.open  + rangeShift,
+      high:  bar.high  + rangeShift,
+      low:   bar.low   + rangeShift,
       close: bar.close + rangeShift,
     }));
   }
@@ -208,13 +225,50 @@ function nextPatternCandle(key: number, prevClose: number): { candle: Candle; cl
   return toCandle(key, nextBar ?? buildPatternBars(prevClose)[0]);
 }
 
+// ── XAUUSD live data ────────────────────────────────────────
+type RawCandle = { o: number; h: number; l: number; c: number };
+
+// Normalize real OHLC prices into chart % coordinates
+function normalizeCandles(raw: RawCandle[]): Candle[] {
+  if (raw.length === 0) return [];
+  const allPrices = raw.flatMap((c) => [c.o, c.h, c.l, c.c]);
+  const priceMin = Math.min(...allPrices);
+  const priceMax = Math.max(...allPrices);
+  const range = priceMax - priceMin || 1;
+
+  const toPercent = (p: number) =>
+    clamp(((p - priceMin) / range) * (PRICE_MAX - PRICE_MIN) + PRICE_MIN, PRICE_MIN, PRICE_MAX);
+
+  return raw.map((rc, i) => {
+    const o = toPercent(rc.o);
+    const c = toPercent(rc.c);
+    const h = toPercent(rc.h);
+    const l = toPercent(rc.l);
+    const bull = c >= o;
+    const bodyBot = Math.min(o, c);
+    const bodyTop = Math.max(o, c);
+    return {
+      key: i,
+      bull,
+      bodyH: Math.max(1.2, bodyTop - bodyBot),
+      bodyB: bodyBot,
+      wickTop: 100 - h,
+      wickBot: l,
+    };
+  });
+}
+
 // Module-scoped stream state — survives re-renders, avoids ref-in-initializer lint
 let _streamKey = 0;
-let _streamClose = 0;
 let _streamSeeded = false;
+// Real XAUUSD candles used as the looping source; empty = fallback to random
+let _realCandles: Candle[] = [];
+let _realIndex = 0;
+// Random-pattern fallback state
+let _streamClose = 0;
 let _patternQueue: PatternBar[] = [];
 
-function seedStream(): Candle[] {
+function seedFallback(): Candle[] {
   if (_streamSeeded) return [];
   _streamSeeded = true;
   _streamKey = 0;
@@ -229,29 +283,69 @@ function seedStream(): Candle[] {
   return out;
 }
 
+function nextCandle(): Candle {
+  if (_realCandles.length > 0) {
+    // Loop through real data indefinitely
+    const src = _realCandles[_realIndex % _realCandles.length];
+    const candle: Candle = { ...src, key: _streamKey++ };
+    _realIndex++;
+    return candle;
+  }
+  // Fallback: random pattern
+  const { candle, close } = nextPatternCandle(_streamKey++, _streamClose);
+  _streamClose = close;
+  return candle;
+}
+
 function useCandlestickStream() {
   const [candles, setCandles] = useState<Candle[]>(() => {
     if (typeof window === "undefined") return [];
-    return seedStream();
+    return seedFallback();
   });
 
   useEffect(() => {
-    // SSR fallback
     if (!_streamSeeded) {
-      const initial = seedStream();
-      if (initial.length > 0) setCandles(initial);
+      const initial = seedFallback();
+      const t = window.setTimeout(() => { if (initial.length > 0) setCandles(initial); }, 0);
+      void t;
     }
 
+    let cancelled = false;
+    fetch("/api/xauusd-candles", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((payload) => {
+        if (cancelled) return;
+        const raw: RawCandle[] = (payload?.candles ?? []).filter(
+          (c: RawCandle) => c.o > 0 && c.h > 0 && c.l > 0 && c.c > 0,
+        );
+        if (raw.length < 4) return;
+
+        _realCandles = normalizeCandles(raw);
+        _realIndex = 0;
+        _streamKey = 0;
+        const initial = _realCandles.slice(0, MAX_VISIBLE).map((c, i) => ({ ...c, key: i }));
+        _streamKey = initial.length;
+        _realIndex = initial.length;
+        setCandles(initial);
+      })
+      .catch(() => { /* keep fallback */ });
+
     const id = window.setInterval(() => {
-      const { candle, close } = nextPatternCandle(_streamKey++, _streamClose);
-      _streamClose = close;
+      const candle = nextCandle();
       setCandles((prev) => {
-        const next = [...prev, candle];
-        return next.length > MAX_VISIBLE ? next.slice(-MAX_VISIBLE) : next;
+        if (prev.length >= MAX_VISIBLE) {
+          const next = prev.slice(1);
+          next.push(candle);
+          return next;
+        }
+        return [...prev, candle];
       });
     }, TICK_MS);
 
-    return () => window.clearInterval(id);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, []);
 
   return candles;
@@ -318,7 +412,7 @@ function useAnalyticEngine(): AnalyticEngineState {
 
   useEffect(() => {
     const rotateInterval = window.setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % trends.length);
+      setCurrentIndex((prev) => trends.length > 0 ? (prev + 1) % trends.length : 0);
     }, 10000);
     return () => window.clearInterval(rotateInterval);
   }, [trends.length]);
@@ -341,26 +435,16 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const insight = trends[currentIndex] ?? "";
 
   useEffect(() => {
-    if (!insight) {
-      const resetHandle = window.setTimeout(() => {
-        setInsightTyped("");
-      }, 0);
-      return () => window.clearTimeout(resetHandle);
-    }
-
-    const resetHandle = window.setTimeout(() => {
-      setInsightTyped("");
-    }, 0);
-
+    const reset = window.setTimeout(() => setInsightTyped(""), 0);
+    if (!insight) return () => window.clearTimeout(reset);
     let index = 0;
     const handle = window.setInterval(() => {
       index += 1;
       setInsightTyped(insight.slice(0, index));
       if (index >= insight.length) window.clearInterval(handle);
     }, TYPING_SPEED_MS);
-
     return () => {
-      window.clearTimeout(resetHandle);
+      window.clearTimeout(reset);
       window.clearInterval(handle);
     };
   }, [insight]);
@@ -407,6 +491,7 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         <section className="ls__hero" aria-label="Analytic launch sequence">
           <div className="ls__data-side" aria-hidden>
             <div className="ls__chart">
+              <div className="ls__chart-depth" aria-hidden />
               <span className="ls__chart-axis-y" />
               <span className="ls__chart-axis-x" />
               <div className="ls__candles">
