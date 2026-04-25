@@ -36,6 +36,7 @@ type CandlePattern = {
 
 const PRICE_MIN = 6;
 const PRICE_MAX = 94;
+const BODY_STRETCH = 1.28;
 
 const CANDLE_PATTERNS: CandlePattern[] = [
   {
@@ -151,7 +152,7 @@ function toCandle(key: number, bar: PatternBar): { candle: Candle; close: number
 
 function buildPatternBars(prevClose: number): PatternBar[] {
   const pattern = CANDLE_PATTERNS[Math.floor(Math.random() * CANDLE_PATTERNS.length)];
-  const scale = randomBetween(0.82, 1.18);
+  const scale = randomBetween(1.02, 1.34);
   const entryPrice = clamp(prevClose + randomBetween(-4, 4), 24, 76);
   const firstOpen = pattern.bars[0].open * scale;
   let shiftedBars = pattern.bars.map((bar) => ({
@@ -160,6 +161,22 @@ function buildPatternBars(prevClose: number): PatternBar[] {
     low: bar.low * scale + entryPrice - firstOpen,
     close: bar.close * scale + entryPrice - firstOpen,
   }));
+
+  shiftedBars = shiftedBars.map((bar) => {
+    const bodySize = Math.abs(bar.close - bar.open);
+    if (bodySize < 3) return bar;
+
+    const bodyMid = (bar.open + bar.close) / 2;
+    const open = bodyMid + (bar.open - bodyMid) * BODY_STRETCH;
+    const close = bodyMid + (bar.close - bodyMid) * BODY_STRETCH;
+
+    return {
+      open,
+      high: Math.max(bar.high, open, close),
+      low: Math.min(bar.low, open, close),
+      close,
+    };
+  });
 
   const patternLow = Math.min(...shiftedBars.map((bar) => bar.low));
   const patternHigh = Math.max(...shiftedBars.map((bar) => bar.high));
@@ -365,6 +382,13 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
     [handleEnter],
   );
 
+  // Lock launch screen: no scroll, no pinch-to-zoom
+  useEffect(() => {
+    const prevent = (e: Event) => e.preventDefault();
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
+  }, []);
+
   const caret = insightTyped.length < insight.length ? "▍" : "";
   const statusLine = insightTyped || insight || "Initializing Ai-Core...";
 
@@ -381,58 +405,62 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         tabIndex={0}
       >
         <section className="ls__hero" aria-label="Analytic launch sequence">
-          <div className="ls__chart" aria-hidden>
-            <span className="ls__chart-axis-y" />
-            <span className="ls__chart-axis-x" />
-            <div className="ls__candles">
-              {candles.map((c) => (
-                <span
-                  key={c.key}
-                  className={`ls__candle ${c.bull ? "ls__candle--bull" : "ls__candle--bear"}`}
-                  style={{
-                    "--body-h": `${c.bodyH}%`,
-                    "--body-b": `${c.bodyB}%`,
-                    "--wick-top": `${c.wickTop}%`,
-                    "--wick-bot": `${c.wickBot}%`,
-                  } as React.CSSProperties}
-                />
-              ))}
+          <div className="ls__data-side" aria-hidden>
+            <div className="ls__chart">
+              <span className="ls__chart-axis-y" />
+              <span className="ls__chart-axis-x" />
+              <div className="ls__candles">
+                {candles.map((c) => (
+                  <span
+                    key={c.key}
+                    className={`ls__candle ${c.bull ? "ls__candle--bull" : "ls__candle--bear"}`}
+                    style={{
+                      "--body-h": `${c.bodyH}%`,
+                      "--body-b": `${c.bodyB}%`,
+                      "--wick-top": `${c.wickTop}%`,
+                      "--wick-bot": `${c.wickBot}%`,
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="ls__brand">
-            <h1 className="ls__wordmark" aria-label="ANALYTIC">
-              <span className="ls__wordmark-main">ANALYT</span>
-              <span className="ls__wordmark-i">
-                I
-                <span className="ls__wordmark-dot" aria-hidden />
-              </span>
-              <span className="ls__wordmark-main">C</span>
-            </h1>
+          <div className="ls__brand-side">
+            <div className="ls__brand">
+              <h1 className="ls__wordmark" aria-label="ANALYTIC">
+                <span className="ls__wordmark-main">ANALYT</span>
+                <span className="ls__wordmark-i">
+                  I
+                  <span className="ls__wordmark-dot" aria-hidden />
+                </span>
+                <span className="ls__wordmark-main">C</span>
+              </h1>
 
-            <div className="ls__module-row">
-              <span className="ls__module-text">AI-Core</span>
+              <div className="ls__module-row">
+                <span className="ls__module-text">AI-Core</span>
+              </div>
+
+              <p className="ls__quote" aria-live="polite">
+                &quot;
+                {loadingInsight && !insightTyped ? "Initializing Ai-Core..." : statusLine}
+                <span className="ls__caret" aria-hidden>
+                  {caret}
+                </span>
+                &quot;
+              </p>
             </div>
 
-            <p className="ls__quote" aria-live="polite">
-              &quot;
-              {loadingInsight && !insightTyped ? "Initializing Ai-Core..." : statusLine}
-              <span className="ls__caret" aria-hidden>
-                {caret}
-              </span>
-              &quot;
-            </p>
-          </div>
+            <div className="ls__progress-wrap" aria-hidden>
+              <div className="ls__progress" />
+            </div>
 
-          <div className="ls__progress-wrap" aria-hidden>
-            <div className="ls__progress" />
+            <span className="ls__enter">แตะเพื่อเข้า</span>
           </div>
-
-          <span className="ls__enter">แตะเพื่อเข้า</span>
         </section>
 
         <footer className="ls__footer">
-          Analytic v0.1.0 by Supachai
+          Analytic v4.5 by Therng
         </footer>
       </main>
     </div>
