@@ -1,20 +1,244 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EconomicEvent } from "@/app/api/economic-events/route";
+import { useCallback, useEffect, useState } from "react";
 import {
   getInitialAiLoginTrends,
   resolveAiLoginTrends,
 } from "@/components/trading-monitor/ai-login-engine";
 
-const APP_VERSION = "5.0";
 const STORAGE_KEY = "analytic.ai.session";
 const TYPING_SPEED_MS = 18;
 
-type EconomicEventsResponse = {
-  events: EconomicEvent[];
-  date: string;
+// ── Candlestick realtime chart ──────────────────────────────
+const MAX_VISIBLE = 14;
+const TICK_MS = 800;
+
+type Candle = {
+  key: number;
+  bull: boolean;
+  bodyH: number;   // % of chart height
+  bodyB: number;   // bottom offset %
+  wickTop: number;  // top of wick (absolute %)
+  wickBot: number;  // bottom of wick (absolute %)
 };
+
+type PatternBar = {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+type CandlePattern = {
+  name: string;
+  bars: PatternBar[];
+};
+
+const PRICE_MIN = 6;
+const PRICE_MAX = 94;
+
+const CANDLE_PATTERNS: CandlePattern[] = [
+  {
+    name: "Bearish Engulfing",
+    bars: [
+      { open: -8, high: 4, low: -10, close: 2 },
+      { open: 6, high: 8, low: -18, close: -16 },
+    ],
+  },
+  {
+    name: "Three White Soldiers",
+    bars: [
+      { open: -12, high: 3, low: -14, close: 0 },
+      { open: -2, high: 12, low: -4, close: 10 },
+      { open: 8, high: 22, low: 6, close: 20 },
+    ],
+  },
+  {
+    name: "Evening Star & Doji",
+    bars: [
+      { open: -14, high: 8, low: -16, close: 6 },
+      { open: 11, high: 15, low: 8, close: 10 },
+      { open: 5, high: 7, low: -18, close: -16 },
+    ],
+  },
+  {
+    name: "Piercing Line",
+    bars: [
+      { open: 9, high: 11, low: -11, close: -9 },
+      { open: -13, high: 5, low: -16, close: 3 },
+    ],
+  },
+  {
+    name: "Meeting Lines - Bullish",
+    bars: [
+      { open: 10, high: 12, low: -12, close: -10 },
+      { open: -22, high: -7, low: -24, close: -10 },
+    ],
+  },
+  {
+    name: "Dark Cloud Cover",
+    bars: [
+      { open: -10, high: 12, low: -12, close: 10 },
+      { open: 16, high: 18, low: -5, close: -3 },
+    ],
+  },
+  {
+    name: "Three Black Crows",
+    bars: [
+      { open: 12, high: 14, low: -3, close: -1 },
+      { open: 1, high: 3, low: -14, close: -12 },
+      { open: -10, high: -8, low: -25, close: -23 },
+    ],
+  },
+  {
+    name: "Hammer",
+    bars: [
+      { open: 1, high: 5, low: -19, close: 3 },
+    ],
+  },
+  {
+    name: "Meeting Lines - Bearish",
+    bars: [
+      { open: -10, high: 12, low: -12, close: 10 },
+      { open: 22, high: 24, low: 7, close: 10 },
+    ],
+  },
+  {
+    name: "Hanging Man",
+    bars: [
+      { open: 2, high: 5, low: -18, close: 0 },
+    ],
+  },
+  {
+    name: "Bullish Harami",
+    bars: [
+      { open: 10, high: 12, low: -12, close: -10 },
+      { open: -5, high: 4, low: -7, close: 2 },
+    ],
+  },
+  {
+    name: "Morning Star & Doji",
+    bars: [
+      { open: 12, high: 14, low: -8, close: -6 },
+      { open: -12, high: -8, low: -15, close: -11 },
+      { open: -5, high: 18, low: -7, close: 16 },
+    ],
+  },
+];
+
+function randomBetween(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function toCandle(key: number, bar: PatternBar): { candle: Candle; close: number } {
+  const open = clamp(bar.open, PRICE_MIN, PRICE_MAX);
+  const close = clamp(bar.close, PRICE_MIN, PRICE_MAX);
+  const high = clamp(Math.max(bar.high, open, close), PRICE_MIN, PRICE_MAX);
+  const low = clamp(Math.min(bar.low, open, close), PRICE_MIN, PRICE_MAX);
+  const bull = close >= open;
+  const bodyBot = Math.min(open, close);
+  const bodyTop = Math.max(open, close);
+  const bodyH = Math.max(2.4, bodyTop - bodyBot);
+  return {
+    candle: { key, bull, bodyH, bodyB: bodyBot, wickTop: 100 - high, wickBot: low },
+    close,
+  };
+}
+
+function buildPatternBars(prevClose: number): PatternBar[] {
+  const pattern = CANDLE_PATTERNS[Math.floor(Math.random() * CANDLE_PATTERNS.length)];
+  const scale = randomBetween(0.82, 1.18);
+  const entryPrice = clamp(prevClose + randomBetween(-4, 4), 24, 76);
+  const firstOpen = pattern.bars[0].open * scale;
+  let shiftedBars = pattern.bars.map((bar) => ({
+    open: bar.open * scale + entryPrice - firstOpen,
+    high: bar.high * scale + entryPrice - firstOpen,
+    low: bar.low * scale + entryPrice - firstOpen,
+    close: bar.close * scale + entryPrice - firstOpen,
+  }));
+
+  const patternLow = Math.min(...shiftedBars.map((bar) => bar.low));
+  const patternHigh = Math.max(...shiftedBars.map((bar) => bar.high));
+  const rangeShift =
+    patternLow < PRICE_MIN
+      ? PRICE_MIN - patternLow
+      : patternHigh > PRICE_MAX
+        ? PRICE_MAX - patternHigh
+        : 0;
+
+  if (rangeShift !== 0) {
+    shiftedBars = shiftedBars.map((bar) => ({
+      open: bar.open + rangeShift,
+      high: bar.high + rangeShift,
+      low: bar.low + rangeShift,
+      close: bar.close + rangeShift,
+    }));
+  }
+
+  return shiftedBars;
+}
+
+function nextPatternCandle(key: number, prevClose: number): { candle: Candle; close: number } {
+  if (_patternQueue.length === 0) {
+    _patternQueue = buildPatternBars(prevClose);
+  }
+
+  const nextBar = _patternQueue.shift();
+  return toCandle(key, nextBar ?? buildPatternBars(prevClose)[0]);
+}
+
+// Module-scoped stream state — survives re-renders, avoids ref-in-initializer lint
+let _streamKey = 0;
+let _streamClose = 0;
+let _streamSeeded = false;
+let _patternQueue: PatternBar[] = [];
+
+function seedStream(): Candle[] {
+  if (_streamSeeded) return [];
+  _streamSeeded = true;
+  _streamKey = 0;
+  _streamClose = 40 + Math.random() * 20;
+  _patternQueue = [];
+  const out: Candle[] = [];
+  for (let i = 0; i < MAX_VISIBLE; i++) {
+    const r = nextPatternCandle(_streamKey++, _streamClose);
+    out.push(r.candle);
+    _streamClose = r.close;
+  }
+  return out;
+}
+
+function useCandlestickStream() {
+  const [candles, setCandles] = useState<Candle[]>(() => {
+    if (typeof window === "undefined") return [];
+    return seedStream();
+  });
+
+  useEffect(() => {
+    // SSR fallback
+    if (!_streamSeeded) {
+      const initial = seedStream();
+      if (initial.length > 0) setCandles(initial);
+    }
+
+    const id = window.setInterval(() => {
+      const { candle, close } = nextPatternCandle(_streamKey++, _streamClose);
+      _streamClose = close;
+      setCandles((prev) => {
+        const next = [...prev, candle];
+        return next.length > MAX_VISIBLE ? next.slice(-MAX_VISIBLE) : next;
+      });
+    }, TICK_MS);
+
+    return () => window.clearInterval(id);
+  }, []);
+
+  return candles;
+}
 
 type Phase = "idle" | "entering";
 
@@ -90,92 +314,38 @@ function useAnalyticEngine(): AnalyticEngineState {
   return { trends, currentIndex, isLoading, refresh };
 }
 
-function useLocalClock() {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    const tick = () => setNow(new Date());
-    const id = window.setInterval(tick, 1000);
-    const raf = window.requestAnimationFrame(tick);
-    return () => {
-      window.clearInterval(id);
-      window.cancelAnimationFrame(raf);
-    };
-  }, []);
-  return now;
-}
-
-function formatClock(now: Date | null) {
-  if (!now) return "—— : ——";
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Bangkok",
-    }).format(now);
-  } catch {
-    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  }
-}
-
-function formatDateLabel(now: Date | null) {
-  if (!now) return "";
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-      timeZone: "Asia/Bangkok",
-    })
-      .format(now)
-      .toUpperCase();
-  } catch {
-    return "";
-  }
-}
-
 export default function AILoginGate({ onEnter }: AILoginGateProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [insightTyped, setInsightTyped] = useState<string>("");
-  const [events, setEvents] = useState<EconomicEvent[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(true);
+  const candles = useCandlestickStream();
 
   const { trends, currentIndex, isLoading: loadingInsight } = useAnalyticEngine();
-  const now = useLocalClock();
-
-  const fetchEvents = useCallback(async () => {
-    setLoadingEvents(true);
-    try {
-      const res = await fetch("/api/economic-events", { cache: "no-store" });
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      const payload = (await res.json()) as EconomicEventsResponse;
-      setEvents(payload.events ?? []);
-    } catch {
-      setEvents([]);
-    } finally {
-      setLoadingEvents(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
 
   const insight = trends[currentIndex] ?? "";
 
   useEffect(() => {
     if (!insight) {
-      setInsightTyped("");
-      return;
+      const resetHandle = window.setTimeout(() => {
+        setInsightTyped("");
+      }, 0);
+      return () => window.clearTimeout(resetHandle);
     }
-    setInsightTyped("");
+
+    const resetHandle = window.setTimeout(() => {
+      setInsightTyped("");
+    }, 0);
+
     let index = 0;
     const handle = window.setInterval(() => {
       index += 1;
       setInsightTyped(insight.slice(0, index));
       if (index >= insight.length) window.clearInterval(handle);
     }, TYPING_SPEED_MS);
-    return () => window.clearInterval(handle);
+
+    return () => {
+      window.clearTimeout(resetHandle);
+      window.clearInterval(handle);
+    };
   }, [insight]);
 
   const handleEnter = useCallback(() => {
@@ -185,188 +355,84 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
     window.setTimeout(onEnter, 420);
   }, [onEnter, phase]);
 
+  const handleShellKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleEnter();
+      }
+    },
+    [handleEnter],
+  );
+
   const caret = insightTyped.length < insight.length ? "▍" : "";
-  const isEntering = phase === "entering";
-
-  const clockStr = useMemo(() => formatClock(now), [now]);
-  const dateStr = useMemo(() => formatDateLabel(now), [now]);
-
-  const topEvents = events.slice(0, 3);
+  const statusLine = insightTyped || insight || "Initializing Ai-Core...";
 
   return (
     <div className="ls" data-phase={phase} role="dialog" aria-label="Analytic — Launch">
       <div className="ls__bg" aria-hidden />
       <div className="ls__scanline" aria-hidden />
+      <div className="ls__vignette" aria-hidden />
 
-      <main className="ls__shell">
-        {/* ── Top bar ── */}
-        <header className="ls__topbar">
-          <div className="ls__runmark">
-            <span className="ls__runmark-dot" aria-hidden />
-            <span>Analytic · Operations Deck</span>
-          </div>
-          <div className="ls__topbar-right">
-            <span>{dateStr || "———"}</span>
-            <span className="ls__topbar-sep" aria-hidden />
-            <span>{clockStr} BKK</span>
-          </div>
-        </header>
-
-        {/* ── Stage: eyebrow + wordmark + signature chart ── */}
-        <section className="ls__stage" aria-hidden>
-          <span className="ls__eyebrow">A Quiet Ledger for Trading Operators</span>
-
-          <h1 className="ls__wordmark">
-            Analytic<em>.</em>
-          </h1>
-
+      <main
+        className="ls__shell"
+        onClick={handleEnter}
+        onKeyDown={handleShellKeyDown}
+        tabIndex={0}
+      >
+        <section className="ls__hero" aria-label="Analytic launch sequence">
           <div className="ls__chart" aria-hidden>
-            {/* L-axis (graphite) — drawn from logo */}
             <span className="ls__chart-axis-y" />
             <span className="ls__chart-axis-x" />
-
-            {/* Axis ticks */}
-            <span
-              className="ls__chart-tick ls__chart-tick--x"
-              style={{ left: "26%" }}
-            />
-            <span
-              className="ls__chart-tick ls__chart-tick--x"
-              style={{ left: "48%" }}
-            />
-            <span
-              className="ls__chart-tick ls__chart-tick--x"
-              style={{ left: "70%" }}
-            />
-            <span
-              className="ls__chart-tick ls__chart-tick--y"
-              style={{ top: "22%" }}
-            />
-            <span
-              className="ls__chart-tick ls__chart-tick--y"
-              style={{ top: "54%" }}
-            />
-
-            {/* Polyline — matches logo cadence: rise · small dip · rise */}
-            <svg
-              className="ls__chart-svg"
-              viewBox="0 0 800 350"
-              preserveAspectRatio="none"
-              aria-hidden
-            >
-              <polyline
-                className="ls__chart-line"
-                points="120,240 300,130 500,200 700,80"
-              />
-              <circle className="ls__chart-node ls__chart-node--1" cx="120" cy="240" r="12" />
-              <circle className="ls__chart-node ls__chart-node--2" cx="300" cy="130" r="12" />
-              <circle className="ls__chart-node ls__chart-node--3" cx="500" cy="200" r="12" />
-              <circle className="ls__chart-node ls__chart-node--4" cx="700" cy="80" r="12" />
-            </svg>
-          </div>
-        </section>
-
-        {/* ── Meta row: insight + events ── */}
-        <section className="ls__meta">
-          <article className="ls__card" aria-live="polite">
-            <div className="ls__card-header">
-              <span className="ls__card-tag">
-                <span className="ls__card-tag-dot" aria-hidden />
-                Today · AI Reading
-              </span>
-              <span className="ls__card-spacer" />
-              <span className="ls__card-subtag">Refreshed</span>
-            </div>
-            {loadingInsight && !insightTyped ? (
-              <span className="ls__insight-loading">
-                กำลังประมวลผล<span className="ls__blink">▍</span>
-              </span>
-            ) : (
-              <p className="ls__insight-text">
-                {insightTyped}
-                <span className="ls__caret" aria-hidden>
-                  {caret}
-                </span>
-              </p>
-            )}
-          </article>
-
-          <article className="ls__card" aria-label="USD high impact calendar">
-            <div className="ls__card-header">
-              <span className="ls__card-tag">
-                <span className="ls__card-tag-dot" aria-hidden />
-                Calendar · USD
-              </span>
-              <span className="ls__card-spacer" />
-              <span className="ls__card-subtag">High Impact</span>
-            </div>
-            <div className="ls__events-list">
-              {loadingEvents ? (
-                <div className="ls__events-loading">
-                  <span className="ls__events-dot ls__events-dot--pulse" aria-hidden />
-                  <span>Loading calendar…</span>
-                </div>
-              ) : topEvents.length === 0 ? (
-                <div className="ls__events-empty">No high-impact USD events scheduled</div>
-              ) : (
-                topEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="ls__event"
-                    data-holiday={ev.impact === "Holiday" ? "1" : "0"}
-                  >
-                    <div className="ls__event-left">
-                      {ev.impact === "Holiday" ? (
-                        <span className="ls__event-time ls__event-time--holiday">—</span>
-                      ) : (
-                        <span className="ls__event-time">{ev.time || "All Day"}</span>
-                      )}
-                      <span className="ls__event-date">{ev.dateLabel}</span>
-                    </div>
-                    <span className="ls__event-name">{ev.name}</span>
-                    {ev.impact === "Holiday" ? (
-                      <span className="ls__event-badge ls__event-badge--holiday">Holiday</span>
-                    ) : (
-                      <span className="ls__event-badge ls__event-badge--high">High</span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </article>
-        </section>
-
-        {/* ── Footer row: progress · enter · signature ── */}
-        <footer className="ls__footer-row">
-          <div className="ls__footer-label">
-            <div className="ls__progress" aria-hidden />
-          </div>
-
-          <button
-            type="button"
-            className="ls__enter"
-            onClick={handleEnter}
-            disabled={isEntering}
-          >
-            <span className="ls__enter-text">
-              {isEntering ? "Opening…" : "Enter Dashboard"}
-            </span>
-            <span className="ls__enter-icon" aria-hidden>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M2.5 6h7M6 2.5L9.5 6 6 9.5"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            <div className="ls__candles">
+              {candles.map((c) => (
+                <span
+                  key={c.key}
+                  className={`ls__candle ${c.bull ? "ls__candle--bull" : "ls__candle--bear"}`}
+                  style={{
+                    "--body-h": `${c.bodyH}%`,
+                    "--body-b": `${c.bodyB}%`,
+                    "--wick-top": `${c.wickTop}%`,
+                    "--wick-bot": `${c.wickBot}%`,
+                  } as React.CSSProperties}
                 />
-              </svg>
-            </span>
-          </button>
-
-          <div className="ls__footer-label ls__footer-label--right">
-            v{APP_VERSION} · by Therng
+              ))}
+            </div>
           </div>
+
+          <div className="ls__brand">
+            <h1 className="ls__wordmark" aria-label="ANALYTIC">
+              <span className="ls__wordmark-main">ANALYT</span>
+              <span className="ls__wordmark-i">
+                I
+                <span className="ls__wordmark-dot" aria-hidden />
+              </span>
+              <span className="ls__wordmark-main">C</span>
+            </h1>
+
+            <div className="ls__module-row">
+              <span className="ls__module-text">AI-Core</span>
+            </div>
+
+            <p className="ls__quote" aria-live="polite">
+              &quot;
+              {loadingInsight && !insightTyped ? "Initializing Ai-Core..." : statusLine}
+              <span className="ls__caret" aria-hidden>
+                {caret}
+              </span>
+              &quot;
+            </p>
+          </div>
+
+          <div className="ls__progress-wrap" aria-hidden>
+            <div className="ls__progress" />
+          </div>
+
+          <span className="ls__enter">แตะเพื่อเข้า</span>
+        </section>
+
+        <footer className="ls__footer">
+          Analytic v0.1.0 by Supachai
         </footer>
       </main>
     </div>

@@ -160,15 +160,10 @@ const DashboardCard = memo(function DashboardCard({
       onRequestStateChange,
     },
   );
-  const positionsDetail = useApiResource<PositionsResponse>(
-    expandedKpi === "opens" || expandedKpi === "trades"
-      ? `/api/accounts/${account.id}/positions?timeframe=${timeframe}`
-      : null,
-    {
-      refreshKey,
-      onRequestStateChange,
-    },
-  );
+  const positionsDetail = useApiResource<PositionsResponse>(`/api/accounts/${account.id}/positions?timeframe=${timeframe}`, {
+    refreshKey,
+    onRequestStateChange,
+  });
   const accountSource = overview.data?.account ?? account;
   const active = accountSource.status === "Active";
   const highlightedBalanceScope = `${account.id}:${timeframe}:${refreshKey}:${accountSource.balance ?? ""}`;
@@ -278,9 +273,6 @@ const DashboardCard = memo(function DashboardCard({
       : expandedKpi === "opens" || expandedKpi === "trades"
             ? positionsDetail
             : null;
-  const isOpensExpanded = expandedKpi === "opens";
-  const isTradesExpanded = expandedKpi === "trades";
-  const isPipsExpanded = expandedKpi === "pips";
   const isDdExpanded = expandedKpi === "dd";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
@@ -526,69 +518,29 @@ const DashboardCard = memo(function DashboardCard({
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
         ) : (
-          <div className={isOpensExpanded ? "sp-canvas is-opens-expanded" : isTradesExpanded ? "sp-canvas is-trades-expanded" : isPipsExpanded ? "sp-canvas is-pips-expanded" : isDdExpanded ? "sp-canvas is-dd-expanded" : "sp-canvas"}>
-            {isOpensExpanded ? (
-              positionsDetail.error ? (
-                <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
-              ) : positionsDetail.loading && !positionsDetail.data ? (
-                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-              ) : (
-                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
-              )
-            ) : isTradesExpanded ? (
-              positionsDetail.error ? (
-                <InlineState tone="error" title="Trades unavailable" message={positionsDetail.error} />
-              ) : positionsDetail.loading && !positionsDetail.data ? (
-                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-              ) : (
-                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-              )
-            ) : isPipsExpanded ? (
-              pipsSummary.error ? (
-                <InlineState tone="error" title="Pips unavailable" message={pipsSummary.error} />
-              ) : pipsSummary.loading && !pipsSummary.data ? (
-                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-              ) : (
-                <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
-              )
-            ) : isDdExpanded ? (
-              balanceDetail.error ? (
-                <InlineState tone="error" title="KPI unavailable" message={balanceDetail.error} />
-              ) : balanceDetail.loading && !balanceDetail.data ? (
-                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-              ) : (
-                <PerformanceQualityPanel
-                  sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
-                  profitFactor={balanceDetail.data?.summary.profitFactor}
-                  recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
-                />
-              )
-            ) : (
-              <div className="sp-canvas__chart">
-                <SparklineChart
-                  points={sparklinePoints}
-                  active={active}
-                  tone="neutral"
-                  onHighlightBalanceChange={(value) => {
-                    setHighlightedBalanceState({
-                      scope: highlightedBalanceScope,
-                      value,
-                    });
-                  }}
-                  timeframe={timeframe}
-                  liveTimestamp={accountSource.last_updated}
-                  liveBalance={accountSource.balance}
-                />
-              </div>
-            )}
+          <div className="sp-canvas">
+            <div className="sp-canvas__chart">
+              <SparklineChart
+                points={sparklinePoints}
+                active={active}
+                tone="neutral"
+                onHighlightBalanceChange={(value) => {
+                  setHighlightedBalanceState({
+                    scope: highlightedBalanceScope,
+                    value,
+                  });
+                }}
+                timeframe={timeframe}
+                liveTimestamp={accountSource.last_updated}
+                liveBalance={accountSource.balance}
+              />
+            </div>
           </div>
         )}
 
-        {!isOpensExpanded && !isTradesExpanded && !isPipsExpanded ? (
-          <div className="tf-row">
-            <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
-          </div>
-        ) : null}
+        <div className="tf-row">
+          <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
+        </div>
       </div>
 
       <div className="kpi-stack">
@@ -658,6 +610,35 @@ const DashboardCard = memo(function DashboardCard({
           )}
         </section>
       ) : null}
+
+      <section className="account-card__detail-lane" aria-label={`${accountDisplayName} account details`}>
+        {positionsDetail.error ? (
+          <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
+        ) : positionsDetail.loading && !positionsDetail.data ? (
+          <div className="account-card__detail-skeleton" aria-hidden="true">
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+          </div>
+        ) : (
+          <>
+            <div className="account-card__detail-panel account-card__detail-panel--opens">
+              <div className="account-card__detail-head">
+                <span>Live exposure</span>
+                <strong>{formatPlainNumberValue(positionsDetail.data?.openPositions.length, 0)}</strong>
+              </div>
+              <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
+            </div>
+
+            <div className="account-card__detail-panel account-card__detail-panel--trades">
+              <div className="account-card__detail-head">
+                <span>Closed positions</span>
+                <strong>{formatPlainNumberValue(positionsDetail.data?.historyPositions.length, 0)}</strong>
+              </div>
+              <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+            </div>
+          </>
+        )}
+      </section>
     </article>
   );
 });
