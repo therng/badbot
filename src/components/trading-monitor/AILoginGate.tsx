@@ -490,23 +490,39 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
       >
         <section className="ls__hero" aria-label="Analytic launch sequence">
           <div className="ls__data-side" aria-hidden>
-            <div className="ls__chart">
-              <div className="ls__chart-depth" aria-hidden />
-              <span className="ls__chart-axis-y" />
-              <span className="ls__chart-axis-x" />
-              <div className="ls__candles">
-                {candles.map((c) => (
-                  <span
-                    key={c.key}
-                    className={`ls__candle ${c.bull ? "ls__candle--bull" : "ls__candle--bear"}`}
-                    style={{
-                      "--body-h": `${c.bodyH}%`,
-                      "--body-b": `${c.bodyB}%`,
-                      "--wick-top": `${c.wickTop}%`,
-                      "--wick-bot": `${c.wickBot}%`,
-                    } as React.CSSProperties}
-                  />
-                ))}
+            <div className="ls__market-panel">
+              <div className="ls__market-meta">
+                <span>XAUUSD</span>
+                <span>M1 STREAM</span>
+                <span>LIVE</span>
+              </div>
+
+              <div className="ls__chart-frame">
+                <div className="ls__chart">
+                  <div className="ls__chart-depth" aria-hidden />
+                  <span className="ls__chart-axis-y" />
+                  <span className="ls__chart-axis-x" />
+                  <div className="ls__candles">
+                    {candles.map((c) => (
+                      <span
+                        key={c.key}
+                        className={`ls__candle ${c.bull ? "ls__candle--bull" : "ls__candle--bear"}`}
+                        style={{
+                          "--body-h": `${c.bodyH}%`,
+                          "--body-b": `${c.bodyB}%`,
+                          "--wick-top": `${c.wickTop}%`,
+                          "--wick-bot": `${c.wickBot}%`,
+                        } as React.CSSProperties}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="ls__market-tape">
+                <span>ASIA</span>
+                <span>LONDON</span>
+                <span>NY</span>
               </div>
             </div>
           </div>
