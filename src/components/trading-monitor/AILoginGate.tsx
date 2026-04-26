@@ -521,26 +521,30 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
                 </span>
                 <span className="ls__wordmark-main">C</span>
               </h1>
+            </div>
 
+            <div className="ls__insight">
               <div className="ls__module-row">
                 <span className="ls__module-text">AI-Core</span>
               </div>
 
               <p className="ls__quote" aria-live="polite">
-                &quot;
-                {loadingInsight && !insightTyped ? "Initializing Ai-Core..." : statusLine}
+                <span className="ls__quote-mark">&quot;</span>
+                <span className="ls__quote-text">
+                  {loadingInsight && !insightTyped ? "Initializing Ai-Core..." : statusLine}
+                </span>
                 <span className="ls__caret" aria-hidden>
                   {caret}
                 </span>
-                &quot;
+                <span className="ls__quote-mark">&quot;</span>
               </p>
-            </div>
 
-            <div className="ls__progress-wrap" aria-hidden>
-              <div className="ls__progress" />
-            </div>
+              <div className="ls__progress-wrap" aria-hidden>
+                <div className="ls__progress" />
+              </div>
 
-            <span className="ls__enter">แตะเพื่อเข้า</span>
+              <span className="ls__enter">แตะเพื่อเข้า</span>
+            </div>
           </div>
         </section>
 

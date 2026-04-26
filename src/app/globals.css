@@ -2294,6 +2294,10 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.2; }
 }
+@keyframes lx-label-scan {
+  0%   { background-position: 140% 50%; }
+  100% { background-position: -140% 50%; }
+}
 @keyframes lx-seg-march {
   0%   { transform: translateX(-200%); opacity: 0; }
   20%  { opacity: 1; }
@@ -2382,8 +2386,9 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: clamp(20px, 2.8vh, 36px);
+  gap: clamp(18px, 2.4vh, 30px);
   text-align: center;
+  transform: translateY(clamp(-78px, -8vh, -24px));
 }
 
 .ls__data-side,
@@ -2401,7 +2406,8 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 .ls__brand-side {
   display: grid;
   justify-items: center;
-  gap: clamp(16px, 2.2vh, 28px);
+  grid-template-rows: auto minmax(190px, auto);
+  gap: clamp(20px, 3vh, 38px);
 }
 
 /* ── Chart ─────────────────────────────────────────────────── */
@@ -2464,13 +2470,13 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 .ls__candles {
   position: absolute;
   top: 6%;
-  right: 3%;
+  right: 6%;
   bottom: 10%;
-  left: 10%;
+  left: 6%;
   z-index: 2;
   display: flex;
   align-items: stretch;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 2px;
   overflow: hidden;
 }
@@ -2533,6 +2539,16 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   justify-items: center;
   gap: clamp(10px, 1.6vh, 16px);
   animation: lx-rise 650ms 380ms cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.ls__insight {
+  width: min(88vw, 560px);
+  min-height: 190px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  grid-template-rows: auto 5.85em auto auto;
+  gap: clamp(12px, 1.8vh, 22px);
 }
 
 /* Decorative corner brackets around brand block */
@@ -2602,21 +2618,8 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 .ls__module-row {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   color: rgba(255,255,255,0.38);
-}
-
-/* Live status dot */
-.ls__module-row::before {
-  content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--brand-emerald);
-  box-shadow: 0 0 8px var(--brand-emerald-glow);
-  animation: lx-status-blink 1.8s ease-in-out infinite;
-  flex-shrink: 0;
+  animation: lx-rise 520ms 520ms cubic-bezier(0.16,1,0.3,1) both;
 }
 
 .ls__module-text {
@@ -2625,20 +2628,46 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   font-weight: 600;
   letter-spacing: 0.48em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.36);
+  color: rgba(156,192,255,0.76);
+  background:
+    linear-gradient(
+      100deg,
+      rgba(156,192,255,0.42) 0%,
+      rgba(156,192,255,0.42) 34%,
+      #ffffff 46%,
+      var(--brand-blue) 54%,
+      rgba(156,192,255,0.42) 68%,
+      rgba(156,192,255,0.42) 100%
+    );
+  background-size: 240% 100%;
+  background-position: 140% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lx-label-scan 2.4s linear infinite;
 }
 
 .ls__quote {
   margin: 0;
+  width: 100%;
   max-width: min(88vw, 560px);
-  min-height: 2.6em;
+  height: 5.85em;
+  overflow: hidden;
   font-family: var(--brand-sans);
   font-size: clamp(18px, 2.8vw, 24px);
-  font-style: italic;
-  font-weight: 500;
-  line-height: 1.44;
-  letter-spacing: -0.02em;
-  color: rgba(255,255,255,0.5);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.46;
+  letter-spacing: 0;
+  color: #ffffff;
+  animation: lx-rise 520ms 620ms cubic-bezier(0.16,1,0.3,1) both;
+}
+.ls__quote-text {
+  color: #ffffff;
+  text-wrap: balance;
+}
+.ls__quote-mark {
+  color: #ffffff;
 }
 .ls__caret,
 .ls__blink {
@@ -2748,6 +2777,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     justify-items: stretch;
     gap: 0;
     text-align: left;
+    transform: none;
   }
 
   .ls__data-side {
@@ -2771,9 +2801,10 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   .ls__brand-side {
     justify-items: start;
     text-align: left;
-    padding: clamp(24px, 4vh, 52px) clamp(28px, 4.5vw, 60px) clamp(24px, 4vh, 52px) clamp(24px, 3.5vw, 44px);
-    align-content: center;
-    gap: clamp(16px, 2vh, 26px);
+    padding: clamp(42px, 8vh, 96px) clamp(28px, 4.5vw, 60px) clamp(24px, 4vh, 52px) clamp(24px, 3.5vw, 44px);
+    align-content: start;
+    grid-template-rows: auto minmax(180px, auto);
+    gap: clamp(22px, 3vh, 38px);
   }
 
   .ls__brand {
@@ -2793,6 +2824,14 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     font-size: clamp(15px, 2vw, 20px);
   }
 
+  .ls__insight {
+    width: min(100%, 380px);
+    min-height: 180px;
+    justify-items: start;
+    grid-template-rows: auto 5.85em auto auto;
+    gap: clamp(12px, 1.7vh, 20px);
+  }
+
   .ls__progress-wrap {
     width: min(100%, 340px);
   }
@@ -2805,14 +2844,14 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 @media (orientation: landscape) and (max-height: 520px) {
   .ls__shell { padding: 0; }
   .ls__hero {
-    grid-template-columns: minmax(0, 1.18fr) minmax(210px, 0.82fr);
+    grid-template-columns: minmax(0, 0.74fr) minmax(250px, 1.26fr);
   }
   .ls__data-side {
     align-content: center;
     justify-items: center;
   }
   .ls__chart {
-    width: min(48vw, 430px);
+    width: min(34vw, 300px);
     height: auto;
     aspect-ratio: 16 / 9;
     border: none;
@@ -2820,6 +2859,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   }
   .ls__brand-side {
     padding: 14px clamp(18px, 3vw, 36px) 14px 18px;
+    grid-template-rows: auto minmax(130px, auto);
     gap: 12px;
   }
   .ls__wordmark {
@@ -2828,7 +2868,12 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   }
   .ls__quote {
     font-size: clamp(13px, 2vw, 17px);
-    min-height: 1.8em;
+    min-height: 4.4em;
+  }
+  .ls__insight {
+    min-height: 130px;
+    grid-template-rows: auto 5.85em auto auto;
+    gap: 8px;
   }
   .ls__module-text { letter-spacing: 0.3em; font-size: 11px; }
   .ls__progress-wrap { width: min(100%, 280px); padding-top: 2px; }
@@ -2836,7 +2881,10 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 }
 
 @media (max-height: 720px) and (orientation: portrait) {
-  .ls__hero { gap: 12px; }
+  .ls__hero {
+    gap: 12px;
+    transform: translateY(clamp(-56px, -7vh, -22px));
+  }
   .ls__chart { width: min(600px, 92vw); aspect-ratio: 16 / 9; }
   .ls__wordmark { font-size: clamp(62px, 14vw, 126px); }
 }
@@ -2849,7 +2897,10 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
       calc(var(--safe-bottom) + 16px)
       calc(var(--safe-left) + 16px);
   }
-  .ls__hero { gap: 16px; }
+  .ls__hero {
+    gap: 14px;
+    transform: translateY(clamp(-72px, -8vh, -28px));
+  }
   .ls__chart {
     width: 92vw;
     aspect-ratio: 16 / 9;
@@ -2886,9 +2937,14 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   .ls__chart-axis-y { animation: none !important; transform: none; }
   .ls__progress::after { animation: none; opacity: 0.4; }
   .ls__wordmark-dot,
-  .ls__module-row::before,
+  .ls__module-text,
   .ls__enter::before,
   .ls__caret,
   .ls__blink { animation: none !important; }
+  .ls__module-text {
+    color: rgba(156,192,255,0.76);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+  }
   .ls[data-phase="entering"] { animation: none; opacity: 0; }
 }
