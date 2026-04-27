@@ -663,7 +663,7 @@ const DashboardCard = memo(function DashboardCard({
       ) : null}
 
       <section className="account-card__detail-lane" aria-label={`${accountDisplayName} account details`}>
-        {positionsDetail.error && !(isTradesExpanded && isMobilePortrait) && !(isOpensExpanded && isMobilePortrait) ? (
+        {positionsDetail.error && !(isMobilePortrait && (isTradesExpanded || isOpensExpanded)) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
           <div className="account-card__detail-skeleton" aria-hidden="true">
