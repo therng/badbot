@@ -277,6 +277,7 @@ const DashboardCard = memo(function DashboardCard({
             : null;
   const isDdExpanded = expandedKpi === "dd";
   const isPipsExpanded = expandedKpi === "pips";
+  const isTradesExpanded = expandedKpi === "trades";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -537,6 +538,14 @@ const DashboardCard = memo(function DashboardCard({
             <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
           ) : (
             <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
+          )
+        ) : isTradesExpanded && isMobilePortrait ? (
+          positionsDetail.error ? (
+            <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
+          ) : positionsDetail.loading && !positionsDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
           )
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
