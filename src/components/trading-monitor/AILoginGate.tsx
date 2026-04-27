@@ -8,6 +8,7 @@ import {
 
 const STORAGE_KEY = "analytic.ai.session";
 const TYPING_SPEED_MS = 18;
+let inMemoryAuthenticated = false;
 
 // ── Candlestick realtime chart ──────────────────────────────
 const MAX_VISIBLE = 24;
@@ -298,10 +299,7 @@ function nextCandle(): Candle {
 }
 
 function useCandlestickStream() {
-  const [candles, setCandles] = useState<Candle[]>(() => {
-    if (typeof window === "undefined") return [];
-    return seedFallback();
-  });
+  const [candles, setCandles] = useState<Candle[]>([]);
 
   useEffect(() => {
     if (!_streamSeeded) {
@@ -364,19 +362,32 @@ type AnalyticEngineState = {
   refresh: () => Promise<void>;
 };
 
-function readAuthenticatedFlag() {
-  if (typeof window === "undefined") return false;
+function getBrowserStorage(kind: "localStorage" | "sessionStorage"): Storage | null {
+  if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage.getItem(STORAGE_KEY) === "1";
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+function readAuthenticatedFlag() {
+  if (inMemoryAuthenticated) return true;
+  const storage = getBrowserStorage("sessionStorage");
+  if (!storage) return false;
+  try {
+    return storage.getItem(STORAGE_KEY) === "1";
   } catch {
     return false;
   }
 }
 
 function writeAuthenticatedFlag() {
-  if (typeof window === "undefined") return;
+  inMemoryAuthenticated = true;
+  const storage = getBrowserStorage("sessionStorage");
+  if (!storage) return;
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, "1");
+    storage.setItem(STORAGE_KEY, "1");
   } catch {
     /* ignore */
   }
@@ -384,9 +395,7 @@ function writeAuthenticatedFlag() {
 
 function useAnalyticEngine(): AnalyticEngineState {
   const [trends, setTrends] = useState<string[]>(() =>
-    typeof window === "undefined"
-      ? getInitialAiLoginTrends(null)
-      : getInitialAiLoginTrends(window.localStorage),
+    getInitialAiLoginTrends(getBrowserStorage("localStorage")),
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -396,7 +405,7 @@ function useAnalyticEngine(): AnalyticEngineState {
     try {
       const nextTrends = await resolveAiLoginTrends({
         force,
-        storage: typeof window === "undefined" ? null : window.localStorage,
+        storage: getBrowserStorage("localStorage"),
         fetchImpl: fetch,
       });
       setTrends(nextTrends);
@@ -559,7 +568,17 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
                 <div className="ls__progress" />
               </div>
 
-              <span className="ls__enter">แตะเพื่อเข้า</span>
+              <button
+                type="button"
+                className="ls__enter"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleEnter();
+                }}
+                disabled={phase === "entering"}
+              >
+                แตะเพื่อเข้า
+              </button>
             </div>
           </div>
         </section>

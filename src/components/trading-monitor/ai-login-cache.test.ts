@@ -6,6 +6,7 @@ import type { LoadingInsightResponse } from "@/app/api/loading-insight/route";
 import {
   AI_LOGIN_CACHE_KEY,
   parseLoadingInsightCache,
+  readLoadingInsightCache,
   writeLoadingInsightCache,
 } from "./ai-login-cache";
 
@@ -83,4 +84,14 @@ test("writeLoadingInsightCache persists the current session alongside fresh data
   assert.deepEqual(parsed.data, payload);
   assert.equal(parsed.timestamp, now.getTime());
   assert.equal(parsed.session, "ny");
+});
+
+test("readLoadingInsightCache ignores storage read failures", () => {
+  const storage = {
+    getItem() {
+      throw new Error("storage blocked");
+    },
+  };
+
+  assert.equal(readLoadingInsightCache(storage), null);
 });

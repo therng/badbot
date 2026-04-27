@@ -66,7 +66,11 @@ export function readLoadingInsightCache(
     return null;
   }
 
-  return parseLoadingInsightCache(storage.getItem(AI_LOGIN_CACHE_KEY), now);
+  try {
+    return parseLoadingInsightCache(storage.getItem(AI_LOGIN_CACHE_KEY), now);
+  } catch {
+    return null;
+  }
 }
 
 export function writeLoadingInsightCache(
