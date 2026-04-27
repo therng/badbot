@@ -3096,7 +3096,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     padding:
       calc(var(--safe-top) + 16px)
       calc(var(--safe-right) + 16px)
-      calc(var(--safe-bottom) + 16px)
+      16px
       calc(var(--safe-left) + 16px);
   }
   .ls__hero {
@@ -3131,6 +3131,12 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   .ls__enter {
     font-size: 9px;
     letter-spacing: 0.26em;
+  }
+}
+
+@media (max-width: 480px) and (orientation: portrait) {
+  .ls__footer {
+    bottom: 14px;
   }
 }
 
