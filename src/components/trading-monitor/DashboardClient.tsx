@@ -276,6 +276,7 @@ const DashboardCard = memo(function DashboardCard({
             ? positionsDetail
             : null;
   const isDdExpanded = expandedKpi === "dd";
+  const isPipsExpanded = expandedKpi === "pips";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -528,6 +529,14 @@ const DashboardCard = memo(function DashboardCard({
               profitFactor={balanceDetail.data?.summary.profitFactor}
               recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
             />
+          )
+        ) : isPipsExpanded && isMobilePortrait ? (
+          pipsSummary.error ? (
+            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+          ) : pipsSummary.loading && !pipsSummary.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
           )
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
