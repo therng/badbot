@@ -162,3 +162,29 @@ test("serializeAccountBundle uses the latest report timestamp as the 1D metric a
   assert.ok(Math.abs((serialized?.today_growth_percent ?? 0) - 10) < 0.000001);
   assert.equal(serialized?.today_net_pips, 18.5);
 });
+
+test("serializeAccountBundle normalizes margin level values to numbers", () => {
+  const serialized = serializeAccountBundle({
+    latestSnapshot: {
+      reportDate: new Date("2026-04-20T08:00:00.000Z"),
+      balance: 1100,
+      equity: 1115,
+      floatingPl: 15,
+      margin: 100,
+      marginLevel: "250.75",
+    },
+    account: {
+      id: "account-1",
+      accountNo: "1001",
+      accountName: "Primary",
+      currency: "USD",
+      serverName: "Demo",
+      reportDate: new Date("2026-04-20T08:00:00.000Z"),
+      deals: [],
+      openPositions: [],
+      positions: [],
+    },
+  } as any);
+
+  assert.equal(serialized?.margin_level, 250.75);
+});

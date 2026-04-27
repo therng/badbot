@@ -290,7 +290,7 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
       openPositions.reduce((total, position) => total + Number(position.profit ?? 0), 0),
     ),
     margin: toNullableNumber(latestSnapshot?.margin),
-    margin_level: latestSnapshot?.marginLevel ?? null,
+    margin_level: toNullableNumber(latestSnapshot?.marginLevel),
   };
 }
 
@@ -364,7 +364,7 @@ export async function getAccountListItems() {
         openPositions.reduce((total, position) => total + Number(position.profit ?? 0), 0),
       ),
       margin: toNullableNumber(account.accountSnapshot?.margin),
-      margin_level: account.accountSnapshot?.marginLevel ?? null,
+      margin_level: toNullableNumber(account.accountSnapshot?.marginLevel),
       last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
     } satisfies SerializedAccount;
   });
