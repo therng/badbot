@@ -124,10 +124,12 @@ function applyPullResistance(distance: number) {
 const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
+  isLandscape,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   refreshKey: number;
+  isLandscape: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
@@ -513,7 +515,17 @@ const DashboardCard = memo(function DashboardCard({
           </div>
         </div>
 
-        {overview.error ? (
+        {isDdExpanded && !isLandscape ? (
+          balanceDetail.loading && !balanceDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PerformanceQualityPanel
+              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+              profitFactor={balanceDetail.data?.summary.profitFactor}
+              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+            />
+          )
+        ) : overview.error ? (
           <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
@@ -739,11 +751,13 @@ function LazyDashboardCard({
   account,
   index,
   refreshKey,
+  isLandscape,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   index: number;
   refreshKey: number;
+  isLandscape: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
@@ -759,6 +773,7 @@ function LazyDashboardCard({
     <DashboardCard
       account={account}
       refreshKey={refreshKey}
+      isLandscape={isLandscape}
       onRequestStateChange={onRequestStateChange}
     />
   );
@@ -1219,6 +1234,7 @@ export default function DashboardClient() {
                   account={account}
                   index={index}
                   refreshKey={refreshKey}
+                  isLandscape={isLandscapeCarousel}
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
