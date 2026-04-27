@@ -124,10 +124,12 @@ function applyPullResistance(distance: number) {
 const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
+  isMobilePortrait,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   refreshKey: number;
+  isMobilePortrait: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
@@ -274,6 +276,7 @@ const DashboardCard = memo(function DashboardCard({
             ? positionsDetail
             : null;
   const isDdExpanded = expandedKpi === "dd";
+  const isPipsExpanded = expandedKpi === "pips";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -515,6 +518,26 @@ const DashboardCard = memo(function DashboardCard({
 
         {overview.error ? (
           <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
+        ) : isDdExpanded && isMobilePortrait ? (
+          balanceDetail.error ? (
+            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+          ) : balanceDetail.loading && !balanceDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PerformanceQualityPanel
+              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+              profitFactor={balanceDetail.data?.summary.profitFactor}
+              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+            />
+          )
+        ) : isPipsExpanded && isMobilePortrait ? (
+          pipsSummary.error ? (
+            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+          ) : pipsSummary.loading && !pipsSummary.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
+          )
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
         ) : (
@@ -739,11 +762,13 @@ function LazyDashboardCard({
   account,
   index,
   refreshKey,
+  isMobilePortrait,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   index: number;
   refreshKey: number;
+  isMobilePortrait: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
@@ -759,6 +784,7 @@ function LazyDashboardCard({
     <DashboardCard
       account={account}
       refreshKey={refreshKey}
+      isMobilePortrait={isMobilePortrait}
       onRequestStateChange={onRequestStateChange}
     />
   );
@@ -771,6 +797,7 @@ export default function DashboardClient() {
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
+  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
   const [activeAccountIndex, setActiveAccountIndex] = useState(0);
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
@@ -959,6 +986,14 @@ export default function DashboardClient() {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [syncActiveAccountIndex]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 820px) and (orientation: portrait)");
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => setIsMobilePortrait(event.matches);
+    handleChange(mq);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1219,6 +1254,7 @@ export default function DashboardClient() {
                   account={account}
                   index={index}
                   refreshKey={refreshKey}
+                  isMobilePortrait={isMobilePortrait}
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
