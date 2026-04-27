@@ -278,6 +278,7 @@ const DashboardCard = memo(function DashboardCard({
   const isDdExpanded = expandedKpi === "dd";
   const isPipsExpanded = expandedKpi === "pips";
   const isTradesExpanded = expandedKpi === "trades";
+  const isOpensExpanded = expandedKpi === "opens";
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -579,6 +580,16 @@ const DashboardCard = memo(function DashboardCard({
                 <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
               )}
             </div>
+          ) : isMobilePortrait && isOpensExpanded ? (
+            <div className="sp-overlay-panel" role="region" aria-label="Open positions">
+              {positionsDetail.error ? (
+                <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
+              ) : positionsDetail.loading && !positionsDetail.data ? (
+                <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+              ) : (
+                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
+              )}
+            </div>
           ) : null}
         </div>
       </div>
@@ -652,7 +663,7 @@ const DashboardCard = memo(function DashboardCard({
       ) : null}
 
       <section className="account-card__detail-lane" aria-label={`${accountDisplayName} account details`}>
-        {positionsDetail.error && !(isTradesExpanded && isMobilePortrait) ? (
+        {positionsDetail.error && !(isMobilePortrait && (isTradesExpanded || isOpensExpanded)) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
           <div className="account-card__detail-skeleton" aria-hidden="true">
@@ -661,13 +672,15 @@ const DashboardCard = memo(function DashboardCard({
           </div>
         ) : (
           <>
-            <div className="account-card__detail-panel account-card__detail-panel--opens">
-              <div className="account-card__detail-head">
-                <span>Live exposure</span>
-                <strong>{formatPlainNumberValue(positionsDetail.data?.openPositions.length, 0)}</strong>
+            {!(isOpensExpanded && isMobilePortrait) && (
+              <div className="account-card__detail-panel account-card__detail-panel--opens">
+                <div className="account-card__detail-head">
+                  <span>Live exposure</span>
+                  <strong>{formatPlainNumberValue(positionsDetail.data?.openPositions.length, 0)}</strong>
+                </div>
+                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
               </div>
-              <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
-            </div>
+            )}
 
             {!(isTradesExpanded && isMobilePortrait) && (
               <div className="account-card__detail-panel account-card__detail-panel--trades">
