@@ -391,19 +391,32 @@ body::before {
 .dashboard-section > .account-card .sp-growth.tone-muted    { color: var(--card-muted); }
 
 /* ── Chart canvas ── */
+/* Outside mobile portrait, the wrapper dissolves so .sp-canvas and .tf-row
+   remain direct grid children of .account-card (grid-area: chart/timeframe). */
 .dashboard-section > .account-card .sp-canvas-stack {
-  position: relative;
+  display: contents;
 }
 
 .dashboard-section > .account-card .sp-overlay-panel {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: var(--card-bg-top, #06091a);
-  border-radius: var(--r-md, 12px);
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
+  display: none;
+}
+
+@media (max-width: 820px) and (orientation: portrait) {
+  .dashboard-section > .account-card .sp-canvas-stack {
+    display: block;
+    position: relative;
+  }
+
+  .dashboard-section > .account-card .sp-overlay-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    background: var(--card-bg-top, #06091a);
+    border-radius: var(--r-md, 12px);
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
 }
 
 .dashboard-section > .account-card .sp-canvas {
