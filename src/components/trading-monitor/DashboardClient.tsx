@@ -124,12 +124,12 @@ function applyPullResistance(distance: number) {
 const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
-  isLandscape,
+  isMobilePortrait,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   refreshKey: number;
-  isLandscape: boolean;
+  isMobilePortrait: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
@@ -515,8 +515,12 @@ const DashboardCard = memo(function DashboardCard({
           </div>
         </div>
 
-        {isDdExpanded && !isLandscape ? (
-          balanceDetail.loading && !balanceDetail.data ? (
+        {overview.error ? (
+          <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
+        ) : isDdExpanded && isMobilePortrait ? (
+          balanceDetail.error ? (
+            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+          ) : balanceDetail.loading && !balanceDetail.data ? (
             <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
           ) : (
             <PerformanceQualityPanel
@@ -525,8 +529,6 @@ const DashboardCard = memo(function DashboardCard({
               recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
             />
           )
-        ) : overview.error ? (
-          <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
         ) : overview.loading && !overview.data ? (
           <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
         ) : (
@@ -751,13 +753,13 @@ function LazyDashboardCard({
   account,
   index,
   refreshKey,
-  isLandscape,
+  isMobilePortrait,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   index: number;
   refreshKey: number;
-  isLandscape: boolean;
+  isMobilePortrait: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
@@ -773,7 +775,7 @@ function LazyDashboardCard({
     <DashboardCard
       account={account}
       refreshKey={refreshKey}
-      isLandscape={isLandscape}
+      isMobilePortrait={isMobilePortrait}
       onRequestStateChange={onRequestStateChange}
     />
   );
@@ -786,6 +788,7 @@ export default function DashboardClient() {
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
+  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
   const [activeAccountIndex, setActiveAccountIndex] = useState(0);
   const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
@@ -974,6 +977,14 @@ export default function DashboardClient() {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [syncActiveAccountIndex]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 820px) and (orientation: portrait)");
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => setIsMobilePortrait(event.matches);
+    handleChange(mq);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1234,7 +1245,7 @@ export default function DashboardClient() {
                   account={account}
                   index={index}
                   refreshKey={refreshKey}
-                  isLandscape={isLandscapeCarousel}
+                  isMobilePortrait={isMobilePortrait}
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
