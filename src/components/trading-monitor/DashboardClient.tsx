@@ -644,7 +644,7 @@ const DashboardCard = memo(function DashboardCard({
       ) : null}
 
       <section className="account-card__detail-lane" aria-label={`${accountDisplayName} account details`}>
-        {positionsDetail.error ? (
+        {positionsDetail.error && !(isTradesExpanded && isMobilePortrait) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
           <div className="account-card__detail-skeleton" aria-hidden="true">
@@ -661,13 +661,15 @@ const DashboardCard = memo(function DashboardCard({
               <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
             </div>
 
-            <div className="account-card__detail-panel account-card__detail-panel--trades">
-              <div className="account-card__detail-head">
-                <span>Closed positions</span>
-                <strong>{formatPlainNumberValue(positionsDetail.data?.historyPositions.length, 0)}</strong>
+            {!(isTradesExpanded && isMobilePortrait) && (
+              <div className="account-card__detail-panel account-card__detail-panel--trades">
+                <div className="account-card__detail-head">
+                  <span>Closed positions</span>
+                  <strong>{formatPlainNumberValue(positionsDetail.data?.historyPositions.length, 0)}</strong>
+                </div>
+                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
               </div>
-              <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-            </div>
+            )}
           </>
         )}
       </section>
