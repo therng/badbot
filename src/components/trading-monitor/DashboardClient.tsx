@@ -547,7 +547,7 @@ const DashboardCard = memo(function DashboardCard({
             <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
           </div>
           {isMobilePortrait && isDdExpanded ? (
-            <div className="sp-overlay-panel" role="region" aria-label="Drawdown quality">
+            <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
               {balanceDetail.error ? (
                 <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
               ) : balanceDetail.loading && !balanceDetail.data ? (
