@@ -519,60 +519,73 @@ const DashboardCard = memo(function DashboardCard({
 
         {overview.error ? (
           <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
-        ) : isDdExpanded && isMobilePortrait ? (
-          balanceDetail.error ? (
-            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
-          ) : balanceDetail.loading && !balanceDetail.data ? (
-            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-          ) : (
-            <PerformanceQualityPanel
-              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
-              profitFactor={balanceDetail.data?.summary.profitFactor}
-              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
-            />
-          )
-        ) : isPipsExpanded && isMobilePortrait ? (
-          pipsSummary.error ? (
-            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
-          ) : pipsSummary.loading && !pipsSummary.data ? (
-            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-          ) : (
-            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
-          )
-        ) : isTradesExpanded && isMobilePortrait ? (
-          positionsDetail.error ? (
-            <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
-          ) : positionsDetail.loading && !positionsDetail.data ? (
-            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-          ) : (
-            <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-          )
         ) : overview.loading && !overview.data ? (
-          <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-        ) : (
-          <div className="sp-canvas">
-            <div className="sp-canvas__chart">
-              <SparklineChart
-                points={sparklinePoints}
-                active={active}
-                tone="neutral"
-                onHighlightBalanceChange={(value) => {
-                  setHighlightedBalanceState({
-                    scope: highlightedBalanceScope,
-                    value,
-                  });
-                }}
-                timeframe={timeframe}
-                liveTimestamp={accountSource.last_updated}
-                liveBalance={accountSource.balance}
-              />
+          <>
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+            <div className="tf-row">
+              <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
             </div>
+          </>
+        ) : (
+          <div className="sp-canvas-stack">
+            <div className="sp-canvas">
+              <div className="sp-canvas__chart">
+                <SparklineChart
+                  points={sparklinePoints}
+                  active={active}
+                  tone="neutral"
+                  onHighlightBalanceChange={(value) => {
+                    setHighlightedBalanceState({
+                      scope: highlightedBalanceScope,
+                      value,
+                    });
+                  }}
+                  timeframe={timeframe}
+                  liveTimestamp={accountSource.last_updated}
+                  liveBalance={accountSource.balance}
+                />
+              </div>
+            </div>
+            <div className="tf-row">
+              <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
+            </div>
+            {isMobilePortrait && isDdExpanded ? (
+              <div className="sp-overlay-panel" role="region" aria-label="Drawdown quality">
+                {balanceDetail.error ? (
+                  <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+                ) : balanceDetail.loading && !balanceDetail.data ? (
+                  <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+                ) : (
+                  <PerformanceQualityPanel
+                    sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+                    profitFactor={balanceDetail.data?.summary.profitFactor}
+                    recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+                  />
+                )}
+              </div>
+            ) : isMobilePortrait && isPipsExpanded ? (
+              <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
+                {pipsSummary.error ? (
+                  <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+                ) : pipsSummary.loading && !pipsSummary.data ? (
+                  <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+                ) : (
+                  <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
+                )}
+              </div>
+            ) : isMobilePortrait && isTradesExpanded ? (
+              <div className="sp-overlay-panel" role="region" aria-label="Trade history">
+                {positionsDetail.error ? (
+                  <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
+                ) : positionsDetail.loading && !positionsDetail.data ? (
+                  <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+                ) : (
+                  <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+                )}
+              </div>
+            ) : null}
           </div>
         )}
-
-        <div className="tf-row">
-          <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
-        </div>
       </div>
 
       <div className="kpi-stack">
