@@ -411,7 +411,7 @@ body::before {
     position: absolute;
     inset: 0;
     z-index: 5;
-    background: var(--card-bg-top, #06091a);
+    background: transparent;
     border-radius: var(--r-md, 12px);
     display: flex;
     flex-direction: column;
