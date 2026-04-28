@@ -131,16 +131,23 @@ const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
   isMobilePortrait,
+  isLandscapeCarousel,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   refreshKey: number;
   isMobilePortrait: boolean;
+  isLandscapeCarousel: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
   const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
+  const [landscapeDetailTabState, setLandscapeDetailTabState] = useState<{ scope: string; value: "open" | "closed" }>({
+    scope: account.id,
+    value: "open",
+  });
+  const landscapeDetailTab = landscapeDetailTabState.scope === account.id ? landscapeDetailTabState.value : "open";
   const expandedKpiScope = `${account.id}:${timeframe}`;
   const expandedKpi = expandedKpiState?.scope === expandedKpiScope ? expandedKpiState.value : null;
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
@@ -568,7 +575,7 @@ const DashboardCard = memo(function DashboardCard({
             {row.map((item) => {
               const expandKey = item.expandKey;
 
-              if (!expandKey) {
+              if (!expandKey || isLandscapeCarousel) {
                 return (
                   <SummaryChip
                     key={item.key}
@@ -600,7 +607,7 @@ const DashboardCard = memo(function DashboardCard({
         ))}
       </div>
 
-      {expandedKpi && detailRows.length ? (
+      {!isLandscapeCarousel && expandedKpi && detailRows.length ? (
         <section className="kpi-detail-panel" aria-label={`${kpiItems.find((item) => item.key === expandedKpi)?.label ?? "KPI"} details`}>
           {detailState?.error ? (
             <InlineState tone="error" title="KPI unavailable" message={detailState.error} />
@@ -630,7 +637,7 @@ const DashboardCard = memo(function DashboardCard({
         </section>
       ) : null}
 
-      {!isMobilePortrait && isDdExpanded ? (
+      {!isMobilePortrait && !isLandscapeCarousel && isDdExpanded ? (
         <section className="kpi-detail-panel" aria-label="Drawdown quality">
           {balanceDetail.error ? (
             <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
@@ -650,7 +657,7 @@ const DashboardCard = memo(function DashboardCard({
         </section>
       ) : null}
 
-      {!isMobilePortrait && isPipsExpanded ? (
+      {!isMobilePortrait && !isLandscapeCarousel && isPipsExpanded ? (
         <section className="kpi-detail-panel" aria-label="Pips performance">
           {pipsSummary.error ? (
             <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
@@ -666,14 +673,74 @@ const DashboardCard = memo(function DashboardCard({
         </section>
       ) : null}
 
-      <section className="account-card__detail-lane" aria-label={`${accountDisplayName} account details`}>
+      <section
+        className={`account-card__detail-lane${isLandscapeCarousel ? " account-card__detail-lane--tabbed" : ""}`}
+        aria-label={`${accountDisplayName} account details`}
+      >
         {positionsDetail.error && !(isMobilePortrait && (isTradesExpanded || isOpensExpanded)) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
-          <div className="account-card__detail-skeleton" aria-hidden="true">
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-          </div>
+          isLandscapeCarousel ? (
+            <>
+              <div className="account-card__tabs" role="tablist" aria-label="Positions view" aria-hidden="true">
+                <span className="account-card__tab account-card__tab--active">Open</span>
+                <span className="account-card__tab">Closed</span>
+              </div>
+              <div className="account-card__tab-panel">
+                <div className="account-card__detail-skeleton" aria-hidden="true">
+                  <div className="kpi-detail-item kpi-detail-item--skeleton" />
+                  <div className="kpi-detail-item kpi-detail-item--skeleton" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="account-card__detail-skeleton" aria-hidden="true">
+              <div className="kpi-detail-item kpi-detail-item--skeleton" />
+              <div className="kpi-detail-item kpi-detail-item--skeleton" />
+            </div>
+          )
+        ) : isLandscapeCarousel ? (
+          <>
+            <div className="account-card__tabs" role="tablist" aria-label="Positions view">
+              {(["open", "closed"] as const).map((key) => {
+                const selected = landscapeDetailTab === key;
+                const count =
+                  key === "open"
+                    ? positionsDetail.data?.openPositions.length
+                    : positionsDetail.data?.historyPositions.length;
+                const tabId = `ls-tab-${key}-${account.id}`;
+                const panelId = `ls-panel-${account.id}`;
+                return (
+                  <button
+                    key={key}
+                    id={tabId}
+                    type="button"
+                    role="tab"
+                    className={`account-card__tab${selected ? " account-card__tab--active" : ""}`}
+                    aria-selected={selected}
+                    aria-controls={panelId}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setLandscapeDetailTabState({ scope: account.id, value: key })}
+                  >
+                    <span>{key === "open" ? "Open" : "Closed"}</span>
+                    <strong>{formatPlainNumberValue(count, 0)}</strong>
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              className="account-card__tab-panel"
+              role="tabpanel"
+              id={`ls-panel-${account.id}`}
+              aria-labelledby={`ls-tab-${landscapeDetailTab}-${account.id}`}
+            >
+              {landscapeDetailTab === "open" ? (
+                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
+              ) : (
+                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+              )}
+            </div>
+          </>
         ) : (
           <>
             {!(isOpensExpanded && isMobilePortrait) && (
@@ -790,6 +857,22 @@ function DeferredDashboardCard({
           ))}
         </div>
       </div>
+
+      <section
+        className="account-card__detail-lane account-card__detail-lane--tabbed"
+        aria-hidden="true"
+      >
+        <div className="account-card__tabs" role="tablist" aria-label="Positions view">
+          <span className="account-card__tab account-card__tab--active">Open</span>
+          <span className="account-card__tab">Closed</span>
+        </div>
+        <div className="account-card__tab-panel">
+          <div className="account-card__detail-skeleton">
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+          </div>
+        </div>
+      </section>
     </article>
   );
 }
@@ -799,12 +882,14 @@ function LazyDashboardCard({
   index,
   refreshKey,
   isMobilePortrait,
+  isLandscapeCarousel,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   index: number;
   refreshKey: number;
   isMobilePortrait: boolean;
+  isLandscapeCarousel: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
@@ -821,6 +906,7 @@ function LazyDashboardCard({
       account={account}
       refreshKey={refreshKey}
       isMobilePortrait={isMobilePortrait}
+      isLandscapeCarousel={isLandscapeCarousel}
       onRequestStateChange={onRequestStateChange}
     />
   );
@@ -1287,6 +1373,7 @@ export default function DashboardClient() {
                   index={index}
                   refreshKey={refreshKey}
                   isMobilePortrait={isMobilePortrait}
+                  isLandscapeCarousel={isLandscapeCarousel}
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
