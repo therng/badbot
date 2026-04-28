@@ -1,10 +1,10 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model TradingAccount {
@@ -17,11 +17,11 @@ model TradingAccount {
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   reportDate          DateTime?            @map("report_date")
-  accountSnapshot     AccountSnapshot?
   accountReportResult AccountReportResult?
+  accountSnapshot     AccountSnapshot?
+  deals               Deal[]
   openPositions       OpenPosition[]
   positions           Position[]
-  deals               Deal[]
   reportImports       ReportImport[]
 
   @@map("Account")
@@ -101,7 +101,6 @@ model OpenPosition {
   reportDate       DateTime       @map("report_date")
   tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
 
-  // v4.0: unique constraint enables safe upsert
   @@unique([tradingAccountId, positionNo])
   @@index([tradingAccountId, symbol])
   @@index([tradingAccountId, reportDate])
@@ -124,16 +123,14 @@ model Position {
   commission       Decimal        @default(0) @db.Decimal(28, 8)
   swap             Decimal        @default(0) @db.Decimal(28, 8)
   profit           Decimal        @default(0) @db.Decimal(28, 8)
-  // v4.0: pre-computed pips for O(1) pips-summary queries
-  pips             Float?
   comment          String?
   reportDate       DateTime       @map("report_date")
   importedAt       DateTime       @default(now()) @map("imported_at")
+  pips             Float?
   tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
 
   @@unique([tradingAccountId, positionNo])
   @@index([tradingAccountId, closeTime])
-  // v4.0: open_time index for hold-time analytics
   @@index([tradingAccountId, openTime])
   @@index([tradingAccountId, reportDate])
   @@map("Position")
@@ -162,7 +159,6 @@ model Deal {
   @@unique([tradingAccountId, dealNo])
   @@index([tradingAccountId, time])
   @@index([tradingAccountId, reportDate])
-  // v4.0: type index for trading vs balance-deal filters
   @@index([tradingAccountId, type])
   @@index([symbol])
   @@map("Deal")

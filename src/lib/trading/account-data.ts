@@ -25,6 +25,8 @@ export {
   computeDepositLoadPercent,
   computeTradeActivityPercent,
   computeTradesPerWeek,
+  computeTradesPerYear,
+  computeAnnualizedSharpeRatio,
   computeSharpeRatio,
   computeStreaks,
   computeYearGrowth,

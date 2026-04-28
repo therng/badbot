@@ -41,8 +41,10 @@ import {
   computeConsecutiveRunAmounts,
   computeDepositLoadPercent,
   computeTradeActivityPercent,
+  computeAnnualizedSharpeRatio,
   computeSharpeRatio,
   computeTradesPerWeek,
+  computeTradesPerYear,
   computeYearGrowth,
   dealNet,
   filterBySince,
@@ -852,14 +854,32 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       .map((deal) => dealNet(deal)),
   );
 
-  // Risk-adjusted KPIs surfaced via the DD panel gauge (sharpe/profit factor/recovery)
-  const balanceDetailPositionsDrawdown = computeBalanceDrawdown(deals, since, null);
+  // Risk-adjusted KPIs surfaced via the DD panel gauge (sharpe/profit factor/recovery).
+  // Drawdown source is `drawdownDeals` (funding excluded) so deposits/withdrawals
+  // don't deflate the recovery factor denominator.
+  const balanceDetailPositionsDrawdown = computeBalanceDrawdown(drawdownDeals, since, null);
   const balanceDetailTotalNet = closedPositionSummary.totalNetProfit;
+  // No drawdown but positive net = "perfect" recovery; surface as Infinity so the
+  // gauge picks the "great" zone instead of "NO DATA".
   const balanceDetailRecoveryFactor =
     balanceDetailPositionsDrawdown.maximalAmount > 0
       ? balanceDetailTotalNet / balanceDetailPositionsDrawdown.maximalAmount
-      : null;
-  const balanceDetailSharpeRatio = computeSharpeRatio(closedPositionSummary.netValues);
+      : balanceDetailTotalNet > 0
+        ? Number.POSITIVE_INFINITY
+        : null;
+  // Lifetime trade frequency anchors the annualization so per-trade Sharpe scales
+  // into the gauge's annualized 1/2/3/4 benchmark zones.
+  const balanceDetailSharpeRatio = computeAnnualizedSharpeRatio(
+    closedPositionSummary.netValues,
+    computeTradesPerYear(allClosedPositions),
+  );
+  // Profit factor is undefined when there are zero losing trades; treat a
+  // strictly winning sample as "great" (Infinity) for the gauge.
+  const balanceDetailProfitFactor =
+    closedPositionSummary.profitFactor ??
+    (closedPositionSummary.grossProfit > 0 && closedPositionSummary.grossLoss === 0
+      ? Number.POSITIVE_INFINITY
+      : null);
 
   const balanceDetail: BalanceDetailResponse = {
     timeframe,
@@ -873,7 +893,7 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       maximalDepositLoad: currentDepositLoad,
       maximumConsecutiveLossAmount: runAmounts.maxConsecutiveLossAmount,
       sharpeRatio: balanceDetailSharpeRatio,
-      profitFactor: closedPositionSummary.profitFactor,
+      profitFactor: balanceDetailProfitFactor,
       recoveryFactor: balanceDetailRecoveryFactor,
     },
     mfeMae: {

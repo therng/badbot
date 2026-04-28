@@ -26,8 +26,8 @@ import {
   type MetricTone,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
+import AILoginGate from "@/components/trading-monitor/AILoginGate";
 import {
-  AccountsUnavailableState,
   InlineState,
   SparklineChart,
   TimeframeStrip,
@@ -100,6 +100,12 @@ function marginLevelTone(value: number | null | undefined): MetricTone {
   }
 
   const numeric = value ?? 0;
+  // No open positions → margin is 0, margin-level is undefined; show as neutral
+  // so the chip doesn't read as "danger" for inactive but healthy accounts.
+  if (numeric <= 0) {
+    return "muted";
+  }
+
   if (numeric <= 100) {
     return "negative";
   }
@@ -658,6 +664,42 @@ const DashboardCard = memo(function DashboardCard({
                 ))}
               </div>
             </>
+          )}
+        </section>
+      ) : null}
+
+      {!isMobilePortrait && isDdExpanded ? (
+        <section className="kpi-detail-panel" aria-label="Drawdown quality">
+          {balanceDetail.error ? (
+            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+          ) : balanceDetail.loading && !balanceDetail.data ? (
+            <div className="kpi-detail-grid" aria-hidden="true">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
+              ))}
+            </div>
+          ) : (
+            <PerformanceQualityPanel
+              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+              profitFactor={balanceDetail.data?.summary.profitFactor}
+              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+            />
+          )}
+        </section>
+      ) : null}
+
+      {!isMobilePortrait && isPipsExpanded ? (
+        <section className="kpi-detail-panel" aria-label="Pips performance">
+          {pipsSummary.error ? (
+            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+          ) : pipsSummary.loading && !pipsSummary.data ? (
+            <div className="kpi-detail-grid" aria-hidden="true">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
+              ))}
+            </div>
+          ) : (
+            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
           )}
         </section>
       ) : null}
@@ -1272,11 +1314,7 @@ export default function DashboardClient() {
             aria-label="Trading accounts"
           >
             {accounts.error ? (
-              <AccountsUnavailableState
-                message={accounts.error}
-                onRetry={retryAccountsRequest}
-                retrying={accounts.loading}
-              />
+              <AILoginGate onEnter={retryAccountsRequest} />
             ) : accounts.loading && !accounts.data ? (
               <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
             ) : accounts.data?.length ? (

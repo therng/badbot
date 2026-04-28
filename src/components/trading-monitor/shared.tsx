@@ -71,53 +71,6 @@ export function InlineState({
   );
 }
 
-export function AccountsUnavailableState({
-  message,
-  onRetry,
-  retrying = false,
-}: {
-  message: string;
-  onRetry?: () => void;
-  retrying?: boolean;
-}) {
-  return (
-    <section className="accounts-unavailable" role="alert" aria-live="assertive">
-      <div className="accounts-unavailable__bg" aria-hidden="true" />
-      <div className="accounts-unavailable__signal" aria-hidden="true">
-        <svg viewBox="0 0 180 180" className="accounts-unavailable__signal-svg" focusable="false">
-          <circle cx="90" cy="90" r="70" className="accounts-unavailable__ring accounts-unavailable__ring--outer" />
-          <circle cx="90" cy="90" r="50" className="accounts-unavailable__ring accounts-unavailable__ring--mid" />
-          <circle cx="90" cy="90" r="32" className="accounts-unavailable__ring accounts-unavailable__ring--inner" />
-          <g className="accounts-unavailable__sweep">
-            <path d="M90,90 L90,20 A70,70 0 0,1 160,90 Z" className="accounts-unavailable__sweep-wake" />
-            <line x1="90" y1="90" x2="90" y2="20" className="accounts-unavailable__sweep-arm" />
-          </g>
-          <circle cx="90" cy="90" r="18" className="accounts-unavailable__core" />
-          <path d="M90 74 L90 100" className="accounts-unavailable__mark" />
-          <circle cx="90" cy="112" r="2.6" className="accounts-unavailable__mark-dot" />
-        </svg>
-      </div>
-      <div className="accounts-unavailable__body">
-        <p className="accounts-unavailable__eyebrow">Data Feed Alert</p>
-        <h2>Accounts unavailable</h2>
-        <p className="accounts-unavailable__message">{message}</p>
-        <div className="accounts-unavailable__meta" aria-hidden="true">
-          <span>Scope /api/accounts</span>
-          <span>{retrying ? "Reconnecting..." : "Awaiting retry"}</span>
-        </div>
-        <button
-          type="button"
-          className="accounts-unavailable__retry"
-          onClick={onRetry}
-          disabled={retrying || !onRetry}
-        >
-          {retrying ? "Retrying..." : "Retry now"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
 export function MetricTile({
   label,
   value,

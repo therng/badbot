@@ -345,6 +345,29 @@ export function computeSharpeRatio(values: number[]) {
   return average / deviation;
 }
 
+// Per-trade Sharpe scaled to an annualized number so gauge benchmarks (1/2/3/4)
+// remain meaningful regardless of how often the strategy trades. Falls back to
+// the per-trade value when the time span cannot be derived.
+export function computeAnnualizedSharpeRatio(values: number[], tradesPerYear: number | null) {
+  const sharpe = computeSharpeRatio(values);
+  if (sharpe === null) return null;
+  if (!Number.isFinite(tradesPerYear ?? Number.NaN) || (tradesPerYear ?? 0) <= 0) return sharpe;
+  return sharpe * Math.sqrt(tradesPerYear as number);
+}
+
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+export function computeTradesPerYear(positions: Array<{ closeTime?: Date | string | null; outTime?: Date | string | null }>) {
+  const closes = positions
+    .map((position) => parseTimestamp(getPositionCloseTime(position)))
+    .filter((ts) => Number.isFinite(ts))
+    .sort((left, right) => left - right);
+  if (closes.length < 2) return null;
+  const spanMs = closes[closes.length - 1] - closes[0];
+  if (spanMs <= 0) return null;
+  return (closes.length / spanMs) * MS_PER_YEAR;
+}
+
 type PositionLifetimeRow = {
   openTime?: Date | string | null;
   inTime?: Date | string | null;

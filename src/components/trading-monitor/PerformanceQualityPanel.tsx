@@ -109,8 +109,11 @@ interface GaugeProps {
 
 function Gauge({ config }: GaugeProps) {
   const { label, value, zones, scaleMax } = config;
-  const hasValue = typeof value === "number" && Number.isFinite(value);
-  const safeValue = hasValue ? (value as number) : 0;
+  const isPositiveInfinity = value === Number.POSITIVE_INFINITY;
+  const hasValue = typeof value === "number" && (Number.isFinite(value) || isPositiveInfinity);
+  // Infinity (perfect ratio: zero losses or zero drawdown) maps to the top of
+  // the scale so the gauge picks the "great" zone with a saturated needle.
+  const safeValue = isPositiveInfinity ? scaleMax : hasValue ? (value as number) : 0;
   const currentZone = hasValue ? pickZone(safeValue, zones) : zones[0];
   const currentColor = TONE_COLOR[currentZone.tone];
   const needleAngle = valueToAngle(safeValue, scaleMax);
@@ -231,7 +234,7 @@ function Gauge({ config }: GaugeProps) {
         </text>
       </svg>
       <div className="perf-gauge__value" data-empty={!hasValue ? "true" : undefined}>
-        {hasValue ? safeValue.toFixed(2) : "-"}
+        {!hasValue ? "-" : isPositiveInfinity ? "∞" : safeValue.toFixed(2)}
       </div>
       <div className="perf-gauge__tone" style={{ color: currentColor }}>
         {hasValue ? currentZone.label.toUpperCase() : "NO DATA"}
