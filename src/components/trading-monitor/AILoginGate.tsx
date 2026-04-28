@@ -572,7 +572,7 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         </section>
 
         <footer className="ls__footer">
-          Analytic v4.5 by Therng
+          Analytic v5.0 by Therng
         </footer>
       </main>
     </div>

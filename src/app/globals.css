@@ -2156,7 +2156,8 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     display: grid;
     grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
     gap: 10px;
-    min-height: 0;
+    height: 0;
+    min-height: 100%;
   }
 
   .dashboard-section > .account-card .account-card__detail-panel .trade-history-panel,
@@ -2186,6 +2187,21 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
   .dashboard-section.dashboard-section--carousel > .account-card {
     min-height: 0;
     height: calc(var(--viewport-height) - 20px - var(--safe-top) - var(--safe-bottom));
+    padding: 12px 8px;
+    grid-template-columns: minmax(144px, 0.54fr) minmax(280px, 1fr) minmax(220px, 0.74fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "header chart details"
+      "stats  chart details"
+      "selected timeframe details";
+    gap: 8px 10px;
+    overflow: hidden;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-header {
+    grid-area: header;
+    padding: 9px 10px;
+    border-radius: var(--r-sm);
   }
 
   .dashboard-section.dashboard-section--carousel > .account-card .sp-name {
@@ -2204,6 +2220,94 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     font-size: clamp(18px, 3vw, 22px);
   }
 
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-wrap .section-state,
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__chart-skeleton,
+  .dashboard-section.dashboard-section--carousel > .account-card .sp-canvas {
+    grid-area: chart;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    padding: 8px 9px 9px;
+    border-radius: var(--r-md);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .tf-row {
+    grid-area: timeframe;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kpi-stack {
+    grid-area: stats;
+    padding: 8px;
+    gap: 0;
+    border-radius: var(--r-sm);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kchip {
+    min-height: 45px;
+    padding: 6px;
+    border-radius: var(--r-xs);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kgrid .kl,
+  .dashboard-section.dashboard-section--carousel > .account-card .kpi-detail-grid .kl {
+    font-size: 7px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kv {
+    font-size: 11px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kpi-detail-panel {
+    grid-area: selected;
+    overflow: hidden;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .kpi-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-lane {
+    grid-area: details;
+    display: grid;
+    grid-template-rows: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    gap: 7px;
+    height: 0;
+    min-height: 100%;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-panel {
+    gap: 6px;
+    padding: 7px;
+    border-radius: var(--r-sm);
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-panel .trade-history-panel,
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-panel .open-positions-panel {
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-head {
+    padding-bottom: 5px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-head span {
+    font-size: 7px;
+  }
+
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-head strong {
+    font-size: 10px;
+  }
   .dashboard-section.dashboard-section--carousel > .account-card .trade-history-row__summary {
     padding: 6px 0 5px;
   }
