@@ -500,12 +500,6 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
         <section className="ls__hero" aria-label="Analytic launch sequence">
           <div className="ls__data-side" aria-hidden>
             <div className="ls__market-panel">
-              <div className="ls__market-meta">
-                <span>XAUUSD</span>
-                <span>M1 STREAM</span>
-                <span>LIVE</span>
-              </div>
-
               <div className="ls__chart-frame">
                 <div className="ls__chart">
                   <div className="ls__chart-depth" aria-hidden />
@@ -526,12 +520,6 @@ export default function AILoginGate({ onEnter }: AILoginGateProps) {
                     ))}
                   </div>
                 </div>
-              </div>
-
-              <div className="ls__market-tape">
-                <span>ASIA</span>
-                <span>LONDON</span>
-                <span>NY</span>
               </div>
             </div>
           </div>

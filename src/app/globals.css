@@ -419,10 +419,6 @@ body::before {
     backdrop-filter: blur(8px);
   }
 
-  .dashboard-section > .account-card .sp-canvas-stack:has(.sp-overlay-panel--dd) .tf-row {
-    position: relative;
-    z-index: 6;
-  }
 }
 
 .dashboard-section > .account-card .sp-canvas {
