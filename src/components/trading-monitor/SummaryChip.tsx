@@ -6,16 +6,11 @@ import { type MetricTone } from "@/components/trading-monitor/formatters";
 
 export type KpiHintContent = {
   definition: string;
-  purpose: string;
-  howToRead?: string;
 };
 
 function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
   if (typeof hint === "string") {
-    return {
-      definition: hint,
-      purpose: "",
-    };
+    return { definition: hint };
   }
 
   return hint;
@@ -29,30 +24,8 @@ function KpiHintSections({
   content: KpiHintContent;
   classPrefix: "kpi-tooltip" | "kpi-sheet";
 }) {
-  const labelCls = `${classPrefix}__section-label`;
   const textCls = classPrefix === "kpi-tooltip" ? `${classPrefix}__text` : `${classPrefix}__hint`;
-  const sectionCls = `${classPrefix}__section`;
-
-  return (
-    <>
-      <div className={sectionCls}>
-        <span className={labelCls}>นิยาม</span>
-        <p className={textCls}>{content.definition}</p>
-      </div>
-      {content.purpose ? (
-        <div className={sectionCls}>
-          <span className={labelCls}>ใช้ดูอะไร</span>
-          <p className={textCls}>{content.purpose}</p>
-        </div>
-      ) : null}
-      {content.howToRead ? (
-        <div className={sectionCls}>
-          <span className={labelCls}>ตีความเร็ว</span>
-          <p className={textCls}>{content.howToRead}</p>
-        </div>
-      ) : null}
-    </>
-  );
+  return <p className={textCls}>{content.definition}</p>;
 }
 
 // ── Detect coarse-pointer (touch) device ─────────────────────
@@ -64,11 +37,9 @@ function isTouchPrimary(): boolean {
 // ── Desktop Tooltip ───────────────────────────────────────────
 function KpiTooltip({
   hint,
-  label,
   anchorRect,
 }: {
   hint: string | KpiHintContent;
-  label: string;
   anchorRect: DOMRect;
 }) {
   const TOOLTIP_W = 300;
@@ -95,7 +66,6 @@ function KpiTooltip({
       role="tooltip"
     >
       <div className="kpi-tooltip__inner">
-        <span className="kpi-tooltip__label">{label}</span>
         <KpiHintSections content={content} classPrefix="kpi-tooltip" />
       </div>
       {openAbove && (
@@ -156,17 +126,7 @@ function KpiActionSheet({
         {/* Drag handle */}
         <div className="kpi-sheet__handle" aria-hidden />
 
-        {/* Metric identity */}
-        <div className="kpi-sheet__head">
-          <span className="kpi-sheet__metric-label">{label}</span>
-          <strong className={`kpi-sheet__metric-value tone-${tone}`}>{value}</strong>
-        </div>
-
-        {/* Divider */}
-        <div className="kpi-sheet__divider" aria-hidden />
-
         {/* Hint text */}
-        <span className="kpi-sheet__hint-title">คำอธิบาย KPI</span>
         <KpiHintSections content={content} classPrefix="kpi-sheet" />
 
         {/* Dismiss */}
@@ -174,6 +134,7 @@ function KpiActionSheet({
           type="button"
           className="kpi-sheet__close"
           onClick={onClose}
+          aria-label={`ปิด ${label}`}
         >
           ปิด
         </button>
@@ -188,7 +149,6 @@ function useKpiHint(hasHint: boolean) {
   const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const chipRef = useRef<HTMLElement | null>(null);
-  const autoDismissTimer = useRef<ReturnType<typeof setTimeout>>();
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
   const tooltipOpenTimer = useRef<ReturnType<typeof setTimeout>>();
   const tooltipCloseTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -196,7 +156,6 @@ function useKpiHint(hasHint: boolean) {
 
   useEffect(() => {
     return () => {
-      clearTimeout(autoDismissTimer.current);
       clearTimeout(longPressTimer.current);
       clearTimeout(tooltipOpenTimer.current);
       clearTimeout(tooltipCloseTimer.current);
@@ -205,13 +164,10 @@ function useKpiHint(hasHint: boolean) {
 
   const openSheet = useCallback(() => {
     try { navigator.vibrate?.(12); } catch { /* ignore */ }
-    clearTimeout(autoDismissTimer.current);
     setSheetOpen(true);
-    autoDismissTimer.current = setTimeout(() => setSheetOpen(false), 8000);
   }, []);
 
   const closeSheet = useCallback(() => {
-    clearTimeout(autoDismissTimer.current);
     setSheetOpen(false);
   }, []);
 
@@ -355,7 +311,7 @@ export function SummaryChip({
 
       {/* Desktop tooltip (hover) */}
       {hint && tooltipRect ? (
-        <KpiTooltip hint={hint} label={label} anchorRect={tooltipRect} />
+        <KpiTooltip hint={hint} anchorRect={tooltipRect} />
       ) : null}
 
       {/* Mobile action sheet (tap) */}

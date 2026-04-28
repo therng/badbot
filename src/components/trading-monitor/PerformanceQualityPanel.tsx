@@ -36,6 +36,7 @@ interface GaugeConfig {
   value: number | null | undefined;
   zones: Zone[];
   scaleMax: number;
+  infinityZoneIndex?: number;
 }
 
 // Benchmark thresholds tuned for retail FX accounts. These match the
@@ -108,13 +109,14 @@ interface GaugeProps {
 }
 
 function Gauge({ config }: GaugeProps) {
-  const { label, value, zones, scaleMax } = config;
+  const { label, value, zones, scaleMax, infinityZoneIndex } = config;
   const isPositiveInfinity = value === Number.POSITIVE_INFINITY;
   const hasValue = typeof value === "number" && (Number.isFinite(value) || isPositiveInfinity);
-  // Infinity (perfect ratio: zero losses or zero drawdown) maps to the top of
-  // the scale so the gauge picks the "great" zone with a saturated needle.
+  // Infinity maps to specified zone (e.g., good for profit factor, great for sharpe/recovery)
   const safeValue = isPositiveInfinity ? scaleMax : hasValue ? (value as number) : 0;
-  const currentZone = hasValue ? pickZone(safeValue, zones) : zones[0];
+  const currentZone = isPositiveInfinity && infinityZoneIndex !== undefined
+    ? zones[infinityZoneIndex]
+    : hasValue ? pickZone(safeValue, zones) : zones[0];
   const currentColor = TONE_COLOR[currentZone.tone];
   const needleAngle = valueToAngle(safeValue, scaleMax);
   const needleTip = polarToCartesian(GAUGE_CENTER_X, GAUGE_CENTER_Y, GAUGE_RADIUS + 6, needleAngle);
@@ -262,6 +264,7 @@ function PerformanceQualityPanelImpl({
       value: profitFactor,
       zones: PROFIT_FACTOR_ZONES,
       scaleMax: 3,
+      infinityZoneIndex: 2,
     },
     {
       key: "recovery",

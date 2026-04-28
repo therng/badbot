@@ -211,9 +211,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: gainTone,
       fullValue: formatSignedCurrency(overview.data?.kpis.netProfit, 2),
       hint: {
-        definition: "กำไรหรือขาดทุนสุทธิจากการเทรดในช่วงเวลาที่เลือก หลังรวมผลของกำไร ราคา swap และ commission แล้ว",
-        purpose: "ใช้ดูว่าบัญชีหรือกลยุทธ์นี้ทำเงินจริงหรือไม่ โดยตัดผลของต้นทุนการเทรดเข้ามาแล้ว",
-        howToRead: "ค่าบวกแปลว่าช่วงนั้นปิดจบด้วยกำไร ค่าลบแปลว่าขาดทุน และควรอ่านคู่กับ DD เพื่อดูว่ากำไรนั้นแลกมากับความเสี่ยงมากแค่ไหน",
+        definition: "กำไรขาดทุนสุทธิรวม swap และ commission ในช่วงที่เลือก",
       },
     },
     {
@@ -224,9 +222,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: relativeDrawdownTone,
       meta: drawdownMeta,
       hint: {
-        definition: "สัดส่วนการย่อตัวของบัญชีจากจุดสูงสุดลงมาถึงจุดต่ำสุดในช่วงที่เลือก วัดเป็นเปอร์เซ็นต์",
-        purpose: "ใช้วัดความเสี่ยงและความเจ็บของพอร์ตว่าระหว่างทางเคยถอยลงแรงแค่ไหน แม้ผลสุดท้ายอาจกลับมากำไรได้",
-        howToRead: "ยิ่งค่านี้ต่ำยิ่งคุมความเสี่ยงได้ดี ถ้ากำไรสูงแต่ DD สูงมาก แปลว่าผลตอบแทนอาจมาพร้อมความผันผวนที่รับยาก",
+        definition: "การย่อตัวจากจุดสูงสุดถึงจุดต่ำสุด คิดเป็น %",
       },
     },
     {
@@ -238,9 +234,7 @@ const DashboardCard = memo(function DashboardCard({
       meta: "Closed",
       fullValue: `${formatSignedPlainNumberValue(overview.data?.kpis.netPips, 1)} pips`,
       hint: {
-        definition: "ผลรวมระยะการเคลื่อนไหวราคาที่ชนะหรือแพ้จากออเดอร์ที่ปิดแล้ว โดยใช้หน่วย pip แทนหน่วยเงิน",
-        purpose: "ใช้วัดคุณภาพการอ่านทิศทางตลาดหรือ execution โดยไม่ขึ้นกับขนาดทุนและ lot size ทำให้เปรียบเทียบหลายบัญชีได้ยุติธรรมกว่าเงินกำไรอย่างเดียว",
-        howToRead: "ค่าบวกหมายถึงเก็บระยะราคาได้มากกว่าที่เสียไป ค่าลบหมายถึงจับทิศผิดหรือออกจุดไม่คุ้ม แม้บางครั้งกำไรเงินยังบวกได้ถ้าใช้ lot ใหญ่",
+        definition: "ระยะราคาสุทธิจากออเดอร์ที่ปิดแล้ว วัดเป็น pip",
       },
     },
     {
@@ -251,9 +245,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: "warning",
       fullValue: formatWholeNumber(overview.data?.kpis.trades),
       hint: {
-        definition: "จำนวนออเดอร์ที่ปิดแล้วในช่วงเวลาที่เลือก ซึ่งสะท้อนว่ามีการเข้าออกตลาดกี่ครั้ง",
-        purpose: "ใช้ดูความถี่และสไตล์การเทรด เช่น scalper มักมีจำนวนสูง ส่วน swing trader มักมีจำนวนน้อยกว่า",
-        howToRead: "ตัวเลขสูงไม่ได้แปลว่าดีกว่าเสมอไป ต้องดูคู่กับ Gain, commission และ win rate ว่าการเทรดบ่อยสร้างคุณภาพจริงหรือไม่",
+        definition: "จำนวนออเดอร์ที่ปิดในช่วงที่เลือก",
       },
     },
     {
@@ -263,9 +255,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
       tone: openTone,
       hint: {
-        definition: "จำนวน position ที่ยังเปิดค้างอยู่และยังไม่ปิดรับผลกำไรหรือขาดทุนจริง",
-        purpose: "ใช้ดูภาระความเสี่ยงที่ยังค้างในตลาด เพราะทุก position ที่เปิดอยู่จะกิน margin และมี floating P/L ที่เปลี่ยนตลอดเวลา",
-        howToRead: "ยิ่งมีหลายไม้พร้อมกันยิ่งต้องดู Margin, Level และ Floating P/L ประกอบ เพื่อประเมินว่าความเสี่ยงสะสมสูงเกินไปหรือไม่",
+        definition: "จำนวน position ที่ยังเปิดอยู่",
       },
     },
   ];
@@ -312,9 +302,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: toneFromNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission)),
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 2),
             hint: {
-              definition: "ค่าธรรมเนียมที่โบรกเกอร์เรียกเก็บจากการเปิดหรือปิดออเดอร์",
-              purpose: "ใช้ดูว่าต้นทุนคงที่จากการเทรดกินกำไรไปมากแค่ไหน โดยเฉพาะกลยุทธ์ที่เข้าออกบ่อย",
-              howToRead: "ถ้า commission สูงเมื่อเทียบกับ Gain แปลว่ากำไรที่เห็นอาจถูกต้นทุนหักไปมาก แม้ win rate จะดูดี",
+              definition: "ค่าธรรมเนียมโบรกเกอร์ต่อออเดอร์",
             },
           },
           {
@@ -323,9 +311,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: toneFromNumber(profitDetail.data?.summary.totalSwap),
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalSwap, 2),
             hint: {
-              definition: "ดอกเบี้ยหรือค่าถือครองข้ามคืนที่เกิดจากการเปิด position ค้างไว้หลังจบวัน",
-              purpose: "ใช้ดูต้นทุนหรือรายได้แฝงจากการถือออเดอร์นาน ซึ่งมีผลชัดกับกลยุทธ์ถือหลายวัน",
-              howToRead: "ถ้าถือนานและ swap ติดลบมาก กำไรจากราคาอาจถูกหักจนเหลือน้อยกว่าที่คิด",
+              definition: "ดอกเบี้ยถือ position ข้ามคืน",
             },
           },
           {
@@ -334,9 +320,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: "positive",
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalDeposit, 2),
             hint: {
-              definition: "เงินที่เติมเข้าบัญชีในช่วงเวลาที่กำลังดูอยู่",
-              purpose: "ใช้แยกให้ออกว่าเงินในพอร์ตเพิ่มขึ้นเพราะเทรดได้กำไร หรือเพราะมีการเติมทุนเพิ่มเข้ามา",
-              howToRead: "ถ้ายอด balance โตแต่มี deposit สูงมาก ต้องระวังการตีความว่าพอร์ตโตจาก performance เพียงอย่างเดียว",
+              definition: "เงินที่เติมเข้าบัญชีในช่วงที่เลือก",
             },
           },
           {
@@ -345,9 +329,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: "warning",
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 2),
             hint: {
-              definition: "เงินที่ถอนออกจากบัญชีในช่วงเวลาที่เลือก",
-              purpose: "ใช้ดู cash flow จริงของบัญชี และช่วยประเมินว่ากำไรที่ทำได้ถูกดึงออกไปใช้แล้วมากน้อยแค่ไหน",
-              howToRead: "การถอนเงินไม่ใช่การขาดทุนจากการเทรด แต่มีผลต่อยอดคงเหลือและการเติบโตของทุนในอนาคต",
+              definition: "เงินที่ถอนจากบัญชีในช่วงที่เลือก",
             },
           },
         ]
@@ -360,9 +342,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Balance absolute drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
               hint: {
-                definition: "ยอดย่อตัวของ balance จากจุดเริ่มต้นหรือ baseline ที่ใช้วัด DD",
-                purpose: "ใช้ดูว่าทุนเคยลดลงจากฐานมากแค่ไหนในช่วงที่เลือก",
-                howToRead: "ค่านี้ยิ่งสูงยิ่งบอกว่าบัญชีเคยถอยลึก แม้ปลายทางอาจกลับมาปิดเป็นกำไรได้",
+                definition: "ยอดย่อตัวของ balance จากฐานเริ่มต้น",
               },
             },
             {
@@ -372,9 +352,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Balance maximal drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
               hint: {
-                definition: "DD สูงสุดของ balance จากจุด peak ลงไปยังจุด trough",
-                purpose: "ใช้ดูความเสียหายลึกสุดที่เคยเกิดขึ้นกับกราฟ balance",
-                howToRead: "ตัวเลขนี้สำคัญมากเมื่อเทียบกับ gain เพราะบอกว่ากำไรที่ได้มานั้นต้องแลกกับการย่อตัวแรงแค่ไหน",
+                definition: "DD สูงสุดจาก peak ลงถึง trough",
               },
             },
             {
@@ -384,9 +362,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Closed positions win rate",
               fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 1),
               hint: {
-                definition: "สัดส่วนออเดอร์ที่ปิดแล้วและจบด้วยกำไร",
-                purpose: "ใช้ดูว่าความถี่ที่ชนะสอดคล้องกับ drawdown ที่ยอมรับได้หรือไม่",
-                howToRead: "win rate สูงไม่ใช่คำตอบทั้งหมด ต้องดูร่วมกับ DD และขนาดกำไรต่อไม้ด้วย",
+                definition: "สัดส่วนออเดอร์ที่ปิดเป็นกำไร",
               },
             },
           ]
@@ -398,9 +374,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: toneFromNumber(positionsDetail.data?.summary.tradeActivityPercent),
                   meta: "Activity%",
                   hint: {
-                    definition: "สัดส่วนความถี่ของวันที่มีการเทรด เทียบกับช่วงเวลาที่กำลังดูอยู่",
-                    purpose: "ใช้ดูความสม่ำเสมอของกลยุทธ์ว่ามีการทำงานจริงบ่อยแค่ไหน หรือปล่อยว่างตลาดนานแค่ไหน",
-                    howToRead: "ค่าสูงบอกว่าต้องมีส่วนร่วมกับตลาดบ่อย ส่วนค่าต่ำอาจหมายถึงเลือกจังหวะน้อยแต่เน้นคุณภาพ",
+                    definition: "สัดส่วนวันที่มีการเทรดในช่วงที่เลือก",
                   },
                 },
                 {
@@ -409,9 +383,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: toneFromNumber(positionsDetail.data?.summary.tradesPerWeek),
                   meta: "Trade per week",
                   hint: {
-                    definition: "จำนวนออเดอร์เฉลี่ยที่เกิดขึ้นต่อ 1 สัปดาห์",
-                    purpose: "ใช้ประเมินภาระการติดตามกลยุทธ์และคาดการณ์จำนวนออเดอร์ในอนาคตแบบคร่าวๆ",
-                    howToRead: "ถ้าตัวเลขสูง แปลว่ากลยุทธ์นี้ต้องเข้าออกบ่อย และต้นทุนรวมอย่าง commission มักมีบทบาทมากขึ้น",
+                    definition: "จำนวนออเดอร์เฉลี่ยต่อสัปดาห์",
                   },
                 },
                 {
@@ -420,9 +392,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: "neutral",
                   meta: "Average hold time",
                   hint: {
-                    definition: "ระยะเวลาเฉลี่ยที่ถือ position หนึ่งรายการก่อนปิดออก",
-                    purpose: "ใช้ดูสไตล์การเทรดว่าเป็นแนว scalping, intraday หรือ swing",
-                    howToRead: "ยิ่งถือนานยิ่งเสี่ยงต่อข่าวข้ามคืนและต้นทุน swap มากขึ้น แต่ก็มีโอกาสเก็บเทรนด์ใหญ่ได้มากขึ้นเช่นกัน",
+                    definition: "ระยะเวลาเฉลี่ยที่ถือ position ก่อนปิด",
                   },
                 },
               ]
@@ -434,9 +404,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
                     fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
                     hint: {
-                      definition: "กำไรหรือขาดทุนของ position ที่ยังไม่ปิด ซึ่งยังไม่ถูกล็อคเป็นผลลัพธ์จริง",
-                      purpose: "ใช้ดูสถานะสดของออเดอร์ที่ค้างอยู่ ว่าตอนนี้กำลังช่วยหรือกดพอร์ตอยู่เท่าไร",
-                      howToRead: "ตัวเลขนี้เปลี่ยนได้ตลอดตามราคา และจะกลายเป็นผลจริงก็ต่อเมื่อปิด position แล้วเท่านั้น",
+                      definition: "กำไร/ขาดทุนของ position ที่ยังไม่ปิด",
                     },
                   },
                   {
@@ -445,9 +413,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: toneFromNumber(openPositionSwap),
                     fullValue: formatSignedCurrency(openPositionSwap, 2),
                     hint: {
-                      definition: "ดอกเบี้ยค้างรับหรือค้างจ่ายของ position ที่ยังเปิดอยู่ในตอนนี้",
-                      purpose: "ใช้ดูว่าการถือออเดอร์ข้ามคืนกำลังสร้างภาระเพิ่มหรือให้ผลบวกสะสมอยู่",
-                      howToRead: "ถ้าค่านี้ติดลบต่อเนื่องและถือหลายวัน ต้นทุนสะสมอาจค่อยๆ กัดกำไรจากการเคลื่อนไหวราคา",
+                      definition: "ดอกเบี้ยค้างของ position ที่ยังเปิดอยู่",
                     },
                   },
                   {
@@ -456,9 +422,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: Number.isFinite(currentMargin) && (currentMargin ?? 0) > 0 ? "warning" : "muted",
                     fullValue: formatCurrency(currentMargin, 2),
                     hint: {
-                      definition: "เงินส่วนที่ถูกกันไว้เป็นหลักประกันสำหรับ position ที่เปิดอยู่",
-                      purpose: "ใช้ดูว่าบัญชีกำลังใช้กำลังซื้อไปมากแค่ไหน และยังเหลือพื้นที่ให้เปิดออเดอร์ใหม่อีกเท่าไร",
-                      howToRead: "margin สูงไม่ใช่เรื่องผิดเสมอไป แต่ถ้าสูงเกินเมื่อเทียบกับ equity จะทำให้พอร์ตเปราะบางต่อการแกว่งของราคา",
+                      definition: "เงินค้ำประกันสำหรับ position ที่เปิดอยู่",
                     },
                   },
                   {
@@ -467,9 +431,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: marginLevelTone(currentMarginLevel),
                     fullValue: formatPlainPercent(currentMarginLevel, 1),
                     hint: {
-                      definition: "อัตราส่วนระหว่าง equity ต่อ margin คิดเป็นเปอร์เซ็นต์ ซึ่งสะท้อนความแข็งแรงของบัญชีตอนนี้",
-                      purpose: "ใช้ดูความปลอดภัยของพอร์ตว่ามี buffer เหลือพอรองรับการแกว่งของราคาอีกมากน้อยแค่ไหน",
-                      howToRead: "ยิ่งสูงยิ่งปลอดภัย หากตัวเลขเข้าใกล้เกณฑ์ของโบรกเกอร์ เช่น 100% หรือ 50% ความเสี่ยงโดน margin call หรือ stop out จะสูงขึ้น",
+                      definition: "equity ÷ margin เป็น % สะท้อนความแข็งแรงของบัญชี",
                     },
                   },
                 ]

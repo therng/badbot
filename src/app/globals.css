@@ -411,11 +411,12 @@ body::before {
     position: absolute;
     inset: 0;
     z-index: 5;
-    background: transparent;
+    background: rgba(0,0,0,0.7);
     border-radius: var(--r-md, 12px);
     display: flex;
     flex-direction: column;
     overflow: auto;
+    backdrop-filter: blur(8px);
   }
 
   .dashboard-section > .account-card .sp-canvas-stack:has(.sp-overlay-panel--dd) .tf-row {
@@ -845,7 +846,7 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: 9990;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.7);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-end;
