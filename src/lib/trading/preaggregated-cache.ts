@@ -719,6 +719,7 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   const scopedPositions = filterBySince(positions, (position) => position.closeTime, since);
   const scopedClosedPositions = scopedPositions.filter((position) => isClosedPosition(position));
   const closedPositionSummary = summarizeClosedPositions(scopedClosedPositions);
+  const allClosedPositionSummary = summarizeClosedPositions(allClosedPositions);
   const scopedPositionPips = scopedClosedPositions
     .map((position) => positionPips(position))
     .filter((value): value is number => Number.isFinite(value));
@@ -855,29 +856,28 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   );
 
   // Risk-adjusted KPIs surfaced via the DD panel gauge (sharpe/profit factor/recovery).
-  // Drawdown source is `drawdownDeals` (funding excluded) so deposits/withdrawals
-  // don't deflate the recovery factor denominator.
-  const balanceDetailPositionsDrawdown = computeBalanceDrawdown(drawdownDeals, since, null);
-  const balanceDetailTotalNet = closedPositionSummary.totalNetProfit;
+  // Use all-time data so these metrics remain stable regardless of selected timeframe.
+  const allClosedPositionsDrawdown = computeBalanceDrawdown(drawdownDeals, null, null);
+  const balanceDetailTotalNet = allClosedPositionSummary.totalNetProfit;
   // No drawdown but positive net = "perfect" recovery; surface as Infinity so the
   // gauge picks the "great" zone instead of "NO DATA".
   const balanceDetailRecoveryFactor =
-    balanceDetailPositionsDrawdown.maximalAmount > 0
-      ? balanceDetailTotalNet / balanceDetailPositionsDrawdown.maximalAmount
+    allClosedPositionsDrawdown.maximalAmount > 0
+      ? balanceDetailTotalNet / allClosedPositionsDrawdown.maximalAmount
       : balanceDetailTotalNet > 0
         ? Number.POSITIVE_INFINITY
         : null;
-  // Lifetime trade frequency anchors the annualization so per-trade Sharpe scales
-  // into the gauge's annualized 1/2/3/4 benchmark zones.
+  // Use all-time trade values for annualization so Sharpe remains stable across timeframes.
   const balanceDetailSharpeRatio = computeAnnualizedSharpeRatio(
-    closedPositionSummary.netValues,
+    allClosedPositionSummary.netValues,
     computeTradesPerYear(allClosedPositions),
   );
+  // Use all-time profit factor so it remains stable regardless of selected timeframe.
   // Profit factor is undefined when there are zero losing trades; treat a
   // strictly winning sample as "great" (Infinity) for the gauge.
   const balanceDetailProfitFactor =
-    closedPositionSummary.profitFactor ??
-    (closedPositionSummary.grossProfit > 0 && closedPositionSummary.grossLoss === 0
+    allClosedPositionSummary.profitFactor ??
+    (allClosedPositionSummary.grossProfit > 0 && allClosedPositionSummary.grossLoss === 0
       ? Number.POSITIVE_INFINITY
       : null);
 
