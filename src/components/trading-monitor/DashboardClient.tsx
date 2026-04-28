@@ -679,7 +679,7 @@ const DashboardCard = memo(function DashboardCard({
       >
         {!isMobilePortrait && (
           <>
-            <div className="account-card__detail-panel account-card__detail-panel--auto">
+            <div className="account-card__detail-panel account-card__detail-panel--auto account-card__detail-panel--quality">
               <div className="account-card__detail-head">
                 <span>Drawdown Quality</span>
               </div>
@@ -700,7 +700,7 @@ const DashboardCard = memo(function DashboardCard({
               )}
             </div>
 
-            <div className="account-card__detail-panel account-card__detail-panel--auto">
+            <div className="account-card__detail-panel account-card__detail-panel--auto account-card__detail-panel--pips">
               <div className="account-card__detail-head">
                 <span>Pips Performance</span>
               </div>
