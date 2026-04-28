@@ -1105,8 +1105,8 @@ body::before {
 
 .dashboard-section > .account-card .account-card__detail-panel {
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 10px;
   border-radius: var(--r-md);
@@ -1114,6 +1114,14 @@ body::before {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.026), rgba(255,255,255,0.012));
   overflow: hidden;
+}
+
+.dashboard-section > .account-card .account-card__detail-panel--scrollable {
+  flex: 1 1 0%;
+}
+
+.dashboard-section > .account-card .account-card__detail-panel--auto {
+  flex: 0 0 auto;
 }
 
 .dashboard-section > .account-card .account-card__detail-head {
@@ -2153,11 +2161,16 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 
   .dashboard-section > .account-card .account-card__detail-lane {
     grid-area: details;
-    display: grid;
-    grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     height: 0;
     min-height: 100%;
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+  }
+  .dashboard-section > .account-card .account-card__detail-lane::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
   }
 
   .dashboard-section > .account-card .account-card__detail-panel .trade-history-panel,
@@ -2274,11 +2287,16 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 
   .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-lane {
     grid-area: details;
-    display: grid;
-    grid-template-rows: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    display: flex;
+    flex-direction: column;
     gap: 7px;
     height: 0;
     min-height: 100%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-lane::-webkit-scrollbar {
+    display: none;
   }
 
   .dashboard-section.dashboard-section--carousel > .account-card .account-card__detail-panel {

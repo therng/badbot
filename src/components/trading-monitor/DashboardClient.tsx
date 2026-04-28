@@ -162,14 +162,14 @@ const DashboardCard = memo(function DashboardCard({
     },
   );
   const balanceDetail = useApiResource<BalanceDetailResponse>(
-    expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
+    !isMobilePortrait || expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
     },
   );
   const pipsSummary = useApiResource<PipsSummaryResponse>(
-    expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
+    !isMobilePortrait || expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
@@ -674,9 +674,50 @@ const DashboardCard = memo(function DashboardCard({
       ) : null}
 
       <section
-        className={`account-card__detail-lane${isLandscapeCarousel ? " account-card__detail-lane--tabbed" : ""}`}
+        className="account-card__detail-lane"
         aria-label={`${accountDisplayName} account details`}
       >
+        {!isMobilePortrait && (
+          <>
+            <div className="account-card__detail-panel account-card__detail-panel--auto">
+              <div className="account-card__detail-head">
+                <span>Drawdown Quality</span>
+              </div>
+              {balanceDetail.error ? (
+                <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+              ) : balanceDetail.loading && !balanceDetail.data ? (
+                <div className="kpi-detail-grid" aria-hidden="true">
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
+                  ))}
+                </div>
+              ) : (
+                <PerformanceQualityPanel
+                  sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+                  profitFactor={balanceDetail.data?.summary.profitFactor}
+                  recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+                />
+              )}
+            </div>
+
+            <div className="account-card__detail-panel account-card__detail-panel--auto">
+              <div className="account-card__detail-head">
+                <span>Pips Performance</span>
+              </div>
+              {pipsSummary.error ? (
+                <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+              ) : pipsSummary.loading && !pipsSummary.data ? (
+                <div className="kpi-detail-grid" aria-hidden="true">
+                  {Array.from({ length: 4 }, (_, index) => (
+                    <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
+                  ))}
+                </div>
+              ) : (
+                <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
+              )}
+            </div>
+          </>
+        )}
         {positionsDetail.error && !(isMobilePortrait && (isTradesExpanded || isOpensExpanded)) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
@@ -744,7 +785,7 @@ const DashboardCard = memo(function DashboardCard({
         ) : (
           <>
             {!(isOpensExpanded && isMobilePortrait) && (
-              <div className="account-card__detail-panel account-card__detail-panel--opens">
+              <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--opens">
                 <div className="account-card__detail-head">
                   <span>Live exposure</span>
                   <strong>{formatPlainNumberValue(positionsDetail.data?.openPositions.length, 0)}</strong>
@@ -754,7 +795,7 @@ const DashboardCard = memo(function DashboardCard({
             )}
 
             {!(isTradesExpanded && isMobilePortrait) && (
-              <div className="account-card__detail-panel account-card__detail-panel--trades">
+              <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--trades">
                 <div className="account-card__detail-head">
                   <span>Closed positions</span>
                   <strong>{formatPlainNumberValue(positionsDetail.data?.historyPositions.length, 0)}</strong>
