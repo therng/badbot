@@ -1846,13 +1846,12 @@ a:focus-visible, button:focus-visible {
     min-height: 0;
     padding: 12px;
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.95fr) minmax(0, 1.1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "header    details"
-      "stats     details"
-      "chart     details"
-      "timeframe details";
+      "chart     header  details"
+      "chart     stats   details"
+      "timeframe stats   details";
     gap: 8px 10px;
     align-content: stretch;
     overflow: hidden;
@@ -1892,7 +1891,7 @@ a:focus-visible, button:focus-visible {
   .dashboard-section.dashboard-section--carousel > .account-card .tf-row {
     grid-area: timeframe;
     justify-content: flex-start;
-    align-self: start;
+    align-self: end;
     margin: 0;
     padding: 0 2px;
   }
@@ -1907,7 +1906,7 @@ a:focus-visible, button:focus-visible {
     background: rgba(255,255,255,0.02);
   }
   .dashboard-section.dashboard-section--carousel > .account-card .kgrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
     padding-top: 0;
     border-top: none;
