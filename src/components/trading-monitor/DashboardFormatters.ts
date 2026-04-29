@@ -4,11 +4,25 @@ import type {
 import { formatTableDateTime } from "@/lib/time";
 
 import {
+  getSignedPrefix,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
 
 export type MonthlyDisplayMode = "percent" | "amount";
 export type ExpandableKpiKey = "gain" | "dd" | "pips" | "trades" | "opens";
+
+export function getSideToneClass(sideLabel: string) {
+  const normalizedSide = sideLabel.toLowerCase();
+  if (normalizedSide === "buy") return "trade-history-row__side--buy";
+  if (normalizedSide === "sell") return "trade-history-row__side--sell";
+  return "";
+}
+
+export function getPnlToneClass(pnl: number) {
+  if (pnl > 0) return "trade-history-row__trail--positive";
+  if (pnl < 0) return "trade-history-row__trail--negative";
+  return "trade-history-row__trail--neutral";
+}
 
 export function trimTrailingZeroDecimals(value: string) {
   return value
@@ -30,8 +44,7 @@ export function formatSignedPlainPercent(value: number | null | undefined, digit
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}%`;
+  return `${getSignedPrefix(numeric)}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}%`;
 }
 
 export function formatPlainAmount(value: number, digits = 1) {
@@ -55,8 +68,7 @@ export function formatSignedPlainNumberValue(value: number | null | undefined, d
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}`;
+  return `${getSignedPrefix(numeric)}${trimTrailingZeroDecimals(Math.abs(numeric).toFixed(digits))}`;
 }
 
 export function formatSignedPlainAmountKpiValue(value: number | null | undefined, digits = 1) {
@@ -65,8 +77,7 @@ export function formatSignedPlainAmountKpiValue(value: number | null | undefined
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${formatPlainAmount(Math.abs(numeric), digits)}`;
+  return `${getSignedPrefix(numeric)}${formatPlainAmount(Math.abs(numeric), digits)}`;
 }
 
 export function formatPositionSide(value: string | null | undefined) {
@@ -114,13 +125,9 @@ export function normalizeNegativeAmount(value: number | null | undefined) {
   return -Math.abs(value ?? 0);
 }
 
-export function toneFromMonthlyValue(value: number | null | undefined, mode: MonthlyDisplayMode) {
+export function toneFromMonthlyValue(value: number | null | undefined) {
   if (!Number.isFinite(value)) {
     return "muted";
-  }
-
-  if (mode === "amount") {
-    return toneFromNumber(value);
   }
 
   return toneFromNumber(value);

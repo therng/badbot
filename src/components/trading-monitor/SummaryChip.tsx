@@ -6,6 +6,7 @@ import { type MetricTone } from "@/components/trading-monitor/formatters";
 
 export type KpiHintContent = {
   definition: string;
+  purpose?: string;
 };
 
 function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
@@ -25,7 +26,20 @@ function KpiHintSections({
   classPrefix: "kpi-tooltip" | "kpi-sheet";
 }) {
   const textCls = classPrefix === "kpi-tooltip" ? `${classPrefix}__text` : `${classPrefix}__hint`;
-  return <p className={textCls}>{content.definition}</p>;
+  return (
+    <>
+      <div className={`${classPrefix}__section`}>
+        <span className={`${classPrefix}__section-label`}>นิยาม</span>
+        <p className={textCls}>{content.definition}</p>
+      </div>
+      {content.purpose && (
+        <div className={`${classPrefix}__section ${classPrefix}__section--purpose`}>
+          <span className={`${classPrefix}__section-label ${classPrefix}__section-label--purpose`}>วัตถุประสงค์</span>
+          <p className={textCls}>{content.purpose}</p>
+        </div>
+      )}
+    </>
+  );
 }
 
 // ── Detect coarse-pointer (touch) device ─────────────────────
@@ -83,8 +97,6 @@ function KpiTooltip({
 function KpiActionSheet({
   hint,
   label,
-  value,
-  tone,
   onClose,
 }: {
   hint: string | KpiHintContent;
@@ -93,23 +105,67 @@ function KpiActionSheet({
   tone: MetricTone;
   onClose: () => void;
 }) {
-  // Swipe-down to dismiss
-  const startYRef = useRef<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const startYRef = useRef<number | null>(null);
+  const prevYRef = useRef(0);
+  const prevTimeRef = useRef(0);
   const content = normalizeKpiHint(hint);
+  const bodyText = [content.definition, content.purpose].filter(Boolean).join(" ");
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    startYRef.current = e.touches[0]?.clientY ?? null;
+    const y = e.touches[0]?.clientY ?? 0;
+    startYRef.current = y;
+    prevYRef.current = y;
+    prevTimeRef.current = Date.now();
+    if (sheetRef.current) sheetRef.current.style.transition = "none";
   };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startYRef.current === null) return;
+    const y = e.touches[0]?.clientY ?? 0;
+    const delta = Math.max(0, y - startYRef.current);
+    prevYRef.current = y;
+    prevTimeRef.current = Date.now();
+    if (sheetRef.current) sheetRef.current.style.transform = `translateY(${delta}px)`;
+    if (backdropRef.current) {
+      backdropRef.current.style.opacity = String(Math.max(0.4, 1 - delta / 280));
+    }
+  };
+
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (startYRef.current === null) return;
-    const delta = (e.changedTouches[0]?.clientY ?? 0) - startYRef.current;
-    if (delta > 60) onClose();
+    const y = e.changedTouches[0]?.clientY ?? 0;
+    const delta = Math.max(0, y - startYRef.current);
+    const dt = Math.max(1, Date.now() - prevTimeRef.current);
+    const velocity = (y - prevYRef.current) / dt;
     startYRef.current = null;
+
+    if (delta > 80 || velocity > 0.4) {
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = "transform 300ms cubic-bezier(0.4,0,1,1)";
+        sheetRef.current.style.transform = "translateY(110%)";
+      }
+      if (backdropRef.current) {
+        backdropRef.current.style.transition = "opacity 300ms ease";
+        backdropRef.current.style.opacity = "0";
+      }
+      setTimeout(onClose, 300);
+    } else {
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = "transform 500ms cubic-bezier(0.16,1,0.3,1)";
+        sheetRef.current.style.transform = "translateY(0)";
+      }
+      if (backdropRef.current) {
+        backdropRef.current.style.transition = "opacity 400ms ease";
+        backdropRef.current.style.opacity = "1";
+      }
+    }
   };
 
   return createPortal(
     <div
+      ref={backdropRef}
       className="kpi-sheet-backdrop"
       onClick={onClose}
       aria-modal="true"
@@ -121,23 +177,11 @@ function KpiActionSheet({
         className="kpi-sheet"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Drag handle */}
         <div className="kpi-sheet__handle" aria-hidden />
-
-        {/* Hint text */}
-        <KpiHintSections content={content} classPrefix="kpi-sheet" />
-
-        {/* Dismiss */}
-        <button
-          type="button"
-          className="kpi-sheet__close"
-          onClick={onClose}
-          aria-label={`ปิด ${label}`}
-        >
-          ปิด
-        </button>
+        <p className="kpi-sheet__body">{bodyText}</p>
       </div>
     </div>,
     document.body,
@@ -178,7 +222,7 @@ function useKpiHint(hasHint: boolean) {
     tooltipOpenTimer.current = setTimeout(() => {
       if (!chipRef.current) return;
       setTooltipRect(chipRef.current.getBoundingClientRect());
-    }, 5000);
+    }, 400);
   }, []);
 
   const closeTooltip = useCallback(() => {
@@ -201,7 +245,7 @@ function useKpiHint(hasHint: boolean) {
     longPressTimer.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
       openSheet();
-    }, 300);
+    }, 500);
   }, [clearLongPress, hasHint, openSheet]);
 
   const handleTouchMove = useCallback(() => {

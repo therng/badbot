@@ -28,6 +28,18 @@ const COMPACT_SUFFIXES = [
   { value: 1_000, suffix: "K" },
 ] as const;
 
+export function getSignedPrefix(value: number) {
+  if (value > 0) {
+    return "+";
+  }
+
+  if (value < 0) {
+    return "-";
+  }
+
+  return "";
+}
+
 export function stripTrailingZero(value: string) {
   return value.includes(".") ? value.replace(/\.0+(?=[A-Za-z%]|$)|(\.\d*?[1-9])0+(?=[A-Za-z%]|$)/g, "$1") : value;
 }
@@ -104,8 +116,7 @@ export function formatSignedCurrency(
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${formatCurrency(Math.abs(numeric), digits, currencySymbol)}`;
+  return `${getSignedPrefix(numeric)}${formatCurrency(Math.abs(numeric), digits, currencySymbol)}`;
 }
 
 export function formatPercent(value: number | null | undefined, digits = 1) {
@@ -114,8 +125,7 @@ export function formatPercent(value: number | null | undefined, digits = 1) {
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${formatRoundedNumber(Math.abs(numeric), digits)}%`;
+  return `${getSignedPrefix(numeric)}${formatRoundedNumber(Math.abs(numeric), digits)}%`;
 }
 
 export function formatWholeNumber(value: number | null | undefined) {
@@ -152,8 +162,7 @@ export function formatCompactSignedNumber(value: number | null | undefined, digi
   }
 
   const numeric = value ?? 0;
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${formatCompactNumber(Math.abs(numeric), digits)}`;
+  return `${getSignedPrefix(numeric)}${formatCompactNumber(Math.abs(numeric), digits)}`;
 }
 
 export function displayName(account: SerializedAccount) {

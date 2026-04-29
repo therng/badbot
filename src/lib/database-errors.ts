@@ -22,6 +22,14 @@ function getErrorMessage(error: unknown) {
   return typeof error === "string" ? error : "";
 }
 
+function buildDatabaseTargetHint(databaseTarget: string | null) {
+  if (!databaseTarget) {
+    return " Start Postgres and verify DATABASE_URL.";
+  }
+
+  return ` Start Postgres and verify DATABASE_URL points to ${databaseTarget}.`;
+}
+
 export function getDatabaseErrorDetails(error: unknown, fallbackMessage: string) {
   const message = getErrorMessage(error);
   const databaseTarget = safeParseDatabaseUrl(process.env.DATABASE_URL);
@@ -34,12 +42,9 @@ export function getDatabaseErrorDetails(error: unknown, fallbackMessage: string)
   }
 
   if (message.includes("Can't reach database server")) {
-    const suffix = databaseTarget
-      ? ` Start Postgres and verify DATABASE_URL points to ${databaseTarget}.`
-      : " Start Postgres and verify DATABASE_URL.";
     return {
       status: 503,
-      message: `Database is unavailable.${suffix}`,
+      message: `Database is unavailable.${buildDatabaseTargetHint(databaseTarget)}`,
     };
   }
 

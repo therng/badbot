@@ -8,6 +8,8 @@ import {
   formatSignedPlainAmountKpiValue,
   formatTradePrice,
   formatTradeHistoryDateTime,
+  getPnlToneClass,
+  getSideToneClass,
   positionHistoryNetPnl,
 } from "@/components/trading-monitor/DashboardFormatters";
 
@@ -37,11 +39,8 @@ export function TradeHistoryPanel({
           const sideLabel = formatPositionSide(position.type);
           const volumeLabel = formatPlainNumberValue(position.volume, 2);
           const rowNetPnl = positionHistoryNetPnl(position);
-          const normalizedSide = sideLabel.toLowerCase();
-          const sideToneClass =
-            normalizedSide === "buy" ? "trade-history-row__side--buy" : normalizedSide === "sell" ? "trade-history-row__side--sell" : "";
-          const pnlToneClass =
-            rowNetPnl > 0 ? "trade-history-row__trail--positive" : rowNetPnl < 0 ? "trade-history-row__trail--negative" : "trade-history-row__trail--neutral";
+          const sideToneClass = getSideToneClass(sideLabel);
+          const pnlToneClass = getPnlToneClass(rowNetPnl);
 
           return (
             <div key={rowKey} className={isExpanded ? "trade-history-row is-expanded" : "trade-history-row"}>
