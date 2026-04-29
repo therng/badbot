@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { type MetricTone } from "@/components/trading-monitor/formatters";
 
 export type KpiHintContent = {
+  title?: string;
   definition: string;
   purpose?: string;
 };
@@ -80,6 +81,9 @@ function KpiTooltip({
       role="tooltip"
     >
       <div className="kpi-tooltip__inner">
+        {content.title && (
+          <div className="kpi-tooltip__title">{content.title}</div>
+        )}
         <KpiHintSections content={content} classPrefix="kpi-tooltip" />
       </div>
       {openAbove && (
@@ -97,6 +101,8 @@ function KpiTooltip({
 function KpiActionSheet({
   hint,
   label,
+  value,
+  tone,
   onClose,
 }: {
   hint: string | KpiHintContent;
@@ -107,60 +113,112 @@ function KpiActionSheet({
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
-  const startYRef = useRef<number | null>(null);
-  const prevYRef = useRef(0);
-  const prevTimeRef = useRef(0);
+  const dragRef = useRef({
+    pointerId: null as number | null,
+    startY: 0,
+    lastY: 0,
+    lastTime: 0,
+    velocity: 0,
+  });
   const content = normalizeKpiHint(hint);
   const bodyText = [content.definition, content.purpose].filter(Boolean).join(" ");
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const y = e.touches[0]?.clientY ?? 0;
-    startYRef.current = y;
-    prevYRef.current = y;
-    prevTimeRef.current = Date.now();
-    if (sheetRef.current) sheetRef.current.style.transition = "none";
-  };
+  const setDragOffset = useCallback((delta: number) => {
+    if (sheetRef.current) {
+      sheetRef.current.style.transform = `translateY(${delta}px)`;
+    }
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (startYRef.current === null) return;
-    const y = e.touches[0]?.clientY ?? 0;
-    const delta = Math.max(0, y - startYRef.current);
-    prevYRef.current = y;
-    prevTimeRef.current = Date.now();
-    if (sheetRef.current) sheetRef.current.style.transform = `translateY(${delta}px)`;
     if (backdropRef.current) {
-      backdropRef.current.style.opacity = String(Math.max(0.4, 1 - delta / 280));
+      backdropRef.current.style.opacity = String(Math.max(0.24, 1 - delta / 360));
+    }
+  }, []);
+
+  const animateClosed = useCallback(() => {
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = "transform 260ms cubic-bezier(0.4,0,1,1)";
+      sheetRef.current.style.transform = "translateY(110%)";
+    }
+
+    if (backdropRef.current) {
+      backdropRef.current.style.transition = "opacity 220ms ease";
+      backdropRef.current.style.opacity = "0";
+    }
+
+    window.setTimeout(onClose, 260);
+  }, [onClose]);
+
+  const animateOpen = useCallback(() => {
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = "transform 420ms cubic-bezier(0.16,1,0.3,1)";
+      sheetRef.current.style.transform = "translateY(0)";
+    }
+
+    if (backdropRef.current) {
+      backdropRef.current.style.transition = "opacity 320ms ease";
+      backdropRef.current.style.opacity = "1";
+    }
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.isPrimary) return;
+
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      lastY: e.clientY,
+      lastTime: performance.now(),
+      velocity: 0,
+    };
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = "none";
+    }
+
+    if (backdropRef.current) {
+      backdropRef.current.style.transition = "none";
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (startYRef.current === null) return;
-    const y = e.changedTouches[0]?.clientY ?? 0;
-    const delta = Math.max(0, y - startYRef.current);
-    const dt = Math.max(1, Date.now() - prevTimeRef.current);
-    const velocity = (y - prevYRef.current) / dt;
-    startYRef.current = null;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
 
-    if (delta > 80 || velocity > 0.4) {
-      if (sheetRef.current) {
-        sheetRef.current.style.transition = "transform 300ms cubic-bezier(0.4,0,1,1)";
-        sheetRef.current.style.transform = "translateY(110%)";
-      }
-      if (backdropRef.current) {
-        backdropRef.current.style.transition = "opacity 300ms ease";
-        backdropRef.current.style.opacity = "0";
-      }
-      setTimeout(onClose, 300);
-    } else {
-      if (sheetRef.current) {
-        sheetRef.current.style.transition = "transform 500ms cubic-bezier(0.16,1,0.3,1)";
-        sheetRef.current.style.transform = "translateY(0)";
-      }
-      if (backdropRef.current) {
-        backdropRef.current.style.transition = "opacity 400ms ease";
-        backdropRef.current.style.opacity = "1";
-      }
+    const now = performance.now();
+    const dt = Math.max(1, now - dragRef.current.lastTime);
+    const rawDelta = e.clientY - dragRef.current.startY;
+    const delta = rawDelta < 0 ? rawDelta * 0.18 : rawDelta;
+
+    dragRef.current.velocity = (e.clientY - dragRef.current.lastY) / dt;
+    dragRef.current.lastY = e.clientY;
+    dragRef.current.lastTime = now;
+
+    setDragOffset(delta);
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const finishDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
+
+    const delta = Math.max(0, e.clientY - dragRef.current.startY);
+    const closeThreshold = Math.min(128, Math.max(72, (sheetRef.current?.offsetHeight ?? 320) * 0.28));
+    const shouldClose = delta > closeThreshold || dragRef.current.velocity > 0.7;
+
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
+
+    dragRef.current.pointerId = null;
+    e.stopPropagation();
+
+    if (shouldClose) {
+      animateClosed();
+      return;
+    }
+
+    animateOpen();
   };
 
   return createPortal(
@@ -176,11 +234,16 @@ function KpiActionSheet({
         ref={sheetRef}
         className="kpi-sheet"
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
       >
         <div className="kpi-sheet__handle" aria-hidden />
+        <div className="kpi-sheet__head">
+          <span className="kpi-sheet__metric-label">{content.title ?? label}</span>
+        </div>
+        <div className="kpi-sheet__divider" />
         <p className="kpi-sheet__body">{bodyText}</p>
       </div>
     </div>,

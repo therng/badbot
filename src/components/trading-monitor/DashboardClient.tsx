@@ -143,11 +143,7 @@ const DashboardCard = memo(function DashboardCard({
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
   const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
-  const [landscapeDetailTabState, setLandscapeDetailTabState] = useState<{ scope: string; value: "open" | "closed" }>({
-    scope: account.id,
-    value: "open",
-  });
-  const landscapeDetailTab = landscapeDetailTabState.scope === account.id ? landscapeDetailTabState.value : "open";
+  const usesCompactKpiPanels = isMobilePortrait || isLandscapeCarousel;
   const expandedKpiScope = `${account.id}:${timeframe}`;
   const expandedKpi = expandedKpiState?.scope === expandedKpiScope ? expandedKpiState.value : null;
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
@@ -162,14 +158,14 @@ const DashboardCard = memo(function DashboardCard({
     },
   );
   const balanceDetail = useApiResource<BalanceDetailResponse>(
-    !isMobilePortrait || expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
+    !usesCompactKpiPanels || expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
     },
   );
   const pipsSummary = useApiResource<PipsSummaryResponse>(
-    !isMobilePortrait || expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
+    !usesCompactKpiPanels || expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
@@ -218,6 +214,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: gainTone,
       fullValue: formatSignedCurrency(overview.data?.kpis.netProfit, 2),
       hint: {
+        title: "Net Gain",
         definition: "กำไรขาดทุนสุทธิรวม swap และ commission ในช่วงที่เลือก",
         purpose: "ดูคู่กับ DD และ timeframe เพื่อประเมินว่ากำไรมาจากทักษะหรือโชคในช่วงสั้น",
       },
@@ -230,6 +227,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: relativeDrawdownTone,
       meta: drawdownMeta,
       hint: {
+        title: "Relative Drawdown",
         definition: "การย่อตัวจากจุดสูงสุดถึงจุดต่ำสุด คิดเป็น %",
         purpose: "ยิ่งต่ำยิ่งดี เกณฑ์ทั่วไปคือไม่ควรเกิน 20% ใช้วัดความเสี่ยงสูงสุดของระบบ",
       },
@@ -243,6 +241,7 @@ const DashboardCard = memo(function DashboardCard({
       meta: "Closed",
       fullValue: `${formatSignedPlainNumberValue(overview.data?.kpis.netPips, 1)} pips`,
       hint: {
+        title: "Net Pips",
         definition: "ระยะราคาสุทธิจากออเดอร์ที่ปิดแล้ว วัดเป็น pip",
         purpose: "แยกผลของ lot size ออก ช่วยเปรียบเทียบทักษะข้ามบัญชีที่มีขนาดต่างกัน",
       },
@@ -255,6 +254,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: "warning",
       fullValue: formatWholeNumber(overview.data?.kpis.trades),
       hint: {
+        title: "Total Trades",
         definition: "จำนวนออเดอร์ที่ปิดในช่วงที่เลือก",
         purpose: "ประเมินความถี่ของกลยุทธ์ — น้อยคือ swing, มากคือ scalping",
       },
@@ -266,6 +266,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
       tone: openTone,
       hint: {
+        title: "Open Positions",
         definition: "จำนวน position ที่ยังเปิดอยู่",
         purpose: "บัญชีที่มี position เปิดมากมีความเสี่ยงจาก market move สูงกว่า",
       },
@@ -314,6 +315,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: toneFromNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission)),
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 2),
             hint: {
+              title: "Commission",
               definition: "ค่าธรรมเนียมโบรกเกอร์ต่อออเดอร์",
               purpose: "ต้นทุนจากการซื้อขาย เทรดบ่อยยิ่งสะสมมาก ควรดูสัดส่วนกับกำไรรวม",
             },
@@ -324,6 +326,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: toneFromNumber(profitDetail.data?.summary.totalSwap),
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalSwap, 2),
             hint: {
+              title: "Swap",
               definition: "ดอกเบี้ยถือ position ข้ามคืน",
               purpose: "สำคัญสำหรับกลยุทธ์ที่ถือ position ข้ามคืน บางคู่มี swap เป็นบวก",
             },
@@ -334,6 +337,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: "positive",
             fullValue: formatSignedCurrency(profitDetail.data?.summary.totalDeposit, 2),
             hint: {
+              title: "Total Deposits",
               definition: "เงินที่เติมเข้าบัญชีในช่วงที่เลือก",
               purpose: "แยกกำไรจริงออกจากยอดที่เพิ่มเพราะเติมเงิน ช่วยคำนวณ net return จริง",
             },
@@ -344,6 +348,7 @@ const DashboardCard = memo(function DashboardCard({
             tone: "warning",
             fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 2),
             hint: {
+              title: "Total Withdrawals",
               definition: "เงินที่ถอนจากบัญชีในช่วงที่เลือก",
               purpose: "ติดตามเงินที่ถอนออก เพื่อคำนวณผลตอบแทนรวมจากบัญชี",
             },
@@ -358,6 +363,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Balance absolute drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
               hint: {
+                title: "Balance Absolute Drawdown",
                 definition: "ยอดย่อตัวของ balance จากฐานเริ่มต้น",
                 purpose: "บอกว่า balance เคยลงต่ำกว่าทุนเริ่มต้นมากแค่ไหน ใช้ดูว่าบัญชียังอยู่เหนือทุนหรือไม่",
               },
@@ -369,6 +375,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Balance maximal drawdown",
               fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
               hint: {
+                title: "Balance Maximal Drawdown",
                 definition: "DD สูงสุดจาก peak ลงถึง trough",
                 purpose: "worst-case จริงที่เกิดขึ้น ใช้ตั้ง drawdown limit หรือ stop system",
               },
@@ -380,6 +387,7 @@ const DashboardCard = memo(function DashboardCard({
               meta: "Closed positions win rate",
               fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 1),
               hint: {
+                title: "Win Rate",
                 definition: "สัดส่วนออเดอร์ที่ปิดเป็นกำไร",
                 purpose: "ต้องดูคู่กับ risk/reward — win rate 40% ยังทำกำไรได้ถ้า RR สูงพอ",
               },
@@ -393,6 +401,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: toneFromNumber(positionsDetail.data?.summary.tradeActivityPercent),
                   meta: "Activity%",
                   hint: {
+                    title: "Trade Activity",
                     definition: "สัดส่วนวันที่มีการเทรดในช่วงที่เลือก",
                     purpose: "บ่งบอกว่า account นี้ยัง active หรือเงียบลง ช่วยตรวจสอบความสม่ำเสมอ",
                   },
@@ -403,6 +412,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: toneFromNumber(positionsDetail.data?.summary.tradesPerWeek),
                   meta: "Trade per week",
                   hint: {
+                    title: "Trades per Week",
                     definition: "จำนวนออเดอร์เฉลี่ยต่อสัปดาห์",
                     purpose: "เปรียบเทียบ pace ของระบบ — ค่าสูงชี้ scalping, ค่าต่ำชี้ position trading",
                   },
@@ -413,6 +423,7 @@ const DashboardCard = memo(function DashboardCard({
                   tone: "neutral",
                   meta: "Average hold time",
                   hint: {
+                    title: "Average Hold Time",
                     definition: "ระยะเวลาเฉลี่ยที่ถือ position ก่อนปิด",
                     purpose: "จัดประเภทกลยุทธ์ — นาที = scalper, ชั่วโมง = day trader, วัน = swing",
                   },
@@ -426,6 +437,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: toneFromNumber(positionsDetail.data?.summary.floatingProfit),
                     fullValue: formatSignedCurrency(positionsDetail.data?.summary.floatingProfit, 2),
                     hint: {
+                      title: "Floating P/L",
                       definition: "กำไร/ขาดทุนของ position ที่ยังไม่ปิด",
                       purpose: "ยังไม่ใช่กำไรจริงจนกว่าจะปิด position อาจเปลี่ยนแปลงได้ตลอดเวลา",
                     },
@@ -436,6 +448,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: toneFromNumber(openPositionSwap),
                     fullValue: formatSignedCurrency(openPositionSwap, 2),
                     hint: {
+                      title: "Open Swap",
                       definition: "ดอกเบี้ยค้างของ position ที่ยังเปิดอยู่",
                       purpose: "ต้นทุนสะสมที่เพิ่มขึ้นทุกวัน ยิ่งถือนานยิ่งกระทบกำไรสุทธิ",
                     },
@@ -446,6 +459,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: Number.isFinite(currentMargin) && (currentMargin ?? 0) > 0 ? "warning" : "muted",
                     fullValue: formatCurrency(currentMargin, 2),
                     hint: {
+                      title: "Used Margin",
                       definition: "เงินค้ำประกันสำหรับ position ที่เปิดอยู่",
                       purpose: "เงินที่โบรกเกอร์ lock ไว้ ยิ่งใช้มากยิ่งเสี่ยง margin call หากตลาดผิดทาง",
                     },
@@ -456,6 +470,7 @@ const DashboardCard = memo(function DashboardCard({
                     tone: marginLevelTone(currentMarginLevel),
                     fullValue: formatPlainPercent(currentMarginLevel, 1),
                     hint: {
+                      title: "Margin Level",
                       definition: "equity ÷ margin เป็น % สะท้อนความแข็งแรงของบัญชี",
                       purpose: "ต่ำกว่า 100% = margin call zone ควรรักษาไว้สูงกว่า 200% เพื่อความปลอดภัย",
                     },
@@ -540,7 +555,7 @@ const DashboardCard = memo(function DashboardCard({
           <div className="tf-row">
             <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
           </div>
-          {isMobilePortrait && isDdExpanded ? (
+          {usesCompactKpiPanels && isDdExpanded ? (
             <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
               {balanceDetail.error ? (
                 <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
@@ -554,7 +569,7 @@ const DashboardCard = memo(function DashboardCard({
                 />
               )}
             </div>
-          ) : isMobilePortrait && isPipsExpanded ? (
+          ) : usesCompactKpiPanels && isPipsExpanded ? (
             <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
               {pipsSummary.error ? (
                 <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
@@ -564,7 +579,7 @@ const DashboardCard = memo(function DashboardCard({
                 <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
               )}
             </div>
-          ) : isMobilePortrait && isTradesExpanded ? (
+          ) : usesCompactKpiPanels && isTradesExpanded ? (
             <div className="sp-overlay-panel" role="region" aria-label="Trade history">
               {positionsDetail.error ? (
                 <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
@@ -574,7 +589,7 @@ const DashboardCard = memo(function DashboardCard({
                 <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
               )}
             </div>
-          ) : isMobilePortrait && isOpensExpanded ? (
+          ) : usesCompactKpiPanels && isOpensExpanded ? (
             <div className="sp-overlay-panel" role="region" aria-label="Open positions">
               {positionsDetail.error ? (
                 <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
@@ -594,7 +609,7 @@ const DashboardCard = memo(function DashboardCard({
             {row.map((item) => {
               const expandKey = item.expandKey;
 
-              if (!expandKey || isLandscapeCarousel) {
+              if (!expandKey) {
                 return (
                   <SummaryChip
                     key={item.key}
@@ -737,73 +752,16 @@ const DashboardCard = memo(function DashboardCard({
             </div>
           </>
         )}
-        {positionsDetail.error && !(isMobilePortrait && (isTradesExpanded || isOpensExpanded)) ? (
+        {positionsDetail.error && !(usesCompactKpiPanels && (isTradesExpanded || isOpensExpanded)) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
-          isLandscapeCarousel ? (
-            <>
-              <div className="account-card__tabs" role="tablist" aria-label="Positions view" aria-hidden="true">
-                <span className="account-card__tab account-card__tab--active">Open</span>
-                <span className="account-card__tab">Closed</span>
-              </div>
-              <div className="account-card__tab-panel">
-                <div className="account-card__detail-skeleton" aria-hidden="true">
-                  <div className="kpi-detail-item kpi-detail-item--skeleton" />
-                  <div className="kpi-detail-item kpi-detail-item--skeleton" />
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="account-card__detail-skeleton" aria-hidden="true">
-              <div className="kpi-detail-item kpi-detail-item--skeleton" />
-              <div className="kpi-detail-item kpi-detail-item--skeleton" />
-            </div>
-          )
-        ) : isLandscapeCarousel ? (
-          <>
-            <div className="account-card__tabs" role="tablist" aria-label="Positions view">
-              {(["open", "closed"] as const).map((key) => {
-                const selected = landscapeDetailTab === key;
-                const count =
-                  key === "open"
-                    ? positionsDetail.data?.openPositions.length
-                    : positionsDetail.data?.historyPositions.length;
-                const tabId = `ls-tab-${key}-${account.id}`;
-                const panelId = `ls-panel-${account.id}`;
-                return (
-                  <button
-                    key={key}
-                    id={tabId}
-                    type="button"
-                    role="tab"
-                    className={`account-card__tab${selected ? " account-card__tab--active" : ""}`}
-                    aria-selected={selected}
-                    aria-controls={panelId}
-                    tabIndex={selected ? 0 : -1}
-                    onClick={() => setLandscapeDetailTabState({ scope: account.id, value: key })}
-                  >
-                    <span>{key === "open" ? "Open" : "Closed"}</span>
-                    <strong>{formatPlainNumberValue(count, 0)}</strong>
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              className="account-card__tab-panel"
-              role="tabpanel"
-              id={`ls-panel-${account.id}`}
-              aria-labelledby={`ls-tab-${landscapeDetailTab}-${account.id}`}
-            >
-              {landscapeDetailTab === "open" ? (
-                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
-              ) : (
-                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-              )}
-            </div>
-          </>
+          <div className="account-card__detail-skeleton" aria-hidden="true">
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+            <div className="kpi-detail-item kpi-detail-item--skeleton" />
+          </div>
         ) : (
           <>
-            {!(isOpensExpanded && isMobilePortrait) && (
+            {!(isOpensExpanded && usesCompactKpiPanels) && (
               <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--opens">
                 <div className="account-card__detail-head">
                   <span>Live exposure</span>
@@ -813,7 +771,7 @@ const DashboardCard = memo(function DashboardCard({
               </div>
             )}
 
-            {!(isTradesExpanded && isMobilePortrait) && (
+            {!(isTradesExpanded && usesCompactKpiPanels) && (
               <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--trades">
                 <div className="account-card__detail-head">
                   <span>Closed positions</span>
@@ -1421,11 +1379,9 @@ export default function DashboardClient() {
             className={isLandscapeCarousel ? "dashboard-section dashboard-section--carousel" : "dashboard-section"}
             aria-label="Trading accounts"
           >
-            {accounts.error ? (
-              <AILoginGate onEnter={retryAccountsRequest} />
-            ) : accounts.loading && !accounts.data ? (
+            {accounts.loading && !accounts.data && !accounts.error ? (
               <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
-            ) : accounts.data?.length ? (
+            ) : !accounts.error && accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
                   key={account.id}
@@ -1437,11 +1393,14 @@ export default function DashboardClient() {
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
-            ) : (
+            ) : !accounts.error ? (
               <InlineState tone="empty" title="No account" message="No account data is available." />
-            )}
+            ) : null}
           </section>
         </div>
+        {accounts.error ? (
+          <AILoginGate onEnter={retryAccountsRequest} />
+        ) : null}
         {shouldRenderIndicators ? (
           <div
             className={visiblePageIndicator ? "account-carousel-nav is-visible" : "account-carousel-nav"}
