@@ -638,6 +638,17 @@ type AccountPreaggregatedBundle = {
 };
 
 const accountCache = new Map<string, AccountPreaggregatedBundle>();
+const CACHE_MAX_ENTRIES = 500; // Prevent unbounded growth
+
+function enforceAccountCacheLimit() {
+  if (accountCache.size > CACHE_MAX_ENTRIES) {
+    const entriesToDelete = accountCache.size - CACHE_MAX_ENTRIES + 50; // Delete 50 oldest when over limit
+    const entries = Array.from(accountCache.entries()).sort((a, b) => a[1].lastCheckedAt - b[1].lastCheckedAt);
+    for (let i = 0; i < entriesToDelete && i < entries.length; i++) {
+      accountCache.delete(entries[i][0]);
+    }
+  }
+}
 
 type AccountVersionProbe = {
   accountId: string;
@@ -723,10 +734,15 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   const scopedPositionPips = scopedClosedPositions
     .map((position) => positionPips(position))
     .filter((value): value is number => Number.isFinite(value));
-  const totalWinningPips = scopedPositionPips.filter((value) => value > 0).reduce((total, value) => total + value, 0);
-  const totalLosingPips = scopedPositionPips.filter((value) => value < 0).reduce((total, value) => total + value, 0);
-  const netPips = scopedPositionPips.reduce((total, value) => total + value, 0);
-  const winningPipTrades = scopedPositionPips.filter((value) => value > 0);
+  const { totalWinningPips, totalLosingPips, netPips, winningPipTrades } = scopedPositionPips.reduce(
+    (acc, value) => ({
+      totalWinningPips: acc.totalWinningPips + (value > 0 ? value : 0),
+      totalLosingPips: acc.totalLosingPips + (value < 0 ? value : 0),
+      netPips: acc.netPips + value,
+      winningPipTrades: value > 0 ? [...acc.winningPipTrades, value] : acc.winningPipTrades,
+    }),
+    { totalWinningPips: 0, totalLosingPips: 0, netPips: 0, winningPipTrades: [] as number[] }
+  );
   const averageWinningPips = winningPipTrades.length ? totalWinningPips / winningPipTrades.length : null;
   const totalVolume = scopedClosedPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0);
 
@@ -1259,6 +1275,7 @@ async function rebuildAccountCache(accountId: string, versionKey: string): Promi
   };
 
   accountCache.set(accountId, cached);
+  enforceAccountCacheLimit();
   return cached;
 }
 

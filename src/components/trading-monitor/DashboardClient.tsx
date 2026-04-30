@@ -272,8 +272,9 @@ const DashboardCard = memo(function DashboardCard({
       },
     },
   ];
+  const EXPANDABLE_KPI_KEYS = ["gain", "dd", "pips", "trades", "opens"] as const;
   const kpiRows = [
-    primaryKpiItems.filter((item) => ["gain", "dd", "pips", "trades", "opens"].includes(item.key)),
+    primaryKpiItems.filter((item) => EXPANDABLE_KPI_KEYS.includes(item.key as any)),
   ];
   const kpiItems = primaryKpiItems;
   const detailState =
@@ -284,10 +285,7 @@ const DashboardCard = memo(function DashboardCard({
       : expandedKpi === "opens" || expandedKpi === "trades"
             ? positionsDetail
             : null;
-  const isDdExpanded = expandedKpi === "dd";
-  const isPipsExpanded = expandedKpi === "pips";
-  const isTradesExpanded = expandedKpi === "trades";
-  const isOpensExpanded = expandedKpi === "opens";
+  const isKpiExpanded = (key: ExpandableKpiKey) => expandedKpi === key;
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -354,7 +352,7 @@ const DashboardCard = memo(function DashboardCard({
             },
           },
         ]
-      : isDdExpanded
+      : isKpiExpanded("dd")
         ? [
             {
               label: "ABS",
@@ -555,7 +553,7 @@ const DashboardCard = memo(function DashboardCard({
           <div className="tf-row">
             <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
           </div>
-          {usesCompactKpiPanels && isDdExpanded ? (
+          {usesCompactKpiPanels && isKpiExpanded("dd") ? (
             <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
               {balanceDetail.error ? (
                 <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
@@ -569,7 +567,7 @@ const DashboardCard = memo(function DashboardCard({
                 />
               )}
             </div>
-          ) : usesCompactKpiPanels && isPipsExpanded ? (
+          ) : usesCompactKpiPanels && isKpiExpanded("pips") ? (
             <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
               {pipsSummary.error ? (
                 <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
@@ -579,7 +577,7 @@ const DashboardCard = memo(function DashboardCard({
                 <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
               )}
             </div>
-          ) : usesCompactKpiPanels && isTradesExpanded ? (
+          ) : usesCompactKpiPanels && isKpiExpanded("trades") ? (
             <div className="sp-overlay-panel" role="region" aria-label="Trade history">
               {positionsDetail.error ? (
                 <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
@@ -589,7 +587,7 @@ const DashboardCard = memo(function DashboardCard({
                 <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
               )}
             </div>
-          ) : usesCompactKpiPanels && isOpensExpanded ? (
+          ) : usesCompactKpiPanels && isKpiExpanded("opens") ? (
             <div className="sp-overlay-panel" role="region" aria-label="Open positions">
               {positionsDetail.error ? (
                 <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
@@ -671,7 +669,7 @@ const DashboardCard = memo(function DashboardCard({
         </section>
       ) : null}
 
-      {!isMobilePortrait && !isLandscapeCarousel && isDdExpanded ? (
+      {!isMobilePortrait && !isLandscapeCarousel && isKpiExpanded("dd") ? (
         <section className="kpi-detail-panel" aria-label="Drawdown quality">
           {balanceDetail.error ? (
             <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
@@ -691,7 +689,7 @@ const DashboardCard = memo(function DashboardCard({
         </section>
       ) : null}
 
-      {!isMobilePortrait && !isLandscapeCarousel && isPipsExpanded ? (
+      {!isMobilePortrait && !isLandscapeCarousel && isKpiExpanded("pips") ? (
         <section className="kpi-detail-panel" aria-label="Pips performance">
           {pipsSummary.error ? (
             <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
@@ -752,7 +750,7 @@ const DashboardCard = memo(function DashboardCard({
             </div>
           </>
         )}
-        {positionsDetail.error && !(usesCompactKpiPanels && (isTradesExpanded || isOpensExpanded)) ? (
+        {positionsDetail.error && !(usesCompactKpiPanels && (isKpiExpanded("trades") || isKpiExpanded("opens"))) ? (
           <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
         ) : positionsDetail.loading && !positionsDetail.data ? (
           <div className="account-card__detail-skeleton" aria-hidden="true">
@@ -761,7 +759,7 @@ const DashboardCard = memo(function DashboardCard({
           </div>
         ) : (
           <>
-            {!(isOpensExpanded && usesCompactKpiPanels) && (
+            {!(isKpiExpanded("opens") && usesCompactKpiPanels) && (
               <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--opens">
                 <div className="account-card__detail-head">
                   <span>Live exposure</span>
@@ -771,7 +769,7 @@ const DashboardCard = memo(function DashboardCard({
               </div>
             )}
 
-            {!(isTradesExpanded && usesCompactKpiPanels) && (
+            {!(isKpiExpanded("trades") && usesCompactKpiPanels) && (
               <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--trades">
                 <div className="account-card__detail-head">
                   <span>Closed positions</span>
