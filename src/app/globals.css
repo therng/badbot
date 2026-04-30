@@ -1788,7 +1788,7 @@ a:focus-visible, button:focus-visible {
 /* ─────────────────────────────────────────────
    RESPONSIVE — LANDSCAPE MOBILE CAROUSEL
 ───────────────────────────────────────────── */
-@media (orientation: landscape) and (max-width: 1180px) {
+@media (min-width: 821px), (orientation: landscape) {
   .monitor-page { padding: 0; }
   .monitor-shell.app-shell { min-height: var(--viewport-height); height: var(--viewport-height); border-radius: 0; border: none; }
   .app-scroll { padding: calc(16px + var(--safe-top)) 0 calc(18px + var(--safe-bottom)) 0; }
@@ -2031,167 +2031,9 @@ body {
   }
 }
 
-/* ─────────────────────────────────────────────
-   COCKPIT LAYOUT — DESKTOP + MOBILE LANDSCAPE
-───────────────────────────────────────────── */
-@media (min-width: 821px) {
-  .dashboard-section {
-    gap: 16px;
-  }
 
-  .dashboard-section > .account-card {
-    --account-card-panel-height: 330px;
-    min-height: 430px;
-    padding: 18px;
-    grid-template-columns: minmax(188px, 238px) minmax(360px, 1fr) minmax(300px, 360px);
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "header chart details"
-      "stats  chart details"
-      "selected timeframe details";
-    align-items: stretch;
-    gap: 12px 14px;
-  }
 
-  .dashboard-section > .account-card .sp-wrap {
-    display: contents;
-  }
-
-  .dashboard-section > .account-card .sp-header,
-  .dashboard-section > .account-card .kpi-stack,
-  .dashboard-section > .account-card .sp-canvas,
-  .dashboard-section > .account-card .sp-wrap > .section-state,
-  .dashboard-section > .account-card .sp-wrap > .account-card__chart-skeleton,
-  .dashboard-section > .account-card .tf-row,
-  .dashboard-section > .account-card .kpi-detail-panel,
-  .dashboard-section > .account-card .account-card__detail-lane {
-    min-width: 0;
-  }
-
-  .dashboard-section > .account-card .sp-header {
-    grid-area: header;
-    margin: 0;
-    padding: 12px 13px;
-    border-radius: var(--r-md);
-    border: 0.5px solid rgba(255,255,255,0.055);
-    background: rgba(255,255,255,0.018);
-  }
-
-  .dashboard-section > .account-card .sp-top,
-  .dashboard-section > .account-card .sp-top--compact {
-    display: grid;
-    gap: 10px;
-  }
-
-  .dashboard-section > .account-card .sp-side {
-    justify-items: start;
-    text-align: left;
-    width: 100%;
-  }
-
-  .dashboard-section > .account-card .sp-balance,
-  .dashboard-section > .account-card .sp-growth {
-    justify-items: start;
-    text-align: left;
-  }
-
-  .dashboard-section > .account-card .sp-name {
-    font-size: clamp(18px, 1.45vw, 24px);
-  }
-
-  .dashboard-section > .account-card .sp-balance strong {
-    font-size: clamp(24px, 2vw, 31px);
-  }
-
-  .dashboard-section > .account-card .sp-canvas {
-    grid-area: chart;
-    height: var(--account-card-panel-height);
-    min-height: 0;
-    padding: 14px 14px 12px;
-    border-radius: var(--r-lg);
-    border: 0.5px solid rgba(255,255,255,0.06);
-    background:
-      linear-gradient(180deg, rgba(59,130,246,0.045), rgba(255,255,255,0.01) 52%, rgba(0,0,0,0.08));
-    overflow: hidden;
-  }
-
-  .dashboard-section > .account-card .sp-wrap > .section-state,
-  .dashboard-section > .account-card .sp-wrap > .account-card__chart-skeleton {
-    grid-area: chart;
-    align-self: stretch;
-    height: var(--account-card-panel-height);
-  }
-
-  .dashboard-section > .account-card .sp-canvas .sparkline-chart,
-  .dashboard-section > .account-card .account-card__chart-skeleton {
-    height: 100%;
-  }
-
-  .dashboard-section > .account-card .tf-row {
-    grid-area: timeframe;
-    align-self: end;
-    justify-content: flex-start;
-    margin: 0;
-    padding: 0 2px;
-  }
-
-  .dashboard-section > .account-card .kpi-stack {
-    grid-area: stats;
-    align-content: start;
-    padding: 10px;
-    border-radius: var(--r-md);
-    border: 0.5px solid rgba(255,255,255,0.055);
-    background: rgba(255,255,255,0.018);
-  }
-
-  .dashboard-section > .account-card .kgrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-    padding-top: 0;
-    border-top: none;
-  }
-
-  .dashboard-section > .account-card .kchip {
-    min-height: 62px;
-    padding: 8px;
-  }
-
-  .dashboard-section > .account-card .kpi-detail-panel {
-    grid-area: selected;
-    align-self: end;
-  }
-
-  .dashboard-section > .account-card .kpi-detail-grid {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-section > .account-card .account-card__detail-lane {
-    grid-area: details;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    height: 0;
-    min-height: 100%;
-    overflow-y: auto;
-    scrollbar-width: none; /* Firefox */
-  }
-  .dashboard-section > .account-card .account-card__detail-lane::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-  }
-
-  .dashboard-section > .account-card .account-card__detail-panel .trade-history-panel,
-  .dashboard-section > .account-card .account-card__detail-panel .open-positions-panel {
-    height: 100%;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-}
-
-@media (orientation: landscape) and (max-width: 1180px) {
+@media (min-width: 821px), (orientation: landscape) {
   .app-scroll {
     padding:
       calc(10px + var(--safe-top))
@@ -2432,128 +2274,12 @@ body {
   }
 }
 
-/* ─────────────────────────────────────────────
-   SINGLE-FLOW DASHBOARD — removes cockpit desktop layout
-───────────────────────────────────────────── */
-@media (min-width: 821px) {
-  .app-scroll {
-    padding: 18px;
-  }
 
-  .dashboard-section {
-    gap: 14px;
-  }
-
-  .dashboard-section > .account-card {
-    --account-card-panel-height: clamp(220px, 26vw, 330px);
-    width: min(100%, 860px);
-    margin: 0 auto;
-    min-height: auto;
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
-    grid-template-areas: none;
-    gap: 10px;
-    padding: 18px;
-    align-items: stretch;
-  }
-
-  .dashboard-section > .account-card .sp-wrap {
-    display: block;
-  }
-
-  .dashboard-section > .account-card .sp-header,
-  .dashboard-section > .account-card .kpi-stack,
-  .dashboard-section > .account-card .sp-canvas,
-  .dashboard-section > .account-card .sp-wrap > .section-state,
-  .dashboard-section > .account-card .sp-wrap > .account-card__chart-skeleton,
-  .dashboard-section > .account-card .tf-row,
-  .dashboard-section > .account-card .kpi-detail-panel,
-  .dashboard-section > .account-card .account-card__detail-lane {
-    grid-area: auto;
-    min-width: 0;
-  }
-
-  .dashboard-section > .account-card .sp-header {
-    margin-bottom: 2px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .dashboard-section > .account-card .sp-top,
-  .dashboard-section > .account-card .sp-top--compact {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .dashboard-section > .account-card .sp-side {
-    justify-items: end;
-    text-align: right;
-  }
-
-  .dashboard-section > .account-card .sp-balance,
-  .dashboard-section > .account-card .sp-growth {
-    justify-items: end;
-    text-align: right;
-  }
-
-  .dashboard-section > .account-card .sp-canvas {
-    height: var(--account-card-panel-height);
-    padding: 4px 0 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .dashboard-section > .account-card .sp-wrap > .section-state,
-  .dashboard-section > .account-card .sp-wrap > .account-card__chart-skeleton,
-  .dashboard-section > .account-card .sp-canvas .sparkline-chart,
-  .dashboard-section > .account-card .account-card__chart-skeleton {
-    height: var(--account-card-panel-height);
-  }
-
-  .dashboard-section > .account-card .tf-row {
-    justify-content: flex-start;
-    margin-top: 0;
-    padding: 0;
-  }
-
-  .dashboard-section > .account-card .kpi-stack {
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .dashboard-section > .account-card .kgrid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 5px;
-  }
-
-  .dashboard-section > .account-card .kchip {
-    min-height: 50px;
-    padding: 8px 9px 7px;
-  }
-
-  .dashboard-section > .account-card .kpi-detail-panel {
-    align-self: stretch;
-  }
-
-  .dashboard-section > .account-card .kpi-detail-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-flow: row;
-  }
-
-  .dashboard-section > .account-card .account-card__detail-lane {
-    display: none;
-  }
-}
 
 /* ─────────────────────────────────────────────
    MOBILE LANDSCAPE — portrait-derived account workspace
 ───────────────────────────────────────────── */
-@media (orientation: landscape) and (max-width: 1180px) {
+@media (min-width: 821px), (orientation: landscape) {
   .app-scroll {
     padding:
       var(--safe-top)

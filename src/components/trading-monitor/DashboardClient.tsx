@@ -1106,7 +1106,7 @@ export default function DashboardClient() {
   }, [triggerResumeRefresh]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(orientation: landscape) and (max-width: 1180px)");
+    const mediaQuery = window.matchMedia("(min-width: 821px), (orientation: landscape)");
     const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
       const nextMatches = event.matches;
       setIsLandscapeCarousel(nextMatches);
