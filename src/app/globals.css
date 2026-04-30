@@ -1843,11 +1843,7 @@ a:focus-visible, button:focus-visible {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding:
-    calc(var(--safe-top) + 16px)
-    calc(var(--safe-right) + 16px)
-    calc(var(--safe-bottom) + 16px)
-    calc(var(--safe-left) + 16px);
+  padding: 16px; /* Ignoring safe area by default */
   height: 100%;
   outline: none;
   cursor: pointer;
@@ -2360,6 +2356,42 @@ a:focus-visible, button:focus-visible {
   .ls__hero {
     gap: 12px;
     transform: translateY(clamp(-56px, -7vh, -22px));
+  }
+}
+
+/* ── Portrait optimization ────────────────────────────────── */
+@media (orientation: portrait) {
+  .ls__hero {
+    transform: translateY(-2vh);
+    width: 100%;
+    gap: 20px;
+  }
+  .ls__market-panel {
+    width: 96vw;
+    padding: 8px;
+  }
+  .ls__chart {
+    width: 88vw;
+    aspect-ratio: 1 / 1.1; /* Taller chart for portrait */
+  }
+  .ls__brand {
+    gap: 16px;
+  }
+  .ls__wordmark {
+    font-size: clamp(48px, 18vw, 80px);
+  }
+  .ls__insight {
+    width: 90vw;
+    min-height: auto;
+    grid-template-rows: auto 5.2em auto auto;
+    gap: 18px;
+  }
+  .ls__quote {
+    height: 5.2em;
+    font-size: 15px;
+  }
+  .ls__progress-wrap {
+    width: 85%;
   }
 }
 
