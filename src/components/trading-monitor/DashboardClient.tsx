@@ -1,7 +1,7 @@
 "use client";
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type TouchEvent as ReactTouchEvent } from "react";
 import { usePathname } from "next/navigation";
-import { trackAccountSwipe, trackKpiExpand, trackRefresh, trackTimeframeChange, trackEvent } from "@/lib/analytics";
+import { trackKpiExpand, trackRefresh, trackTimeframeChange, trackEvent } from "@/lib/analytics";
 
 import type {
   AccountOverviewResponse,
@@ -54,14 +54,6 @@ const MIN_REFRESH_VISIBLE_MS = 520;
 const SPINNER_CIRCUMFERENCE = 62.83;
 const EAGER_ACCOUNT_CARD_COUNT = 2;
 const ACCOUNT_CARD_PRELOAD_MARGIN = "720px 360px";
-
-function scrollElementToLeft(element: HTMLElement, left: number, behavior: ScrollBehavior = "smooth") {
-  element.scrollTo({
-    left,
-    top: 0,
-    behavior,
-  });
-}
 
 function formatRatioValue(value: number | null | undefined, digits = 2) {
   if (!Number.isFinite(value)) {
@@ -130,20 +122,15 @@ function applyPullResistance(distance: number) {
 const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
-  isMobilePortrait,
-  isLandscapeCarousel,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   refreshKey: number;
-  isMobilePortrait: boolean;
-  isLandscapeCarousel: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [highlightedBalanceState, setHighlightedBalanceState] = useState<{ scope: string; value: number | null } | null>(null);
   const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
-  const usesCompactKpiPanels = isMobilePortrait || isLandscapeCarousel;
   const expandedKpiScope = `${account.id}:${timeframe}`;
   const expandedKpi = expandedKpiState?.scope === expandedKpiScope ? expandedKpiState.value : null;
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
@@ -158,14 +145,14 @@ const DashboardCard = memo(function DashboardCard({
     },
   );
   const balanceDetail = useApiResource<BalanceDetailResponse>(
-    !usesCompactKpiPanels || expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
+    expandedKpi === "dd" ? `/api/accounts/${account.id}/balance-detail?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
     },
   );
   const pipsSummary = useApiResource<PipsSummaryResponse>(
-    !usesCompactKpiPanels || expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
+    expandedKpi === "pips" ? `/api/accounts/${account.id}/pips-summary?timeframe=${timeframe}` : null,
     {
       refreshKey,
       onRequestStateChange,
@@ -496,65 +483,63 @@ const DashboardCard = memo(function DashboardCard({
   };
 
   let compactKpiPanel = null;
-  if (usesCompactKpiPanels) {
-    switch (expandedKpi) {
-      case "dd":
-        compactKpiPanel = (
-          <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
-            {balanceDetail.error ? (
-              <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
-            ) : balanceDetail.loading && !balanceDetail.data ? (
-              <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-            ) : (
-              <PerformanceQualityPanel
-                sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
-                profitFactor={balanceDetail.data?.summary.profitFactor}
-                recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
-              />
-            )}
-          </div>
-        );
-        break;
-      case "pips":
-        compactKpiPanel = (
-          <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
-            {pipsSummary.error ? (
-              <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
-            ) : pipsSummary.loading && !pipsSummary.data ? (
-              <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-            ) : (
-              <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
-            )}
-          </div>
-        );
-        break;
-      case "trades":
-        compactKpiPanel = (
-          <div className="sp-overlay-panel" role="region" aria-label="Trade history">
-            {positionsDetail.error ? (
-              <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
-            ) : positionsDetail.loading && !positionsDetail.data ? (
-              <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-            ) : (
-              <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-            )}
-          </div>
-        );
-        break;
-      case "opens":
-        compactKpiPanel = (
-          <div className="sp-overlay-panel" role="region" aria-label="Open positions">
-            {positionsDetail.error ? (
-              <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
-            ) : positionsDetail.loading && !positionsDetail.data ? (
-              <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
-            ) : (
-              <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
-            )}
-          </div>
-        );
-        break;
-    }
+  switch (expandedKpi) {
+    case "dd":
+      compactKpiPanel = (
+        <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
+          {balanceDetail.error ? (
+            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
+          ) : balanceDetail.loading && !balanceDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PerformanceQualityPanel
+              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
+              profitFactor={balanceDetail.data?.summary.profitFactor}
+              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+            />
+          )}
+        </div>
+      );
+      break;
+    case "pips":
+      compactKpiPanel = (
+        <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
+          {pipsSummary.error ? (
+            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
+          ) : pipsSummary.loading && !pipsSummary.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
+          )}
+        </div>
+      );
+      break;
+    case "trades":
+      compactKpiPanel = (
+        <div className="sp-overlay-panel" role="region" aria-label="Trade history">
+          {positionsDetail.error ? (
+            <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
+          ) : positionsDetail.loading && !positionsDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+          )}
+        </div>
+      );
+      break;
+    case "opens":
+      compactKpiPanel = (
+        <div className="sp-overlay-panel" role="region" aria-label="Open positions">
+          {positionsDetail.error ? (
+            <InlineState tone="error" title="Open positions unavailable" message={positionsDetail.error} />
+          ) : positionsDetail.loading && !positionsDetail.data ? (
+            <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+          ) : (
+            <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
+          )}
+        </div>
+      );
+      break;
   }
 
   return (
@@ -661,7 +646,7 @@ const DashboardCard = memo(function DashboardCard({
         ))}
       </div>
 
-      {!isLandscapeCarousel && expandedKpi && detailRows.length ? (
+      {expandedKpi && detailRows.length ? (
         <section className="kpi-detail-panel" aria-label={`${kpiItems.find((item) => item.key === expandedKpi)?.label ?? "KPI"} details`}>
           {detailState?.error ? (
             <InlineState tone="error" title="KPI unavailable" message={detailState.error} />
@@ -672,137 +657,22 @@ const DashboardCard = memo(function DashboardCard({
               ))}
             </div>
           ) : (
-            <>
-              <div className="kpi-detail-grid">
-                {detailRows.map((row) => (
-                  <SummaryChip
-                    key={row.label}
-                    label={row.label}
-                    value={row.value}
-                    tone={row.tone}
-                    meta={row.meta}
-                    fullValue={row.fullValue}
-                    hint={row.hint}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      ) : null}
-
-      {!isMobilePortrait && !isLandscapeCarousel && isKpiExpanded("dd") ? (
-        <section className="kpi-detail-panel" aria-label="Drawdown quality">
-          {balanceDetail.error ? (
-            <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
-          ) : balanceDetail.loading && !balanceDetail.data ? (
-            <div className="kpi-detail-grid" aria-hidden="true">
-              {Array.from({ length: 3 }, (_, index) => (
-                <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
-              ))}
-            </div>
-          ) : (
-            <PerformanceQualityPanel
-              sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
-              profitFactor={balanceDetail.data?.summary.profitFactor}
-              recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
-            />
-          )}
-        </section>
-      ) : null}
-
-      {!isMobilePortrait && !isLandscapeCarousel && isKpiExpanded("pips") ? (
-        <section className="kpi-detail-panel" aria-label="Pips performance">
-          {pipsSummary.error ? (
-            <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
-          ) : pipsSummary.loading && !pipsSummary.data ? (
-            <div className="kpi-detail-grid" aria-hidden="true">
-              {Array.from({ length: 4 }, (_, index) => (
-                <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
-              ))}
-            </div>
-          ) : (
-            <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
-          )}
-        </section>
-      ) : null}
-
-      <section
-        className="account-card__detail-lane"
-        aria-label={`${accountDisplayName} account details`}
-      >
-        {!isMobilePortrait && (
-          <>
-            <div className="account-card__detail-panel account-card__detail-panel--auto account-card__detail-panel--quality">
-              <div className="account-card__detail-head">
-                <span>Drawdown Quality</span>
-              </div>
-              {balanceDetail.error ? (
-                <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
-              ) : balanceDetail.loading && !balanceDetail.data ? (
-                <div className="kpi-detail-grid" aria-hidden="true">
-                  {Array.from({ length: 3 }, (_, index) => (
-                    <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
-                  ))}
-                </div>
-              ) : (
-                <PerformanceQualityPanel
-                  sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
-                  profitFactor={balanceDetail.data?.summary.profitFactor}
-                  recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+            <div className="kpi-detail-grid">
+              {detailRows.map((row) => (
+                <SummaryChip
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  tone={row.tone}
+                  meta={row.meta}
+                  fullValue={row.fullValue}
+                  hint={row.hint}
                 />
-              )}
+              ))}
             </div>
-
-            <div className="account-card__detail-panel account-card__detail-panel--auto account-card__detail-panel--pips">
-              <div className="account-card__detail-head">
-                <span>Pips Performance</span>
-              </div>
-              {pipsSummary.error ? (
-                <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
-              ) : pipsSummary.loading && !pipsSummary.data ? (
-                <div className="kpi-detail-grid" aria-hidden="true">
-                  {Array.from({ length: 4 }, (_, index) => (
-                    <div key={index} className="kpi-detail-item kpi-detail-item--skeleton" />
-                  ))}
-                </div>
-              ) : (
-                <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
-              )}
-            </div>
-          </>
-        )}
-        {positionsDetail.error && !(usesCompactKpiPanels && (isKpiExpanded("trades") || isKpiExpanded("opens"))) ? (
-          <InlineState tone="error" title="Positions unavailable" message={positionsDetail.error} />
-        ) : positionsDetail.loading && !positionsDetail.data ? (
-          <div className="account-card__detail-skeleton" aria-hidden="true">
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-          </div>
-        ) : (
-          <>
-            {!(isKpiExpanded("opens") && usesCompactKpiPanels) && (
-              <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--opens">
-                <div className="account-card__detail-head">
-                  <span>Live exposure</span>
-                  <strong>{formatPlainNumberValue(positionsDetail.data?.openPositions.length, 0)}</strong>
-                </div>
-                <OpenPositionsPanel positions={positionsDetail.data?.openPositions} />
-              </div>
-            )}
-
-            {!(isKpiExpanded("trades") && usesCompactKpiPanels) && (
-              <div className="account-card__detail-panel account-card__detail-panel--scrollable account-card__detail-panel--trades">
-                <div className="account-card__detail-head">
-                  <span>Closed positions</span>
-                  <strong>{formatPlainNumberValue(positionsDetail.data?.historyPositions.length, 0)}</strong>
-                </div>
-                <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
-              </div>
-            )}
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      ) : null}
     </article>
   );
 });
@@ -895,22 +765,6 @@ function DeferredDashboardCard({
           ))}
         </div>
       </div>
-
-      <section
-        className="account-card__detail-lane account-card__detail-lane--tabbed"
-        aria-hidden="true"
-      >
-        <div className="account-card__tabs" role="tablist" aria-label="Positions view">
-          <span className="account-card__tab account-card__tab--active">Open</span>
-          <span className="account-card__tab">Closed</span>
-        </div>
-        <div className="account-card__tab-panel">
-          <div className="account-card__detail-skeleton">
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-            <div className="kpi-detail-item kpi-detail-item--skeleton" />
-          </div>
-        </div>
-      </section>
     </article>
   );
 }
@@ -919,15 +773,11 @@ function LazyDashboardCard({
   account,
   index,
   refreshKey,
-  isMobilePortrait,
-  isLandscapeCarousel,
   onRequestStateChange,
 }: {
   account: SerializedAccount;
   index: number;
   refreshKey: number;
-  isMobilePortrait: boolean;
-  isLandscapeCarousel: boolean;
   onRequestStateChange: (request: { loading: boolean; refreshKey: number }) => void;
 }) {
   const [shouldLoad, setShouldLoad] = useState(index < EAGER_ACCOUNT_CARD_COUNT);
@@ -943,8 +793,6 @@ function LazyDashboardCard({
     <DashboardCard
       account={account}
       refreshKey={refreshKey}
-      isMobilePortrait={isMobilePortrait}
-      isLandscapeCarousel={isLandscapeCarousel}
       onRequestStateChange={onRequestStateChange}
     />
   );
@@ -956,15 +804,9 @@ export default function DashboardClient() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLandscapeCarousel, setIsLandscapeCarousel] = useState(false);
-  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
-  const [activeAccountIndex, setActiveAccountIndex] = useState(0);
-  const [showPageIndicator, setShowPageIndicator] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const accountsSectionRef = useRef<HTMLElement | null>(null);
-  const activeAccountIndexRef = useRef(0);
   const pullStartYRef = useRef<number | null>(null);
   const pullStartXRef = useRef<number | null>(null);
   const pullActiveRef = useRef(false);
@@ -972,9 +814,6 @@ export default function DashboardClient() {
   const refreshStartedAtRef = useRef(0);
   const refreshingRef = useRef(false);
   const resumeRefreshArmedRef = useRef(false);
-  const indicatorHideTimerRef = useRef<number | null>(null);
-  const lastLandscapeAccountOrderRef = useRef("");
-  const wasLandscapeCarouselRef = useRef(false);
 
   useEffect(() => {
     trackEvent("page_view", {
@@ -999,7 +838,6 @@ export default function DashboardClient() {
     refreshKey,
     onRequestStateChange: handleRequestStateChange,
   });
-  const accountOrderKey = accounts.data?.map((account) => account.id).join("|") ?? "";
 
   const finishPull = useCallback(() => {
     pullStartYRef.current = null;
@@ -1007,49 +845,6 @@ export default function DashboardClient() {
     pullActiveRef.current = false;
     setIsPulling(false);
   }, []);
-
-  const revealPageIndicator = useCallback(() => {
-    if (!isLandscapeCarousel || (accounts.data?.length ?? 0) < 2) {
-      setShowPageIndicator(false);
-      return;
-    }
-
-    setShowPageIndicator(true);
-    if (indicatorHideTimerRef.current !== null) {
-      window.clearTimeout(indicatorHideTimerRef.current);
-    }
-    indicatorHideTimerRef.current = window.setTimeout(() => {
-      setShowPageIndicator(false);
-      indicatorHideTimerRef.current = null;
-    }, 1400);
-  }, [accounts.data?.length, isLandscapeCarousel]);
-
-  const syncActiveAccountIndex = useCallback((nextIndex: number) => {
-    activeAccountIndexRef.current = nextIndex;
-    setActiveAccountIndex((current) => (current === nextIndex ? current : nextIndex));
-  }, []);
-
-  const scrollToAccountIndex = useCallback((targetIndex: number, behavior: ScrollBehavior = "smooth") => {
-    if (!isLandscapeCarousel) {
-      return;
-    }
-
-    const section = accountsSectionRef.current;
-    if (!section) {
-      return;
-    }
-
-    const cards = Array.from(section.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-    if (!cards.length) {
-      return;
-    }
-
-    const clampedIndex = Math.max(0, Math.min(targetIndex, cards.length - 1));
-    const targetCard = cards[clampedIndex];
-    scrollElementToLeft(section, targetCard.offsetLeft, behavior);
-    syncActiveAccountIndex(clampedIndex);
-    revealPageIndicator();
-  }, [isLandscapeCarousel, revealPageIndicator, syncActiveAccountIndex]);
 
   const triggerRefresh = useCallback(() => {
     if (refreshingRef.current) {
@@ -1126,137 +921,6 @@ export default function DashboardClient() {
       window.removeEventListener("focus", refreshOnResume);
     };
   }, [triggerResumeRefresh]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 821px), (orientation: landscape)");
-    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
-      const nextMatches = event.matches;
-      setIsLandscapeCarousel(nextMatches);
-
-      if (!nextMatches) {
-        setShowPageIndicator(false);
-        syncActiveAccountIndex(0);
-        lastLandscapeAccountOrderRef.current = "";
-        wasLandscapeCarouselRef.current = false;
-      }
-    };
-
-    handleChange(mediaQuery);
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [syncActiveAccountIndex]);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 820px) and (orientation: portrait)");
-    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => setIsMobilePortrait(event.matches);
-    handleChange(mq);
-    mq.addEventListener("change", handleChange);
-    return () => mq.removeEventListener("change", handleChange);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (indicatorHideTimerRef.current !== null) {
-        window.clearTimeout(indicatorHideTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isLandscapeCarousel) {
-      lastLandscapeAccountOrderRef.current = "";
-      wasLandscapeCarouselRef.current = false;
-      return;
-    }
-
-    if (!wasLandscapeCarouselRef.current) {
-      const frameId = window.requestAnimationFrame(() => {
-        scrollToAccountIndex(0, "auto");
-      });
-      wasLandscapeCarouselRef.current = true;
-      return () => window.cancelAnimationFrame(frameId);
-    }
-
-    if ((accounts.data?.length ?? 0) > 1) {
-      const frameId = window.requestAnimationFrame(() => {
-        revealPageIndicator();
-      });
-      return () => window.cancelAnimationFrame(frameId);
-    }
-  }, [accounts.data?.length, isLandscapeCarousel, revealPageIndicator, scrollToAccountIndex]);
-
-  useEffect(() => {
-    const section = accountsSectionRef.current;
-    if (!isLandscapeCarousel) {
-      lastLandscapeAccountOrderRef.current = "";
-      return;
-    }
-
-    if (!section || !accountOrderKey) {
-      return;
-    }
-
-    const shouldResetToFirstAccount = lastLandscapeAccountOrderRef.current !== accountOrderKey;
-    lastLandscapeAccountOrderRef.current = accountOrderKey;
-
-    if (!shouldResetToFirstAccount) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      scrollToAccountIndex(0, "auto");
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [accountOrderKey, isLandscapeCarousel, scrollToAccountIndex]);
-
-  useEffect(() => {
-    const section = accountsSectionRef.current;
-    if (!section || !isLandscapeCarousel) {
-      return;
-    }
-
-    const resolveActiveIndex = () => {
-      const cards = Array.from(section.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-      if (!cards.length) {
-        syncActiveAccountIndex(0);
-        return;
-      }
-
-      const viewportCenter = section.scrollLeft + section.clientWidth / 2;
-      let nextIndex = 0;
-      let smallestDistance = Number.POSITIVE_INFINITY;
-
-      cards.forEach((card, index) => {
-        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-        const distance = Math.abs(cardCenter - viewportCenter);
-        if (distance < smallestDistance) {
-          smallestDistance = distance;
-          nextIndex = index;
-        }
-      });
-
-      if (nextIndex !== activeAccountIndexRef.current && accounts.data?.[nextIndex]) {
-        trackAccountSwipe(displayName(accounts.data[nextIndex]), nextIndex);
-      }
-      syncActiveAccountIndex(nextIndex);
-    };
-
-    const handleScroll = () => {
-      resolveActiveIndex();
-      revealPageIndicator();
-    };
-
-    resolveActiveIndex();
-    section.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll);
-
-    return () => {
-      section.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-    };
-  }, [accounts.data, isLandscapeCarousel, revealPageIndicator, syncActiveAccountIndex]);
 
   useEffect(() => {
     if (!isRefreshing || !hasSeenRefreshRequest || pendingRefreshRequests > 0) {
@@ -1350,14 +1014,7 @@ export default function DashboardClient() {
     transform: `translate3d(0, ${pullDistance}px, 0)`,
     transition: isPulling ? "none" : "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
   };
-  const accountCount = accounts.data?.length ?? 0;
-  const shouldRenderIndicators = isLandscapeCarousel && accountCount > 1;
-  const visiblePageIndicator = shouldRenderIndicators && showPageIndicator;
-  const canGoPreviousAccount = shouldRenderIndicators && activeAccountIndex > 0;
-  const canGoNextAccount = shouldRenderIndicators && activeAccountIndex < accountCount - 1;
-
   return (
-    <>
     <main className="monitor-page">
       <TradingMonitorSharedStyles />
       <div className="monitor-shell app-shell">
@@ -1383,22 +1040,14 @@ export default function DashboardClient() {
         </div>
         <div
           ref={scrollRef}
-          className={
-            isRefreshing
-              ? `app-scroll dashboard-scroll is-refreshing${isLandscapeCarousel ? " is-carousel" : ""}`
-              : `app-scroll dashboard-scroll${isLandscapeCarousel ? " is-carousel" : ""}`
-          }
+          className={isRefreshing ? "app-scroll dashboard-scroll is-refreshing" : "app-scroll dashboard-scroll"}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
           style={scrollStyle}
         >
-          <section
-            ref={accountsSectionRef}
-            className={isLandscapeCarousel ? "dashboard-section dashboard-section--carousel" : "dashboard-section"}
-            aria-label="Trading accounts"
-          >
+          <section className="dashboard-section" aria-label="Trading accounts">
             {accounts.loading && !accounts.data && !accounts.error ? (
               <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
             ) : !accounts.error && accounts.data?.length ? (
@@ -1408,8 +1057,6 @@ export default function DashboardClient() {
                   account={account}
                   index={index}
                   refreshKey={refreshKey}
-                  isMobilePortrait={isMobilePortrait}
-                  isLandscapeCarousel={isLandscapeCarousel}
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
@@ -1421,43 +1068,7 @@ export default function DashboardClient() {
         {accounts.error ? (
           <AILoginGate onEnter={retryAccountsRequest} />
         ) : null}
-        {shouldRenderIndicators ? (
-          <div
-            className={visiblePageIndicator ? "account-carousel-nav is-visible" : "account-carousel-nav"}
-            aria-label="Account navigation"
-          >
-            <button
-              type="button"
-              className="account-carousel-nav__button account-carousel-nav__button--prev"
-              onClick={() => scrollToAccountIndex(activeAccountIndex - 1)}
-              disabled={!canGoPreviousAccount}
-              aria-label="Previous account"
-            >
-              <span className="account-carousel-nav__glyph" aria-hidden="true">‹</span>
-            </button>
-            <button
-              type="button"
-              className="account-carousel-nav__button account-carousel-nav__button--next"
-              onClick={() => scrollToAccountIndex(activeAccountIndex + 1)}
-              disabled={!canGoNextAccount}
-              aria-label="Next account"
-            >
-              <span className="account-carousel-nav__glyph" aria-hidden="true">›</span>
-            </button>
-          </div>
-        ) : null}
-        {shouldRenderIndicators ? (
-          <div className={visiblePageIndicator ? "account-pages is-visible" : "account-pages"} aria-hidden="true">
-            {Array.from({ length: accountCount }).map((_, index) => (
-              <span
-                key={index}
-                className={index === activeAccountIndex ? "account-pages__dot is-active" : "account-pages__dot"}
-              />
-            ))}
-          </div>
-        ) : null}
       </div>
     </main>
-    </>
   );
 }
