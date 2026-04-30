@@ -2002,18 +2002,33 @@ a:focus-visible, button:focus-visible {
 /* ─────────────────────────────────────────────
    MIN-HEIGHT STABILITY
 ───────────────────────────────────────────── */
-html, body { min-height: 100%; }
-body { min-height: 100vh; min-height: var(--viewport-height); }
-.monitor-page { min-height: 100vh; min-height: var(--viewport-height); }
+html, body { 
+  min-height: 100%; 
+  height: -webkit-fill-available;
+}
+body { 
+  min-height: 100vh; 
+  min-height: -webkit-fill-available; 
+  min-height: var(--viewport-height); 
+}
+.monitor-page { 
+  min-height: 100vh; 
+  min-height: -webkit-fill-available;
+  min-height: var(--viewport-height); 
+}
+
+/* Default app-shell for mobile/standalone: Full screen */
 .monitor-shell.app-shell {
-  min-height: calc(var(--viewport-height) - 28px - var(--safe-top) - var(--safe-bottom));
-  height: calc(var(--viewport-height) - 28px - var(--safe-top) - var(--safe-bottom));
+  min-height: var(--viewport-height);
+  height: var(--viewport-height);
 }
-@media (max-width: 400px) {
-  .monitor-shell.app-shell { min-height: var(--viewport-height); height: var(--viewport-height); }
-}
-@media (orientation: landscape) and (max-width: 1180px) {
-  .monitor-shell.app-shell { min-height: var(--viewport-height); height: var(--viewport-height); }
+
+/* Desktop-only: Subtract padding to show it as a floating panel */
+@media (min-width: 821px) {
+  .monitor-shell.app-shell {
+    min-height: calc(var(--viewport-height) - 28px - var(--safe-top) - var(--safe-bottom));
+    height: calc(var(--viewport-height) - 28px - var(--safe-top) - var(--safe-bottom));
+  }
 }
 
 /* ─────────────────────────────────────────────
