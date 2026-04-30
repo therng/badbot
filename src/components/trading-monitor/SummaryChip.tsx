@@ -174,10 +174,12 @@ function KpiActionSheet({
     e.stopPropagation();
 
     if (sheetRef.current) {
+      sheetRef.current.style.animation = "none";
       sheetRef.current.style.transition = "none";
     }
 
     if (backdropRef.current) {
+      backdropRef.current.style.animation = "none";
       backdropRef.current.style.transition = "none";
     }
   };
