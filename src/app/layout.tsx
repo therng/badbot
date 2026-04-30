@@ -66,8 +66,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }
 
                 syncViewportHeight();
-                // Re-measure after browser settles layout (fixes black bar on first mobile load)
+                // iOS Safari doesn't report correct innerHeight on first load;
+                // re-measure at multiple intervals to catch when layout settles
                 window.requestAnimationFrame(queueSync);
+                setTimeout(syncViewportHeight, 120);
+                setTimeout(syncViewportHeight, 500);
                 window.addEventListener("resize", queueSync, { passive: true });
                 window.addEventListener("orientationchange", queueSync, { passive: true });
                 window.addEventListener("pageshow", queueSync, { passive: true });
