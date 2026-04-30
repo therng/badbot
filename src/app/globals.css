@@ -3566,7 +3566,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
     padding:
       calc(var(--safe-top) + 16px)
       calc(var(--safe-right) + 16px)
-      16px
+      calc(var(--safe-bottom) + 16px)
       calc(var(--safe-left) + 16px);
   }
   .ls__hero {
@@ -3606,7 +3606,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 
 @media (max-width: 480px) and (orientation: portrait) {
   .ls__footer {
-    bottom: 14px;
+    bottom: max(env(safe-area-inset-bottom, 14px), 14px);
   }
 }
 

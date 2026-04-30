@@ -66,6 +66,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }
 
                 syncViewportHeight();
+                // Re-measure after browser settles layout (fixes black bar on first mobile load)
+                window.requestAnimationFrame(function() {
+                  window.requestAnimationFrame(syncViewportHeight);
+                });
                 window.addEventListener("resize", queueSync, { passive: true });
                 window.addEventListener("orientationchange", queueSync, { passive: true });
                 window.addEventListener("pageshow", queueSync, { passive: true });
