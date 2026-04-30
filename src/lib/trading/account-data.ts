@@ -4,8 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { startOfBangkokDay, startOfThaiDayInTableTime } from "@/lib/time";
 import {
   computeCompoundedGrowth,
+  dealNet,
   getAccountStatus,
   getLatestDealBalance,
+  isTradingDeal,
+  positionPips,
   sanitizeOptionalText,
 } from "@/lib/trading/analytics";
 import type { SerializedAccount } from "@/lib/trading/types";
@@ -44,6 +47,7 @@ export {
   normalizeTradeSide,
   parseTimeframe,
   positionNetPnl,
+  positionPips,
   positionProfit,
   sanitizeOptionalText,
   summarizeClosedPositions,
@@ -108,6 +112,10 @@ function toNumber(value: NullableNumericLike, fallback = 0) {
 type ReportAnchoredPosition = {
   closeTime?: Date | string | null;
   pips?: NullableNumericLike;
+  symbol?: string | null;
+  type?: string | null;
+  openPrice?: NullableNumericLike;
+  closePrice?: NullableNumericLike;
 };
 
 export function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
@@ -119,6 +127,11 @@ export function compareAccountListItems(a: SerializedAccount, b: SerializedAccou
   const pipsDelta = b.today_net_pips - a.today_net_pips;
   if (Math.abs(pipsDelta) > BALANCE_SORT_EPSILON) {
     return pipsDelta;
+  }
+
+  const profitDelta = b.today_net_profit - a.today_net_profit;
+  if (Math.abs(profitDelta) > BALANCE_SORT_EPSILON) {
+    return profitDelta;
   }
 
   const balanceDelta = b.balance - a.balance;
@@ -167,6 +180,30 @@ function getTodayGrowthPercent(
   return computeCompoundedGrowth(deals as any, getReportDayWindow(anchorDate).start, null);
 }
 
+function getTodayNetProfit(
+  deals: Array<{
+    time: Date | string;
+    type?: string | null;
+    profit?: NullableNumericLike;
+    commission?: NullableNumericLike;
+    swap?: NullableNumericLike;
+  }>,
+  anchorDate: Date,
+) {
+  const { start, end } = getReportDayWindow(anchorDate);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+
+  let total = 0;
+  for (const deal of deals) {
+    if (!isTradingDeal(deal.type)) continue;
+    const ts = new Date(deal.time).getTime();
+    if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) continue;
+    total += dealNet(deal);
+  }
+  return total;
+}
+
 export function getTodayNetPips(
   positions: ReportAnchoredPosition[],
   anchorDate: Date,
@@ -174,7 +211,7 @@ export function getTodayNetPips(
   const { start, end } = getReportDayWindow(anchorDate);
 
   return positions.reduce((total, position) => {
-    if (position.pips == null || position.closeTime == null) {
+    if (position.closeTime == null) {
       return total;
     }
 
@@ -184,7 +221,8 @@ export function getTodayNetPips(
       return total;
     }
 
-    return total + Number(position.pips ?? 0);
+    const pips = positionPips(position as any);
+    return total + (pips ?? 0);
   }, 0);
 }
 
@@ -284,6 +322,7 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
     status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
     last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
     today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+    today_net_profit: getTodayNetProfit(account.deals, anchorDate),
     today_net_pips: getTodayNetPips(account.positions, anchorDate),
     balance: getLatestDealBalance(account.deals, latestSnapshot?.balance ?? 0),
     equity: toNumber(latestSnapshot?.equity, getLatestDealBalance(account.deals, 0)),
@@ -329,6 +368,10 @@ export async function getAccountListItems() {
         select: {
           closeTime: true,
           pips: true,
+          symbol: true,
+          type: true,
+          openPrice: true,
+          closePrice: true,
         },
       },
     },
@@ -358,6 +401,7 @@ export async function getAccountListItems() {
       server: sanitizeOptionalText(account.serverName) ?? "",
       status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
       today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+      today_net_profit: getTodayNetProfit(account.deals, anchorDate),
       today_net_pips: getTodayNetPips(account.positions, anchorDate),
       balance: getLatestDealBalance(account.deals, account.accountSnapshot?.balance ?? 0),
       equity: toNumber(account.accountSnapshot?.equity, getLatestDealBalance(account.deals, 0)),

@@ -9,6 +9,7 @@ export interface SerializedAccount {
   status: "Active" | "Inactive";
   last_updated: Date | null;
   today_growth_percent: number;
+  today_net_profit: number;
   today_net_pips: number;
   balance: number;
   equity: number;
@@ -223,7 +224,7 @@ export interface PositionsResponse {
     tp: number | null;
     swap: number | null;
     commission: number | null;
-    comment: string | null;
+    pips: number | null;
   }>;
   recentDeals: Array<{
     dealId: string;

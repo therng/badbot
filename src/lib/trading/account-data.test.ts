@@ -20,6 +20,7 @@ function makeAccount(overrides: Partial<SerializedAccount>): SerializedAccount {
     status: overrides.status ?? "Active",
     last_updated: overrides.last_updated ?? null,
     today_growth_percent: overrides.today_growth_percent ?? 0,
+    today_net_profit: overrides.today_net_profit ?? 0,
     today_net_pips: overrides.today_net_pips ?? 0,
     balance: overrides.balance ?? 0,
     equity: overrides.equity ?? 0,
@@ -29,39 +30,48 @@ function makeAccount(overrides: Partial<SerializedAccount>): SerializedAccount {
   };
 }
 
-test("sortAccountListItems prefers higher 1D growth before pips, balance, and account number", () => {
+test("sortAccountListItems prefers higher 1D growth before pips, profit, balance, and account number", () => {
   const sorted = sortAccountListItems([
-    makeAccount({ id: "a", account_number: "1002", balance: 1000, today_growth_percent: 11, today_net_pips: 15 }),
-    makeAccount({ id: "b", account_number: "1001", balance: 9000, today_growth_percent: 24, today_net_pips: 40 }),
-    makeAccount({ id: "c", account_number: "1003", balance: 5000, today_growth_percent: 17, today_net_pips: 25 }),
+    makeAccount({ id: "a", account_number: "1002", today_growth_percent: 11 }),
+    makeAccount({ id: "b", account_number: "1001", today_growth_percent: 24 }),
+    makeAccount({ id: "c", account_number: "1003", today_growth_percent: 17 }),
   ]);
 
   assert.deepEqual(sorted.map((account) => account.id), ["b", "c", "a"]);
 });
 
-test("sortAccountListItems uses pips descending when 1D growth ties", () => {
+test("sortAccountListItems uses pips descending when growth ties", () => {
   const sorted = sortAccountListItems([
-    makeAccount({ id: "a", account_number: "1002", balance: 2000, today_growth_percent: 9, today_net_pips: 12 }),
-    makeAccount({ id: "b", account_number: "1001", balance: 4000, today_growth_percent: 9, today_net_pips: 18 }),
+    makeAccount({ id: "a", today_growth_percent: 9, today_net_pips: 12 }),
+    makeAccount({ id: "b", today_growth_percent: 9, today_net_pips: 18 }),
   ]);
 
   assert.deepEqual(sorted.map((account) => account.id), ["b", "a"]);
 });
 
-test("sortAccountListItems uses balance descending when growth and pips tie", () => {
+test("sortAccountListItems uses profit descending when growth and pips tie", () => {
   const sorted = sortAccountListItems([
-    makeAccount({ id: "a", account_number: "1002", balance: 2000, today_growth_percent: 9, today_net_pips: 12 }),
-    makeAccount({ id: "b", account_number: "1001", balance: 4000, today_growth_percent: 9, today_net_pips: 12 }),
+    makeAccount({ id: "a", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 50 }),
+    makeAccount({ id: "b", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 200 }),
   ]);
 
   assert.deepEqual(sorted.map((account) => account.id), ["b", "a"]);
 });
 
-test("sortAccountListItems uses account number ascending when growth, pips, and balance tie", () => {
+test("sortAccountListItems uses balance descending when growth, pips, and profit tie", () => {
   const sorted = sortAccountListItems([
-    makeAccount({ id: "a", account_number: "1010", balance: 3000, today_growth_percent: 9, today_net_pips: 12 }),
-    makeAccount({ id: "b", account_number: "1002", balance: 3000, today_growth_percent: 9, today_net_pips: 12 }),
-    makeAccount({ id: "c", account_number: "1001", balance: 3000, today_growth_percent: 9, today_net_pips: 12 }),
+    makeAccount({ id: "a", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 100, balance: 2000 }),
+    makeAccount({ id: "b", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 100, balance: 4000 }),
+  ]);
+
+  assert.deepEqual(sorted.map((account) => account.id), ["b", "a"]);
+});
+
+test("sortAccountListItems uses account number ascending when all metrics tie", () => {
+  const sorted = sortAccountListItems([
+    makeAccount({ id: "a", account_number: "1010", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 100, balance: 3000 }),
+    makeAccount({ id: "b", account_number: "1002", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 100, balance: 3000 }),
+    makeAccount({ id: "c", account_number: "1001", today_growth_percent: 9, today_net_pips: 12, today_net_profit: 100, balance: 3000 }),
   ]);
 
   assert.deepEqual(sorted.map((account) => account.account_number), ["1001", "1002", "1010"]);
@@ -160,6 +170,7 @@ test("serializeAccountBundle uses the latest report timestamp as the 1D metric a
 
   assert.ok(serialized);
   assert.ok(Math.abs((serialized?.today_growth_percent ?? 0) - 10) < 0.000001);
+  assert.equal(serialized?.today_net_profit, 100);
   assert.equal(serialized?.today_net_pips, 18.5);
 });
 

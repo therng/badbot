@@ -70,22 +70,29 @@ export function TradeHistoryPanel({
                 </div>
               </button>
               {isExpanded ? (
-                <div className="trade-history-row__details">
+                <div className="trade-history-row__details trade-history-row__details--2col">
                   <div className="trade-history-row__detail">
-                    <span>SL</span>
-                    <strong>{formatTradePrice(position.sl)}</strong>
+                    <span className="trade-history-row__label">∆pip</span>
+                    <span className={`trade-history-row__val ${position.pips != null ? getPnlToneClass(position.pips) : ""}`}>{position.pips != null ? formatPlainNumberValue(position.pips, 1) : "—"}</span>
+                  </div>
+                  <div className="trade-history-row__detail trade-history-row__detail--val-only">
+                    <span className="trade-history-row__val">{formatTradeHistoryDateTime(position.openedAt)}</span>
                   </div>
                   <div className="trade-history-row__detail">
-                    <span>Swap</span>
-                    <strong>{formatSignedPlainAmountKpiValue(position.swap, 1)}</strong>
+                    <span className="trade-history-row__label">S/L</span>
+                    <span className="trade-history-row__val trade-history-row__val--white">{formatTradePrice(position.sl)}</span>
                   </div>
                   <div className="trade-history-row__detail">
-                    <span>TP</span>
-                    <strong>{formatTradePrice(position.tp)}</strong>
+                    <span className="trade-history-row__label">Swap</span>
+                    <span className="trade-history-row__val trade-history-row__val--white">{formatSignedPlainAmountKpiValue(position.swap, 1)}</span>
                   </div>
                   <div className="trade-history-row__detail">
-                    <span>Commission</span>
-                    <strong>{formatSignedPlainAmountKpiValue(position.commission, 1)}</strong>
+                    <span className="trade-history-row__label">T/P</span>
+                    <span className="trade-history-row__val trade-history-row__val--white">{formatTradePrice(position.tp)}</span>
+                  </div>
+                  <div className="trade-history-row__detail">
+                    <span className="trade-history-row__label">Charges</span>
+                    <span className="trade-history-row__val trade-history-row__val--white">{formatSignedPlainAmountKpiValue(position.commission, 1)}</span>
                   </div>
                 </div>
               ) : null}

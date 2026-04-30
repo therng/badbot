@@ -73,10 +73,10 @@
   --t-base:  200ms cubic-bezier(0.2,0,0,1);
   --t-slow:  320ms cubic-bezier(0.2,0,0,1);
 
-  /* Safe areas */
-  --safe-top:    env(safe-area-inset-top, 0px);
+  /* Safe areas — portrait ignores top/bottom to fill edge-to-edge */
+  --safe-top:    0px;
   --safe-right:  env(safe-area-inset-right, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-bottom: 0px;
   --safe-left:   env(safe-area-inset-left, 0px);
   --viewport-height: 100vh;
 }
@@ -1316,13 +1316,17 @@ body::before {
 .dashboard-section > .account-card .trade-history-row__comment { color: var(--card-dim); overflow: hidden; text-overflow: ellipsis; }
 .dashboard-section > .account-card .trade-history-row__details {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 4px 8px;
   padding: 0 0 7px;
 }
-.dashboard-section > .account-card .trade-history-row__detail { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
-.dashboard-section > .account-card .trade-history-row__detail span { font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--card-muted); }
-.dashboard-section > .account-card .trade-history-row__detail strong { font-family: var(--font-mono); font-size: 9px; color: var(--card-ink); }
+.dashboard-section > .account-card .trade-history-row__detail { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; }
+.dashboard-section > .account-card .trade-history-row__detail--val-only { justify-content: flex-end; }
+.dashboard-section > .account-card .trade-history-row__label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
+.dashboard-section > .account-card .trade-history-row__val { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
+.dashboard-section > .account-card .trade-history-row__val--white { color: var(--card-ink); }
+.dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--positive { color: var(--card-positive); }
+.dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--negative { color: var(--card-negative); }
 
 /* ── Pips performance table ── */
 .dashboard-section > .account-card .pips-performance {
@@ -1759,7 +1763,6 @@ a:focus-visible, button:focus-visible {
   .dashboard-section > .account-card .kpi-detail-grid .kl { font-size: 8px; }
   .dashboard-section > .account-card .kchip { padding: 6px 6px 5px; }
 
-  .dashboard-section > .account-card .trade-history-row__details { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .dashboard-section > .account-card .open-positions-panel__row { grid-template-columns: minmax(0,1.05fr) repeat(3,minmax(0,0.72fr)); }
 }
 
@@ -3321,7 +3324,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 /* ── Footer ────────────────────────────────────────────────── */
 .ls__footer {
   position: absolute;
-  bottom: max(env(safe-area-inset-bottom, 14px), 14px);
+  bottom: 14px;
   left: 0;
   right: 0;
   text-align: center;
@@ -3606,7 +3609,7 @@ body { min-height: 100vh; min-height: var(--viewport-height); }
 
 @media (max-width: 480px) and (orientation: portrait) {
   .ls__footer {
-    bottom: max(env(safe-area-inset-bottom, 14px), 14px);
+    bottom: 14px;
   }
 }
 

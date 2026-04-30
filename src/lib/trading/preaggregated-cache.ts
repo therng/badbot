@@ -61,6 +61,7 @@ import {
   normalizeTradeSide,
   parseTimeframe,
   positionNetPnl,
+  positionPips,
   serializeAccountBundle,
   serializeOpenPositions,
   summarizeClosedPositions,
@@ -104,6 +105,7 @@ type PositionRow = {
   profit?: number | null;
   swap?: number | null;
   commission?: number | null;
+  pips?: number | null;
   comment?: string | null;
 };
 
@@ -154,106 +156,6 @@ function sanitizeHistoryPositionComment(comment: string | null | undefined, prof
   }
 
   return normalizedComment;
-}
-
-function getPricePrecision(value: number | null | undefined) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
-  const normalized = Number(value ?? 0).toString();
-  const fractional = normalized.split(".")[1];
-  return fractional ? fractional.length : 0;
-}
-
-const FX_CODES = new Set([
-  "AUD",
-  "CAD",
-  "CHF",
-  "CNH",
-  "CZK",
-  "DKK",
-  "EUR",
-  "GBP",
-  "HKD",
-  "HUF",
-  "JPY",
-  "MXN",
-  "NOK",
-  "NZD",
-  "PLN",
-  "SEK",
-  "SGD",
-  "TRY",
-  "USD",
-  "ZAR",
-]);
-
-type InstrumentSpec = { pointSize: number; pointsPerPip: number };
-
-const INSTRUMENT_SPECS: Record<string, InstrumentSpec> = {
-  XAUUSD: { pointSize: 0.01, pointsPerPip: 10 },
-  BTCUSD: { pointSize: 1, pointsPerPip: 100 },
-};
-
-function normalizeSymbol(symbol: string | undefined) {
-  return (symbol ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function resolveInstrumentSpec(symbol: string | undefined, openPrice: number | null | undefined, closePrice: number | null | undefined): InstrumentSpec {
-  const normalized = normalizeSymbol(symbol);
-
-  const explicit = INSTRUMENT_SPECS[normalized];
-  if (explicit) {
-    return explicit;
-  }
-
-  const fxPointSize = resolveFxPointSize(normalized);
-  if (fxPointSize !== null) {
-    return { pointSize: fxPointSize, pointsPerPip: 10 };
-  }
-
-  const precision = Math.max(getPricePrecision(openPrice), getPricePrecision(closePrice));
-  const pointSize = precision > 0 ? 10 ** -precision : 1;
-  return { pointSize, pointsPerPip: 10 };
-}
-
-function resolveFxPointSize(normalizedSymbol: string) {
-  if (normalizedSymbol.length < 6) {
-    return null;
-  }
-
-  for (let index = 0; index <= normalizedSymbol.length - 6; index += 1) {
-    const base = normalizedSymbol.slice(index, index + 3);
-    const quote = normalizedSymbol.slice(index + 3, index + 6);
-    if (FX_CODES.has(base) && FX_CODES.has(quote)) {
-      return quote === "JPY" ? 0.001 : 0.00001;
-    }
-  }
-
-  return null;
-}
-
-function positionPips(position: PositionRow) {
-  const openPrice = Number(position.openPrice ?? Number.NaN);
-  const closePrice = Number(position.closePrice ?? Number.NaN);
-  if (!Number.isFinite(openPrice) || !Number.isFinite(closePrice)) {
-    return null;
-  }
-
-  const side = normalizeTradeSide(position.type, position.type);
-  if (side !== "buy" && side !== "sell") {
-    return null;
-  }
-
-  const spec = resolveInstrumentSpec(position.symbol, openPrice, closePrice);
-  if (!Number.isFinite(spec.pointSize) || spec.pointSize <= 0) {
-    return null;
-  }
-
-  const rawPoints = side === "buy" ? (closePrice - openPrice) / spec.pointSize : (openPrice - closePrice) / spec.pointSize;
-  const rawPips = rawPoints / spec.pointsPerPip;
-  return Number.isFinite(rawPips) ? rawPips : null;
 }
 
 function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): TradeExecutionDistribution {
@@ -1008,7 +910,7 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       tp: position.tp == null ? null : Number(position.tp),
       swap: position.swap == null ? null : Number(position.swap),
       commission: position.commission == null ? null : Number(position.commission),
-      comment: sanitizeHistoryPositionComment(position.comment ?? null, position.profit == null ? null : Number(position.profit)),
+      pips: positionPips(position),
     }));
   const scopedPositionTrades = orderedScopedPositions.map((position) => ({
     dealId: position.positionNo ?? "",
