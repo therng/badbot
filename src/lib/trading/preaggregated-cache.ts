@@ -124,12 +124,9 @@ function startOfReportDay(date: Date) {
 }
 
 function getValidDate(value: Date | string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function getReportLocalDateKey(value: Date | string | null | undefined) {
@@ -267,12 +264,12 @@ function buildRealtime24HourBalanceCurve(
   const startTime = startOfReportDay(reportTime).getTime();
   const endTime = startTime + 24 * ONE_HOUR_MS;
   const clampedAnchorTime = Math.min(Math.max(anchorTime, startTime), endTime);
-  const fallbackOpeningBalance =
-    Number.isFinite(endingBalance) && endingBalance > 0
-      ? endingBalance
-      : sortedDeals.length
-        ? deriveOpeningBalance(sortedDeals[0]!)
-        : 0;
+  let fallbackOpeningBalance = 0;
+  if (Number.isFinite(endingBalance) && endingBalance > 0) {
+    fallbackOpeningBalance = endingBalance;
+  } else if (sortedDeals.length > 0) {
+    fallbackOpeningBalance = deriveOpeningBalance(sortedDeals[0]!);
+  }
 
   let previousCloseBalance = fallbackOpeningBalance;
 
@@ -377,7 +374,7 @@ function sumTradingNetForRange(deals: DealRow[], start: Date, end: Date) {
 
 function buildCalendarMonthlyPerformance(deals: DealRow[], reportTime: Date) {
   const sortedDeals = [...deals].sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime());
-  if (!sortedDeals.length) {
+  if (sortedDeals.length === 0) {
     return {
       years: [] as Array<{
         year: number;
@@ -397,60 +394,64 @@ function buildCalendarMonthlyPerformance(deals: DealRow[], reportTime: Date) {
     };
   }
 
-  const firstDealTime = new Date(sortedDeals[0].time);
+  const firstDealTime = new Date(sortedDeals[0]!.time);
   const latestCoveredTime = new Date(reportTime);
-  const firstYear = getBangkokYear(firstDealTime) ?? new Date(firstDealTime).getFullYear();
-  const lastYear = getBangkokYear(latestCoveredTime) ?? new Date(latestCoveredTime).getFullYear();
+  const firstYear = getBangkokYear(firstDealTime) ?? firstDealTime.getFullYear();
+  const lastYear = getBangkokYear(latestCoveredTime) ?? latestCoveredTime.getFullYear();
+  
   let totalRatio = 1;
   let totalNetAmount = 0;
+  const years = [];
 
-  const years = Array.from({ length: lastYear - firstYear + 1 }, (_, yearIndex) => {
-    const year = firstYear + yearIndex;
+  for (let year = lastYear; year >= firstYear; year--) {
     let yearRatio = 1;
     let yearNetAmount = 0;
     let hasCoveredMonth = false;
+    const months = [];
 
-    const months = Array.from({ length: 12 }, (_, monthIndex) => {
+    for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
       const monthStart = startOfBangkokMonth(new Date(Date.UTC(year, monthIndex, 1))) ?? new Date(Date.UTC(year, monthIndex, 1));
       const monthEnd = endOfBangkokMonth(monthStart) ?? monthStart;
+      
       if (!isMonthCovered(monthStart, monthEnd, firstDealTime, latestCoveredTime)) {
-        return {
+        months.push({
           month: monthIndex,
           label: MONTH_LABELS[monthIndex] ?? "",
           growthPercent: null,
           netAmount: null,
-        };
+        });
+        continue;
       }
 
       hasCoveredMonth = true;
       const growthPercent = computeCompoundedGrowth(deals, monthStart, monthEnd);
       const monthRatio = 1 + growthPercent / 100;
+      const validMonthRatio = Number.isFinite(monthRatio) ? monthRatio : 1;
       const netAmount = sumTradingNetForRange(deals, monthStart, monthEnd);
 
-      yearRatio *= Number.isFinite(monthRatio) ? monthRatio : 1;
+      yearRatio *= validMonthRatio;
       yearNetAmount += netAmount;
-      totalRatio *= Number.isFinite(monthRatio) ? monthRatio : 1;
+      
+      totalRatio *= validMonthRatio;
       totalNetAmount += netAmount;
 
-      return {
+      months.push({
         month: monthIndex,
         label: MONTH_LABELS[monthIndex] ?? "",
         growthPercent,
         netAmount,
-      };
-    });
+      });
+    }
 
-    return hasCoveredMonth
-      ? {
-          year,
-          months,
-          totalGrowthPercent: (yearRatio - 1) * 100,
-          totalNetAmount: yearNetAmount,
-        }
-      : null;
-  })
-    .filter((year): year is NonNullable<typeof year> => year !== null)
-    .sort((left, right) => right.year - left.year);
+    if (hasCoveredMonth) {
+      years.push({
+        year,
+        months,
+        totalGrowthPercent: (yearRatio - 1) * 100,
+        totalNetAmount: yearNetAmount,
+      });
+    }
+  }
 
   return {
     years,
@@ -636,16 +637,23 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   const scopedPositionPips = scopedClosedPositions
     .map((position) => positionPips(position))
     .filter((value): value is number => Number.isFinite(value));
-  const { totalWinningPips, totalLosingPips, netPips, winningPipTrades } = scopedPositionPips.reduce(
-    (acc, value) => ({
-      totalWinningPips: acc.totalWinningPips + (value > 0 ? value : 0),
-      totalLosingPips: acc.totalLosingPips + (value < 0 ? value : 0),
-      netPips: acc.netPips + value,
-      winningPipTrades: value > 0 ? [...acc.winningPipTrades, value] : acc.winningPipTrades,
-    }),
-    { totalWinningPips: 0, totalLosingPips: 0, netPips: 0, winningPipTrades: [] as number[] }
-  );
-  const averageWinningPips = winningPipTrades.length ? totalWinningPips / winningPipTrades.length : null;
+
+  let totalWinningPips = 0;
+  let totalLosingPips = 0;
+  let netPips = 0;
+  let winningPipCount = 0;
+
+  for (const pips of scopedPositionPips) {
+    netPips += pips;
+    if (pips > 0) {
+      totalWinningPips += pips;
+      winningPipCount++;
+    } else if (pips < 0) {
+      totalLosingPips += pips;
+    }
+  }
+
+  const averageWinningPips = winningPipCount > 0 ? totalWinningPips / winningPipCount : null;
   const totalVolume = scopedClosedPositions.reduce((total, position) => total + Number(position.volume ?? 0), 0);
 
   const getPipsSummaryRow = (label: string, sinceDate: Date | null) => {
@@ -706,26 +714,21 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   const monthlyPerformance = buildCalendarMonthlyPerformance(deals, reportTime);
   const tradeExecutions = buildTradeExecutionDistribution(deals, reportTime);
   const openPositionsPayload = serializeOpenPositions(openPositions as any);
-  const openBySymbol = Object.values(
-    openPositionsPayload.reduce<Record<string, { symbol: string; count: number; volume: number; floatingProfit: number }>>(
-      (groups, position) => {
-        const symbol = position.symbol || "UNKNOWN";
-        const current = groups[symbol] ?? {
-          symbol,
-          count: 0,
-          volume: 0,
-          floatingProfit: 0,
-        };
+  const openBySymbolMap = new Map<string, { symbol: string; count: number; volume: number; floatingProfit: number }>();
+  for (const position of openPositionsPayload) {
+    const symbol = position.symbol || "UNKNOWN";
+    let current = openBySymbolMap.get(symbol);
+    if (!current) {
+      current = { symbol, count: 0, volume: 0, floatingProfit: 0 };
+      openBySymbolMap.set(symbol, current);
+    }
+    current.count += 1;
+    current.volume += Number(position.volume ?? 0);
+    current.floatingProfit += Number(position.floatingProfit ?? 0);
+  }
 
-        current.count += 1;
-        current.volume += Number(position.volume ?? 0);
-        current.floatingProfit += Number(position.floatingProfit ?? 0);
-        groups[symbol] = current;
-        return groups;
-      },
-      {},
-    ),
-  ).sort((left, right) => Math.abs(right.floatingProfit) - Math.abs(left.floatingProfit));
+  const openBySymbol = Array.from(openBySymbolMap.values())
+    .sort((left, right) => Math.abs(right.floatingProfit) - Math.abs(left.floatingProfit));
 
   const overview: AccountOverviewResponse = {
     timeframe,
@@ -777,27 +780,29 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   // Use all-time data so these metrics remain stable regardless of selected timeframe.
   const allClosedPositionsDrawdown = computeBalanceDrawdown(drawdownDeals, null, null);
   const balanceDetailTotalNet = allClosedPositionSummary.totalNetProfit;
+  
   // No drawdown but positive net = "perfect" recovery; surface as Infinity so the
   // gauge picks the "great" zone instead of "NO DATA".
-  const balanceDetailRecoveryFactor =
-    allClosedPositionsDrawdown.maximalAmount > 0
-      ? balanceDetailTotalNet / allClosedPositionsDrawdown.maximalAmount
-      : balanceDetailTotalNet > 0
-        ? Number.POSITIVE_INFINITY
-        : null;
+  let balanceDetailRecoveryFactor: number | null = null;
+  if (allClosedPositionsDrawdown.maximalAmount > 0) {
+    balanceDetailRecoveryFactor = balanceDetailTotalNet / allClosedPositionsDrawdown.maximalAmount;
+  } else if (balanceDetailTotalNet > 0) {
+    balanceDetailRecoveryFactor = Number.POSITIVE_INFINITY;
+  }
+
   // Use all-time trade values for annualization so Sharpe remains stable across timeframes.
   const balanceDetailSharpeRatio = computeAnnualizedSharpeRatio(
     allClosedPositionSummary.netValues,
     computeTradesPerYear(allClosedPositions),
   );
+  
   // Use all-time profit factor so it remains stable regardless of selected timeframe.
   // Profit factor is undefined when there are zero losing trades; treat a
   // strictly winning sample as "great" (Infinity) for the gauge.
-  const balanceDetailProfitFactor =
-    allClosedPositionSummary.profitFactor ??
-    (allClosedPositionSummary.grossProfit > 0 && allClosedPositionSummary.grossLoss === 0
-      ? Number.POSITIVE_INFINITY
-      : null);
+  let balanceDetailProfitFactor = allClosedPositionSummary.profitFactor ?? null;
+  if (balanceDetailProfitFactor === null && allClosedPositionSummary.grossProfit > 0 && allClosedPositionSummary.grossLoss === 0) {
+    balanceDetailProfitFactor = Number.POSITIVE_INFINITY;
+  }
 
   const balanceDetail: BalanceDetailResponse = {
     timeframe,
@@ -974,32 +979,28 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
   const netProfit = tradingDealsForProfit.reduce((total, trade) => total + trade.pnl, 0);
   const grossProfit = tradingDealsForProfit.filter((trade) => trade.pnl > 0).reduce((total, trade) => total + trade.pnl, 0);
 
-  const bySymbol = Array.from(
-    tradingDealsForProfit.reduce<Map<string, { symbol: string; trades: number; netProfit: number; wins: number }>>((groups, trade) => {
-      const symbol = trade.symbol || "UNKNOWN";
-      const current = groups.get(symbol) ?? {
-        symbol,
-        trades: 0,
-        netProfit: 0,
-        wins: 0,
-      };
+  const bySymbolMap = new Map<string, { symbol: string; trades: number; netProfit: number; wins: number }>();
+  for (const trade of tradingDealsForProfit) {
+    const symbol = trade.symbol || "UNKNOWN";
+    let current = bySymbolMap.get(symbol);
+    if (!current) {
+      current = { symbol, trades: 0, netProfit: 0, wins: 0 };
+      bySymbolMap.set(symbol, current);
+    }
+    current.trades += 1;
+    current.netProfit += trade.pnl;
+    if (trade.pnl > 0) {
+      current.wins += 1;
+    }
+  }
 
-      current.trades += 1;
-      current.netProfit += trade.pnl;
-      if (trade.pnl > 0) {
-        current.wins += 1;
-      }
-
-      groups.set(symbol, current);
-      return groups;
-    }, new Map()).values(),
-  )
+  const bySymbol = Array.from(bySymbolMap.values())
     .map((item) => ({
       symbol: item.symbol,
       trades: item.trades,
       netProfit: item.netProfit,
-      avgTrade: item.trades ? item.netProfit / item.trades : 0,
-      winRate: item.trades ? (item.wins / item.trades) * 100 : 0,
+      avgTrade: item.trades > 0 ? item.netProfit / item.trades : 0,
+      winRate: item.trades > 0 ? (item.wins / item.trades) * 100 : 0,
     }))
     .sort((left, right) => Math.abs(right.netProfit) - Math.abs(left.netProfit));
 
@@ -1036,58 +1037,50 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
 
   const totalTrades = closedPositionSummary.totalTrades;
 
-  const winBySymbol = Array.from(
-    scopedPositionTrades.reduce<Map<string, { symbol: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-      const symbol = trade.symbol || "UNKNOWN";
-      const current = groups.get(symbol) ?? {
-        symbol,
-        trades: 0,
-        wins: 0,
-        netProfit: 0,
-      };
+  const winBySymbolMap = new Map<string, { symbol: string; trades: number; wins: number; netProfit: number }>();
+  for (const trade of scopedPositionTrades) {
+    const symbol = trade.symbol || "UNKNOWN";
+    let current = winBySymbolMap.get(symbol);
+    if (!current) {
+      current = { symbol, trades: 0, wins: 0, netProfit: 0 };
+      winBySymbolMap.set(symbol, current);
+    }
+    current.trades += 1;
+    current.netProfit += trade.pnl;
+    if (trade.pnl > 0) {
+      current.wins += 1;
+    }
+  }
 
-      current.trades += 1;
-      current.netProfit += trade.pnl;
-      if (trade.pnl > 0) {
-        current.wins += 1;
-      }
-
-      groups.set(symbol, current);
-      return groups;
-    }, new Map()).values(),
-  )
+  const winBySymbol = Array.from(winBySymbolMap.values())
     .map((item) => ({
       symbol: item.symbol,
       trades: item.trades,
       netProfit: item.netProfit,
-      winRate: item.trades ? (item.wins / item.trades) * 100 : 0,
+      winRate: item.trades > 0 ? (item.wins / item.trades) * 100 : 0,
     }))
     .sort((left, right) => right.winRate - left.winRate);
 
-  const bySide = Array.from(
-    scopedPositionTrades.reduce<Map<string, { side: string; trades: number; wins: number; netProfit: number }>>((groups, trade) => {
-      const side = trade.side || "unknown";
-      const current = groups.get(side) ?? {
-        side,
-        trades: 0,
-        wins: 0,
-        netProfit: 0,
-      };
+  const bySideMap = new Map<string, { side: string; trades: number; wins: number; netProfit: number }>();
+  for (const trade of scopedPositionTrades) {
+    const side = trade.side || "unknown";
+    let current = bySideMap.get(side);
+    if (!current) {
+      current = { side, trades: 0, wins: 0, netProfit: 0 };
+      bySideMap.set(side, current);
+    }
+    current.trades += 1;
+    current.netProfit += trade.pnl;
+    if (trade.pnl > 0) {
+      current.wins += 1;
+    }
+  }
 
-      current.trades += 1;
-      current.netProfit += trade.pnl;
-      if (trade.pnl > 0) {
-        current.wins += 1;
-      }
-
-      groups.set(side, current);
-      return groups;
-    }, new Map()).values(),
-  ).map((item) => ({
+  const bySide = Array.from(bySideMap.values()).map((item) => ({
     side: item.side,
     trades: item.trades,
     netProfit: item.netProfit,
-    winRate: item.trades ? (item.wins / item.trades) * 100 : 0,
+    winRate: item.trades > 0 ? (item.wins / item.trades) * 100 : 0,
   }));
 
   const outcomeSeries = [...scopedPositionTrades]

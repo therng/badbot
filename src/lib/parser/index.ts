@@ -146,19 +146,17 @@ export function parseNumber(value: string): number {
     return 0;
   }
 
-  const hasDot = numeric.includes(".");
-  const hasComma = numeric.includes(",");
-
   let canonical = numeric;
-  if (hasDot && hasComma) {
-    const lastDot = numeric.lastIndexOf(".");
-    const lastComma = numeric.lastIndexOf(",");
+  const lastDot = numeric.lastIndexOf(".");
+  const lastComma = numeric.lastIndexOf(",");
+
+  if (lastDot > -1 && lastComma > -1) {
     if (lastDot > lastComma) {
       canonical = numeric.replace(/,/g, "");
     } else {
       canonical = numeric.replace(/\./g, "").replace(/,/g, ".");
     }
-  } else if (hasComma) {
+  } else if (lastComma > -1) {
     if (/^\d{1,3}(,\d{3})+$/.test(numeric)) {
       canonical = numeric.replace(/,/g, "");
     } else {
@@ -284,20 +282,18 @@ function detectSection(text: string): ReportSection {
     return "";
   }
 
-  if (/^open positions?(?:\b|\s*\()/i.test(normalized)) {
-    return "Open Positions";
-  }
-  if (/^working orders?(?:\b|\s*\()/i.test(normalized)) {
-    return "Working Orders";
-  }
-  if (/^deals?(?:\b|\s*\()/i.test(normalized)) {
-    return "Deals";
-  }
-  if (/^positions?(?:\b|\s*\()/i.test(normalized)) {
-    return "Positions";
-  }
-  if (/^summary(?:\b|\s*\()/i.test(normalized)) {
-    return "Summary";
+  const sections: [RegExp, ReportSection][] = [
+    [/^open positions?(?:\b|\s*\()/i, "Open Positions"],
+    [/^working orders?(?:\b|\s*\()/i, "Working Orders"],
+    [/^deals?(?:\b|\s*\()/i, "Deals"],
+    [/^positions?(?:\b|\s*\()/i, "Positions"],
+    [/^summary(?:\b|\s*\()/i, "Summary"],
+  ];
+
+  for (const [regex, section] of sections) {
+    if (regex.test(normalized)) {
+      return section;
+    }
   }
 
   return "";
@@ -447,79 +443,62 @@ function parseMetadataFromCells(cells: string[], report: ParsedReport, reportDat
       continue;
     }
 
-    if (/^(account|account number|account no|account #|login)$/.test(label)) {
-      const accountMatch = value.match(/\d{4,}/);
-      if (accountMatch) {
-        report.metadata.account_number = setMetadataValue(report.metadata.account_number, accountMatch[0]);
-      }
-
-      const detailMatch = value.match(/\(([^)]+)\)/);
-      if (detailMatch) {
-        const [currency = "", server = ""] = detailMatch[1]
-          .split(",")
-          .map((part) => cleanText(part));
-
-        if (currency) {
-          report.metadata.currency = currency;
+    switch (true) {
+      case /^(account|account number|account no|account #|login)$/.test(label): {
+        const accountMatch = value.match(/\d{4,}/);
+        if (accountMatch) {
+          report.metadata.account_number = setMetadataValue(report.metadata.account_number, accountMatch[0]);
         }
 
-        if (server) {
-          report.metadata.server = server;
+        const detailMatch = value.match(/\(([^)]+)\)/);
+        if (detailMatch) {
+          const [currency = "", server = ""] = detailMatch[1]
+            .split(",")
+            .map((part) => cleanText(part));
+
+          if (currency) {
+            report.metadata.currency = currency;
+          }
+
+          if (server) {
+            report.metadata.server = server;
+          }
         }
+        break;
       }
-      continue;
-    }
-
-    if (/^(name|owner|owner name)$/.test(label)) {
-      report.metadata.owner_name = setMetadataValue(report.metadata.owner_name, value);
-      continue;
-    }
-
-    if (/^currency$/.test(label)) {
-      report.metadata.currency = value;
-      continue;
-    }
-
-    if (/^server$/.test(label)) {
-      report.metadata.server = value;
-      continue;
-    }
-
-    if (/^company$/.test(label)) {
-      report.metadata.company = value;
-      continue;
-    }
-
-    if (/^(date|to|report time|generated|period)$/.test(label)) {
-      reportDateCandidates.push(...extractDateCandidates(value));
+      case /^(name|owner|owner name)$/.test(label):
+        report.metadata.owner_name = setMetadataValue(report.metadata.owner_name, value);
+        break;
+      case label === "currency":
+        report.metadata.currency = value;
+        break;
+      case label === "server":
+        report.metadata.server = value;
+        break;
+      case label === "company":
+        report.metadata.company = value;
+        break;
+      case /^(date|to|report time|generated|period)$/.test(label):
+        reportDateCandidates.push(...extractDateCandidates(value));
+        break;
     }
   }
 }
 
 function summaryFieldFromLabel(label: string): keyof ParsedReport["accountSummary"] | null {
-  if (label === "balance") {
-    return "balance";
-  }
-  if (label === "credit facility") {
-    return "credit_facility";
-  }
-  if (label === "equity") {
-    return "equity";
-  }
-  if (label === "margin") {
-    return "margin";
-  }
-  if (label === "free margin") {
-    return "free_margin";
-  }
-  if (label === "margin level") {
-    return "margin_level";
-  }
-  if (label === "floating p/l" || label === "floating pl" || label === "floating profit") {
-    return "floating_pl";
-  }
+  const fields: Record<string, keyof ParsedReport["accountSummary"]> = {
+    "balance": "balance",
+    "credit facility": "credit_facility",
+    "equity": "equity",
+    "margin": "margin",
+    "free margin": "free_margin",
+    "margin level": "margin_level",
+    "floating p/l": "floating_pl",
+    "floating pl": "floating_pl",
+    "floating profit": "floating_pl",
+  };
 
-  return null;
+  return fields[label] ?? null;
 }
 
 function findSummaryValueAfterLabel(cells: string[], labelIndex: number): number | null {
@@ -574,68 +553,41 @@ function isLikelySummaryRow(cells: string[]): boolean {
 }
 
 function reportResultFieldFromLabel(label: string): keyof NonNullable<ParsedReport["reportResults"]> | null {
-  if (/^(total )?commission$/.test(label)) {
-    return "total_commission";
+  const exactMatches: Record<string, keyof NonNullable<ParsedReport["reportResults"]>> = {
+    "total net profit": "total_net_profit",
+    "gross profit": "gross_profit",
+    "gross loss": "gross_loss",
+    "profit factor": "profit_factor",
+    "expected payoff": "expected_payoff",
+    "recovery factor": "recovery_factor",
+    "sharpe ratio": "sharpe_ratio",
+    "balance drawdown absolute": "balance_drawdown_absolute",
+    "balance drawdown maximal": "balance_drawdown_maximal",
+    "balance drawdown relative": "balance_drawdown_relative_pct",
+    "total trades": "total_trades",
+    "largest profit trade": "largest_profit_trade",
+    "largest loss trade": "largest_loss_trade",
+    "average profit trade": "average_profit_trade",
+    "average loss trade": "average_loss_trade",
+  };
+
+  if (exactMatches[label]) {
+    return exactMatches[label];
   }
-  if (/^(total )?swap$/.test(label)) {
-    return "total_swap";
-  }
-  if (label === "total net profit") {
-    return "total_net_profit";
-  }
-  if (label === "gross profit") {
-    return "gross_profit";
-  }
-  if (label === "gross loss") {
-    return "gross_loss";
-  }
-  if (label === "profit factor") {
-    return "profit_factor";
-  }
-  if (label === "expected payoff") {
-    return "expected_payoff";
-  }
-  if (label === "recovery factor") {
-    return "recovery_factor";
-  }
-  if (label === "sharpe ratio") {
-    return "sharpe_ratio";
-  }
-  if (label === "balance drawdown absolute") {
-    return "balance_drawdown_absolute";
-  }
-  if (label === "balance drawdown maximal") {
-    return "balance_drawdown_maximal";
-  }
-  if (label === "balance drawdown relative") {
-    return "balance_drawdown_relative_pct";
-  }
-  if (label === "total trades") {
-    return "total_trades";
-  }
-  if (label.startsWith("profit trades")) {
-    return "profit_trades_count";
-  }
-  if (label.startsWith("loss trades")) {
-    return "loss_trades_count";
-  }
-  if (label === "largest profit trade") {
-    return "largest_profit_trade";
-  }
-  if (label === "largest loss trade") {
-    return "largest_loss_trade";
-  }
-  if (label === "average profit trade") {
-    return "average_profit_trade";
-  }
-  if (label === "average loss trade") {
-    return "average_loss_trade";
-  }
-  if (label.startsWith("maximum consecutive wins")) {
-    return "maximum_consecutive_wins";
-  }
-  if (label.startsWith("maximum consecutive losses")) {
-    return "maximum_consecutive_losses";
+
+  const regexMatches: [RegExp, keyof NonNullable<ParsedReport["reportResults"]>][] = [
+    [/^(total )?commission$/, "total_commission"],
+    [/^(total )?swap$/, "total_swap"],
+    [/^profit trades/, "profit_trades_count"],
+    [/^loss trades/, "loss_trades_count"],
+    [/^maximum consecutive wins/, "maximum_consecutive_wins"],
+    [/^maximum consecutive losses/, "maximum_consecutive_losses"],
+  ];
+
+  for (const [regex, field] of regexMatches) {
+    if (regex.test(label)) {
+      return field;
+    }
   }
 
   return null;
@@ -756,13 +708,46 @@ function parseReportResultsFromText($: any, report: ParsedReport): void {
   });
 }
 
+function getMappedCell(
+  cells: string[],
+  headerMap: HeaderMap | null,
+  keys: string[],
+  fallbackIndex: number,
+  occurrence: "first" | "last" = "first",
+): string {
+  const index = findColumnIndex(headerMap, keys, occurrence);
+  return getCell(cells, index >= 0 ? index : fallbackIndex);
+}
+
+function getMappedNumber(
+  cells: string[],
+  headerMap: HeaderMap | null,
+  keys: string[],
+  fallbackIndex: number,
+  occurrence: "first" | "last" = "first",
+): number {
+  return parseNumber(getMappedCell(cells, headerMap, keys, fallbackIndex, occurrence));
+}
+
+function getMappedNumberMaybe(
+  cells: string[],
+  headerMap: HeaderMap | null,
+  keys: string[],
+  fallbackIndex: number = -1,
+  occurrence: "first" | "last" = "first",
+): number | null {
+  const index = findColumnIndex(headerMap, keys, occurrence);
+  const finalIndex = index >= 0 ? index : fallbackIndex;
+  return finalIndex >= 0 ? parseNumberMaybe(getCell(cells, finalIndex)) : null;
+}
+
 function parseDealRow(cells: string[], headerMap: HeaderMap | null): DealLedgerRow | null {
   const time = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time"], "first"), 0]);
   if (!time) {
     return null;
   }
 
-  const dealId = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["deal", "ticket", "id"], "first"), 1)));
+  const dealId = getMappedCell(cells, headerMap, ["deal", "ticket", "id"], 1);
   if (!dealId) {
     return null;
   }
@@ -770,19 +755,17 @@ function parseDealRow(cells: string[], headerMap: HeaderMap | null): DealLedgerR
   return {
     dealId,
     time,
-    symbol: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["symbol"], "first"), 2))),
-    type:
-      cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["type", "side", "direction"], "first"), 3))) ||
-      "UNKNOWN",
-    direction: cleanText(getCell(cells, findColumnIndex(headerMap, ["direction", "side"], "first"))) || null,
-    volume: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4))),
-    price: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price"], "first"), 5))),
-    orderId: cleanText(getCell(cells, findColumnIndex(headerMap, ["order", "order id"], "first"))) || null,
-    commission: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["commission"], "first"), 8))),
-    fee: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["fee"], "first"))) ?? 0,
-    swap: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["swap"], "first"), 9))),
-    profit: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "p/l"], "first"), 10))),
-    balanceAfter: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["balance", "balance after"], "first"))),
+    symbol: getMappedCell(cells, headerMap, ["symbol"], 2),
+    type: getMappedCell(cells, headerMap, ["type", "side", "direction"], 3) || "UNKNOWN",
+    direction: getMappedCell(cells, headerMap, ["direction", "side"], -1) || null,
+    volume: getMappedNumber(cells, headerMap, ["volume"], 4),
+    price: getMappedNumber(cells, headerMap, ["price"], 5),
+    orderId: getMappedCell(cells, headerMap, ["order", "order id"], -1) || null,
+    commission: getMappedNumber(cells, headerMap, ["commission"], 8),
+    fee: getMappedNumberMaybe(cells, headerMap, ["fee"]) ?? 0,
+    swap: getMappedNumber(cells, headerMap, ["swap"], 9),
+    profit: getMappedNumber(cells, headerMap, ["profit", "p/l"], 10),
+    balanceAfter: getMappedNumberMaybe(cells, headerMap, ["balance", "balance after"]),
     comment: getOptionalCommentCell(cells, headerMap),
   };
 }
@@ -793,7 +776,7 @@ function parseOpenPositionRow(cells: string[], headerMap: HeaderMap | null): Ope
     return null;
   }
 
-  const positionId = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["position", "ticket", "id"], "first"), 1)));
+  const positionId = getMappedCell(cells, headerMap, ["position", "ticket", "id"], 1);
   if (!positionId) {
     return null;
   }
@@ -801,19 +784,15 @@ function parseOpenPositionRow(cells: string[], headerMap: HeaderMap | null): Ope
   return {
     positionId,
     openedAt: time,
-    symbol: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["symbol"], "first"), 2))) || "UNKNOWN",
-    side:
-      cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["type", "side", "direction"], "first"), 3))) ||
-      "UNKNOWN",
-    volume: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4))),
-    openPrice: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["open price", "price"], "first"), 5))),
-    sl: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["s/l", "sl"], "first"))),
-    tp: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["t/p", "tp"], "first"))),
-    marketPrice: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["market price", "price"], "last"), 8))),
-    swap: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["swap"], "first"), 9))),
-    floatingProfit: parseNumber(
-      getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["profit", "floating p/l", "floating pl", "p/l"], "first"), 10)),
-    ),
+    symbol: getMappedCell(cells, headerMap, ["symbol"], 2) || "UNKNOWN",
+    side: getMappedCell(cells, headerMap, ["type", "side", "direction"], 3) || "UNKNOWN",
+    volume: getMappedNumber(cells, headerMap, ["volume"], 4),
+    openPrice: getMappedNumber(cells, headerMap, ["open price", "price"], 5),
+    sl: getMappedNumberMaybe(cells, headerMap, ["s/l", "sl"]),
+    tp: getMappedNumberMaybe(cells, headerMap, ["t/p", "tp"]),
+    marketPrice: getMappedNumber(cells, headerMap, ["market price", "price"], 8, "last"),
+    swap: getMappedNumber(cells, headerMap, ["swap"], 9),
+    floatingProfit: getMappedNumber(cells, headerMap, ["profit", "floating p/l", "floating pl", "p/l"], 10),
     comment: getOptionalCommentCell(cells, headerMap),
   };
 }
@@ -828,21 +807,14 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
     return null;
   }
 
-  const positionNo = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["position", "ticket", "id"], "first"), 1)));
+  const positionNo = getMappedCell(cells, headerMap, ["position", "ticket", "id"], 1);
   if (!positionNo) {
     return null;
   }
 
-  const openPrice = parseStrictNumberMaybe(
-    getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "open price"], "first"), 5)),
-  );
+  const openPrice = parseStrictNumberMaybe(getMappedCell(cells, headerMap, ["price", "open price"], 5));
   const closeTime = findFirstValidDate(cells, [findColumnIndex(headerMap, ["time", "close time"], "last"), 8]);
-  const closePrice = parseStrictNumberMaybe(
-    getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price", "close price"], "last"), 9)),
-  );
-  const commissionIndex = findColumnIndex(headerMap, ["commission"], "first");
-  const swapIndex = findColumnIndex(headerMap, ["swap"], "first");
-  const profitIndex = findColumnIndex(headerMap, ["profit", "p/l"], "first");
+  const closePrice = parseStrictNumberMaybe(getMappedCell(cells, headerMap, ["price", "close price"], 9, "last"));
 
   // Closed-position rows with missing/zero prices are parser noise in current MT5 reports and
   // end up turning comment text into fake commission/swap values via fallback indexes.
@@ -854,19 +826,17 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
     return null;
   }
 
+  const commissionIndex = findColumnIndex(headerMap, ["commission"], "first");
+  const swapIndex = findColumnIndex(headerMap, ["swap"], "first");
+  const profitIndex = findColumnIndex(headerMap, ["profit", "p/l"], "first");
+
   if (commissionIndex < 0 || swapIndex < 0 || profitIndex < 0) {
     return null;
   }
 
-  const commission = parseStrictMetricCell(
-    getCell(cells, commissionIndex),
-  );
-  const swap = parseStrictMetricCell(
-    getCell(cells, swapIndex),
-  );
-  const profit = parseStrictMetricCell(
-    getCell(cells, profitIndex),
-  );
+  const commission = parseStrictMetricCell(getCell(cells, commissionIndex));
+  const swap = parseStrictMetricCell(getCell(cells, swapIndex));
+  const profit = parseStrictMetricCell(getCell(cells, profitIndex));
 
   if (!commission.valid || !swap.valid || !profit.valid) {
     return null;
@@ -874,15 +844,13 @@ function parsePositionRow(cells: string[], headerMap: HeaderMap | null): Positio
 
   return {
     positionNo,
-    symbol: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["symbol"], "first"), 2))) || "UNKNOWN",
-    type:
-      cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["type", "side", "direction"], "first"), 3))) ||
-      "UNKNOWN",
-    volume: parseNumber(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4))),
+    symbol: getMappedCell(cells, headerMap, ["symbol"], 2) || "UNKNOWN",
+    type: getMappedCell(cells, headerMap, ["type", "side", "direction"], 3) || "UNKNOWN",
+    volume: getMappedNumber(cells, headerMap, ["volume"], 4),
     openTime,
     openPrice,
-    sl: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["s/l", "sl"], "first"))),
-    tp: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["t/p", "tp"], "first"))),
+    sl: getMappedNumberMaybe(cells, headerMap, ["s/l", "sl"]),
+    tp: getMappedNumberMaybe(cells, headerMap, ["t/p", "tp"]),
     closeTime,
     closePrice,
     commission: commission.value,
@@ -898,31 +866,25 @@ function parseWorkingOrderRow(cells: string[], headerMap: HeaderMap | null): Wor
     return null;
   }
 
-  const orderId = cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["order", "ticket", "id"], "first"), 1)));
+  const orderId = getMappedCell(cells, headerMap, ["order", "ticket", "id"], 1);
   if (!orderId) {
     return null;
   }
 
+  const vol = parseVolume(getMappedCell(cells, headerMap, ["volume"], 4));
+
   return {
     orderId,
     openedAt: time,
-    symbol: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["symbol"], "first"), 2))) || "UNKNOWN",
-    type:
-      cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["type", "side", "direction"], "first"), 3))) ||
-      "UNKNOWN",
-    volumeRequested: parseVolume(
-      getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4)),
-    ).req,
-    volumeFilled: parseVolume(
-      getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["volume"], "first"), 4)),
-    ).filled,
-    price: parseNumberMaybe(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["price"], "first"), 5))),
-    sl: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["s/l", "sl"], "first"))),
-    tp: parseNumberMaybe(getCell(cells, findColumnIndex(headerMap, ["t/p", "tp"], "first"))),
-    marketPrice: parseNumberMaybe(
-      getCell(cells, findColumnIndex(headerMap, ["market price", "market", "price"], "last")),
-    ),
-    state: cleanText(getCell(cells, indexOrFallback(findColumnIndex(headerMap, ["state", "status"], "first"), 9))) || "Working",
+    symbol: getMappedCell(cells, headerMap, ["symbol"], 2) || "UNKNOWN",
+    type: getMappedCell(cells, headerMap, ["type", "side", "direction"], 3) || "UNKNOWN",
+    volumeRequested: vol.req,
+    volumeFilled: vol.filled,
+    price: getMappedNumberMaybe(cells, headerMap, ["price"], 5),
+    sl: getMappedNumberMaybe(cells, headerMap, ["s/l", "sl"]),
+    tp: getMappedNumberMaybe(cells, headerMap, ["t/p", "tp"]),
+    marketPrice: getMappedNumberMaybe(cells, headerMap, ["market price", "market", "price"], -1, "last"),
+    state: getMappedCell(cells, headerMap, ["state", "status"], 9) || "Working",
     comment: getOptionalCommentCell(cells, headerMap),
   };
 }

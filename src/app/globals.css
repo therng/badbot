@@ -685,7 +685,7 @@ body::before {
   transition: border-color var(--t-fast), background var(--t-fast);
 }
 .dashboard-section > .account-card .kchip.is-static { cursor: default; }
-.dashboard-section > .account-card .kchip.has-hint { cursor: default; }
+.dashboard-section > .account-card .kchip.has-hint { cursor: pointer; }
 .dashboard-section > .account-card .kchip.is-actionable.has-hint { cursor: pointer; }
 
 /* ── KPI Hint badge on chip label ─────────────────────────────── */
@@ -982,7 +982,8 @@ body::before {
   .kpi-sheet { animation: none; }
 }
 .dashboard-section > .account-card .kchip.is-actionable:hover,
-.dashboard-section > .account-card .kchip.is-actionable:focus-visible {
+.dashboard-section > .account-card .kchip.is-actionable:focus-visible,
+.dashboard-section > .account-card .kchip.is-static.has-hint:hover {
   border-color: rgba(59,130,246,0.2);
   background: rgba(59,130,246,0.06);
 }

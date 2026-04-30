@@ -165,10 +165,32 @@ function roundHalfUp(value: number, digits = 0) {
     return value;
   }
 
-  const normalizedDigits = Math.max(0, digits);
-  const absolute = Math.abs(value);
-  const rounded = Number(`${Math.round(Number(`${absolute}e${normalizedDigits}`))}e-${normalizedDigits}`);
-  return Math.sign(value) * rounded;
+  const multiplier = Math.pow(10, Math.max(0, digits));
+  return (Math.sign(value) * Math.round(Math.abs(value) * multiplier)) / multiplier;
+}
+
+function getSparklinePalette(tone: string, active: boolean) {
+  if (tone === "positive") {
+    return {
+      areaTop: "rgba(90, 160, 112, 0.18)",
+      areaMid: "rgba(90, 160, 112, 0.08)",
+      areaBottom: "rgba(90, 160, 112, 0.02)",
+    };
+  }
+
+  if (tone === "negative") {
+    return {
+      areaTop: "rgba(196, 99, 96, 0.17)",
+      areaMid: "rgba(196, 99, 96, 0.07)",
+      areaBottom: "rgba(196, 99, 96, 0.02)",
+    };
+  }
+
+  return {
+    areaTop: active ? "rgba(44, 93, 157, 0.32)" : "rgba(83, 119, 165, 0.2)",
+    areaMid: active ? "rgba(44, 93, 157, 0.14)" : "rgba(83, 119, 165, 0.08)",
+    areaBottom: "rgba(44, 93, 157, 0.03)",
+  };
 }
 
 function formatRoundedNumber(value: number, digits: number, fixedDigits = false) {
@@ -253,11 +275,8 @@ function withLivePoint(
 
   const lastPoint = points[points.length - 1];
   const lastTimestamp = getTimestampValue(lastPoint?.x);
-  if (lastTimestamp === null) {
-    return [...points, livePoint];
-  }
-
-  if (timestamp > lastTimestamp) {
+  
+  if (lastTimestamp === null || timestamp > lastTimestamp) {
     return [...points, livePoint];
   }
 
@@ -307,9 +326,12 @@ function buildDailyTimePoints(
   const timelinePoints = points.map((point) => {
     const timestamp = getTimestampValue(point.x) ?? anchorTimestamp;
     const clampedTimestamp = clamp(timestamp, dayStart, dayEnd);
+    const timeFraction = (clampedTimestamp - dayStart) / (dayEnd - dayStart);
+    const valueFraction = (resolveBalanceValue(point) - minimum) / range;
+    
     return {
-      x: Number((horizontalInset + ((clampedTimestamp - dayStart) / (dayEnd - dayStart)) * plotWidth).toFixed(2)),
-      y: Number((topInset + (1 - (resolveBalanceValue(point) - minimum) / range) * plotHeight).toFixed(2)),
+      x: Number((horizontalInset + timeFraction * plotWidth).toFixed(2)),
+      y: Number((topInset + (1 - valueFraction) * plotHeight).toFixed(2)),
     };
   });
 
@@ -391,10 +413,13 @@ function buildSparkline(values: number[], width: number, height: number) {
   const topInset = Math.min(6, height / 10);
   const bottomInset = Math.min(14, height / 4.5);
   const plotHeight = Math.max(height - topInset - bottomInset, 1);
-  const points = values.map((value, index) => ({
-    x: Number((horizontalInset + index * gap).toFixed(2)),
-    y: Number((topInset + (1 - (value - minimum) / range) * plotHeight).toFixed(2)),
-  }));
+  const points = values.map((value, index) => {
+    const valueFraction = (value - minimum) / range;
+    return {
+      x: Number((horizontalInset + index * gap).toFixed(2)),
+      y: Number((topInset + (1 - valueFraction) * plotHeight).toFixed(2)),
+    };
+  });
   const linePath = buildSmoothPath(points);
   const lastPoint = points[points.length - 1];
   const fillEndX = lastPoint?.x ?? width - horizontalInset;
@@ -505,28 +530,7 @@ export function SparklineChart({
 
   const palette = {
     stroke: strokeByTone[tone],
-    areaTop:
-      tone === "positive"
-        ? "rgba(90, 160, 112, 0.18)"
-        : tone === "negative"
-          ? "rgba(196, 99, 96, 0.17)"
-          : active
-            ? "rgba(44, 93, 157, 0.32)"
-            : "rgba(83, 119, 165, 0.2)",
-    areaMid:
-      tone === "positive"
-        ? "rgba(90, 160, 112, 0.08)"
-        : tone === "negative"
-          ? "rgba(196, 99, 96, 0.07)"
-          : active
-            ? "rgba(44, 93, 157, 0.14)"
-            : "rgba(83, 119, 165, 0.08)",
-    areaBottom:
-      tone === "positive"
-        ? "rgba(90, 160, 112, 0.02)"
-        : tone === "negative"
-          ? "rgba(196, 99, 96, 0.02)"
-          : "rgba(44, 93, 157, 0.03)",
+    ...getSparklinePalette(tone, active),
   };
 
   if (!sparklinePoints.length) {
@@ -551,12 +555,13 @@ export function SparklineChart({
   const segments = sparklinePoints.slice(1).map((point, index) => {
     const event = resolvedPoints[index + 1] as BalanceEventPoint | undefined;
     const label = event ? labelBalanceEvent(event.eventType, event.eventDelta) : "Trading";
-    const stroke =
-      label === "Deposit"
-        ? "var(--positive)"
-        : label === "Withdrawal"
-          ? "var(--negative)"
-          : palette.stroke;
+    
+    let stroke = palette.stroke;
+    if (label === "Deposit") {
+      stroke = "var(--positive)";
+    } else if (label === "Withdrawal") {
+      stroke = "var(--negative)";
+    }
 
     return {
       key: `${point.x}-${point.y}-${index}`,
@@ -693,9 +698,10 @@ export function TradeExecutionsChart({
   const baselineY = paddingTop + plotHeight;
   const slotWidth = plotWidth / Math.max(1, 24);
   const resolvedDistribution = distribution ?? buildEmptyTradeExecutionDistribution();
-  const buckets = resolvedDistribution.hourly.length === 24
-    ? resolvedDistribution.hourly
-    : buildEmptyTradeExecutionDistribution().hourly;
+  const buckets =
+    resolvedDistribution.hourly?.length === 24
+      ? resolvedDistribution.hourly
+      : buildEmptyTradeExecutionDistribution().hourly;
   const peakExecutions = Math.max(1, ...buckets.map((bucket) => bucket.totalExecutions));
   const hasExecutions = resolvedDistribution.totalExecutions > 0;
   const points = buckets.map((bucket, index) => ({
@@ -707,9 +713,16 @@ export function TradeExecutionsChart({
     ? `${buildSmoothPath(points.map(({ x, y }) => ({ x, y })))} L ${points[points.length - 1]?.x ?? width - paddingX} ${baselineY} L ${points[0]?.x ?? paddingX} ${baselineY} Z`
     : "";
   const linePath = buildSmoothPath(points.map(({ x, y }) => ({ x, y })));
-  const defaultActiveIndex = buckets.reduce((bestIndex, bucket, index, source) => (
-    bucket.totalExecutions > (source[bestIndex]?.totalExecutions ?? -1) ? index : bestIndex
-  ), 0);
+  
+  let defaultActiveIndex = 0;
+  let maxExecutions = -1;
+  for (let i = 0; i < buckets.length; i++) {
+    if (buckets[i].totalExecutions > maxExecutions) {
+      maxExecutions = buckets[i].totalExecutions;
+      defaultActiveIndex = i;
+    }
+  }
+
   const resolvedActiveIndex = activeHour ?? defaultActiveIndex;
   const activePoint = points[resolvedActiveIndex] ?? points[0];
   const focusBeaconStyle = hasExecutions && activePoint
@@ -867,6 +880,7 @@ export function BalanceEventChart({
   const dayStart = startOfDayWindow(anchorTimestamp);
   const dayEnd = endOfDayWindow(anchorTimestamp);
   const axisStartHour = getTableHour(dayStart) ?? 0;
+  const plotWidth = width - paddingX * 2;
   const dailyAxisTicks = showDailyAxis
     ? Array.from({ length: 24 }, (_, index) => ({
         hour: (axisStartHour + index) % 24,
@@ -874,14 +888,22 @@ export function BalanceEventChart({
       }))
     : [];
 
-  const coordinates = resolvedPoints.map((point, index) => ({
-    ...point,
-    xCoord:
-      timeframe === "1d"
-        ? paddingX + ((clamp(getTimestampValue(point.x) ?? anchorTimestamp, dayStart, dayEnd) - dayStart) / (dayEnd - dayStart)) * (width - paddingX * 2)
-        : paddingX + (index / Math.max(1, resolvedPoints.length - 1)) * (width - paddingX * 2),
-    yCoord: paddingTop + (1 - (point.balance - minValue) / range) * plotHeight,
-  }));
+  const coordinates = resolvedPoints.map((point, index) => {
+    let xCoord: number;
+    if (timeframe === "1d") {
+      const pointTime = getTimestampValue(point.x) ?? anchorTimestamp;
+      const clampedTime = clamp(pointTime, dayStart, dayEnd);
+      const timeFraction = (clampedTime - dayStart) / (dayEnd - dayStart);
+      xCoord = paddingX + timeFraction * plotWidth;
+    } else {
+      const indexFraction = index / Math.max(1, resolvedPoints.length - 1);
+      xCoord = paddingX + indexFraction * plotWidth;
+    }
+
+    const yCoord = paddingTop + (1 - (point.balance - minValue) / range) * plotHeight;
+
+    return { ...point, xCoord, yCoord };
+  });
   const curvePoints = coordinates.map(({ xCoord, yCoord }) => ({ x: xCoord, y: yCoord }));
 
   const resolvedActiveIndex = activeIndex ?? coordinates.length - 1;
@@ -905,7 +927,7 @@ export function BalanceEventChart({
             return <line key={index} x1={paddingX} x2={width - paddingX} y1={y} y2={y} />;
           })}
           {dailyAxisTicks.map(({ hour, index }) => {
-            const x = paddingX + (index / 23) * (width - paddingX * 2);
+            const x = paddingX + (index / 23) * plotWidth;
             return <line key={`x-${hour}`} x1={x} x2={x} y1={paddingTop} y2={paddingTop + plotHeight} />;
           })}
         </g>
@@ -924,8 +946,12 @@ export function BalanceEventChart({
         <path d={balancePath} fill="none" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         {coordinates.slice(1).map((point, index) => {
           const label = labelBalanceEvent(point.eventType, point.eventDelta);
-          const tone =
-            label === "Deposit" ? "var(--positive)" : label === "Withdrawal" ? "var(--negative)" : "var(--neutral)";
+          let tone = "var(--neutral)";
+          if (label === "Deposit") {
+            tone = "var(--positive)";
+          } else if (label === "Withdrawal") {
+            tone = "var(--negative)";
+          }
 
           return (
             <path
