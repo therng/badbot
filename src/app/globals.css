@@ -2003,15 +2003,6 @@ a:focus-visible, button:focus-visible {
 /* ─────────────────────────────────────────────
    MIN-HEIGHT STABILITY
 ───────────────────────────────────────────── */
-html, body {
-  min-height: 100%;
-  min-height: 100dvh;
-}
-body {
-  min-height: 100vh;
-  min-height: 100dvh;
-  min-height: var(--viewport-height);
-}
 .monitor-page {
   min-height: 100vh;
   min-height: 100dvh;
