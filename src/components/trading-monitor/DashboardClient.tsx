@@ -26,7 +26,7 @@ import {
   type MetricTone,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
-import AILoginGate from "@/components/trading-monitor/AILoginGate";
+
 import {
   InlineState,
   SparklineChart,
@@ -264,7 +264,6 @@ const DashboardCard = memo(function DashboardCard({
     primaryKpiItems.filter((item) => EXPANDABLE_KPI_KEYS.includes(item.key as any)),
   ];
   const kpiItems = primaryKpiItems;
-  const isKpiExpanded = (key: ExpandableKpiKey) => expandedKpi === key;
   const handleTimeframeChange = useCallback((nextTimeframe: Timeframe) => {
     trackTimeframeChange(accountDisplayName, nextTimeframe);
     setExpandedKpiState((current) =>
@@ -1066,7 +1065,12 @@ export default function DashboardClient() {
           </section>
         </div>
         {accounts.error ? (
-          <AILoginGate onEnter={retryAccountsRequest} />
+          <div className="error-retry-wrap">
+            <InlineState tone="error" title="Sync Failed" message={accounts.error} />
+            <button type="button" className="tf-pill-button" onClick={retryAccountsRequest}>
+              Retry Sync
+            </button>
+          </div>
         ) : null}
       </div>
     </main>

@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import {
-  addBangkokDays,
   convertBangkokReportTimeToTableTimestamp,
   endOfBangkokMonth,
   endOfBangkokYear,
@@ -133,27 +132,6 @@ function getReportLocalDateKey(value: Date | string | null | undefined) {
   return getBangkokDateKey(value);
 }
 
-function sanitizeHistoryPositionComment(comment: string | null | undefined, profit: number | null | undefined) {
-  const normalizedComment = comment?.trim();
-  if (!normalizedComment) {
-    return null;
-  }
-
-  if (/^-?\d+(?:\.\d+)?$/.test(normalizedComment)) {
-    return null;
-  }
-
-  const numericComment = Number(normalizedComment.replace(/,/g, ""));
-  if (Number.isFinite(numericComment) && Number.isFinite(profit ?? Number.NaN)) {
-    const roundedComment = Math.round(numericComment * 100) / 100;
-    const roundedProfit = Math.round(Number(profit) * 100) / 100;
-    if (roundedComment === roundedProfit) {
-      return null;
-    }
-  }
-
-  return normalizedComment;
-}
 
 function buildTradeExecutionDistribution(deals: DealRow[], reportTime: Date): TradeExecutionDistribution {
   const reportDate = getReportLocalDateKey(reportTime) ?? "0000-00-00";
@@ -619,7 +597,6 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
     positions,
     openPositions,
     latestSnapshotBalance,
-    latestSnapshotEquity,
     latestSnapshotMargin,
     reportTime,
   } = params;
@@ -705,7 +682,7 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
     : account.balance;
   const balanceCurve = timeframe === "1d"
     ? buildRealtime24HourBalanceCurve(deals, reportTime, endingBalance)
-    : buildBalanceCurve(sortedScopedDeals, openPositions);
+    : buildBalanceCurve(sortedScopedDeals);
   const periodGrowth = timeframe === "all" ? computeAllTimeGrowth(deals) : computeCompoundedGrowth(deals, since, null);
   const drawdown = computeBalanceDrawdown(drawdownDeals, since, null);
   const outcomeSummary = summarizeTrades(tradingDeals);

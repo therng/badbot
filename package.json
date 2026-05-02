@@ -6,7 +6,6 @@
     "dev": "next dev",
     "build": "next build",
     "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node20 --external:@prisma/client --outfile=dist/worker.js",
-    "parse:mt5-report": "node --import tsx scripts/parse-mt5-reports.ts",
     "start": "mkdir -p .next/standalone/.next/static .next/standalone/public && cp -R .next/static/. .next/standalone/.next/static/ && cp -R public/. .next/standalone/public/ && node .next/standalone/server.js",
     "lint": "eslint .",
     "worker": "npm run build:worker && node dist/worker.js",

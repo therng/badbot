@@ -22,7 +22,6 @@ import {
   TIMEFRAME_OPTIONS,
   drawdownTone,
   formatCurrency,
-  formatPercent,
   formatSignedCurrency,
 } from "@/components/trading-monitor/formatters";
 
@@ -153,8 +152,6 @@ export function PairBar({
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
-
-const EMPTY_TEXT_VALUES = new Set(["unknown", "n/a", "na", ""]);
 
 function stripTrailingZero(value: string) {
   return value.includes(".") ? value.replace(/\.0+(?=[A-Za-z%]|$)|(\.\d*?[1-9])0+(?=[A-Za-z%]|$)/g, "$1") : value;
@@ -1041,29 +1038,6 @@ export function MiniDrawdownChart({ points }: { points: ChartPoint[] }) {
         strokeLinejoin="round"
       />
     </svg>
-  );
-}
-
-export function SummaryChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="summary-chip">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-export function ToneNumber({
-  value,
-  digits = 0,
-}: {
-  value: number | null | undefined;
-  digits?: number;
-}) {
-  return (
-    <strong className={`tone-${drawdownTone(Math.abs(value ?? 0))}`}>
-      {digits > 0 ? formatPercent(value, digits) : formatSignedCurrency(value)}
-    </strong>
   );
 }
 

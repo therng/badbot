@@ -56,7 +56,6 @@ npm run db:clean                    # Local data cleanup
 - `accounts/[id]/positions/` — Closed positions list
 - `accounts/[id]/pips-summary/` — Pips performance summary
 - `health/` — Health check
-- `loading-insight/` — Startup data for loading screen
 
 All account-level endpoints support `?timeframe=1d|1w|1m|ytd|1y|all`.
 
@@ -106,7 +105,6 @@ Core tables:
 
 ## Dashboard Layout Model
 
-- **Desktop:** Overview + stacked account workspaces; analytics rail visible on wider screens
 - **Mobile landscape:** Two-zone layout; balance chart dominant; horizontal paging between accounts acceptable
 - **Mobile portrait:** Single-column stack; chart above secondary content; KPI chips immediately after chart
 
@@ -140,7 +138,7 @@ See `.env.example` for all variables. Key ones:
 
 - Before editing, check the worktree — this repo may have unrelated local changes in `apps/mobile/` or elsewhere. Do not revert unrelated changes.
 - Dashboard work starts in `src/components/trading-monitor/`, `src/app/globals.css`, and account API routes.
-- When modifying responsive behavior, verify desktop AND mobile landscape — not only portrait.
+- This app is optimized for mobile portrait ONLY.
 - Keep API and UI terminology aligned.
 - Update `AGENTS.md` when dashboard composition, responsive rules, KPI definitions, or API contracts materially change.
 - Test file locations: `src/lib/trading/position-metrics.test.ts`, `src/lib/parser/index.test.ts`, `src/components/trading-monitor/DashboardFormatters.test.ts`, `src/lib/time.test.ts`.

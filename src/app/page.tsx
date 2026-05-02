@@ -1,5 +1,7 @@
-import HomeExperience from "@/components/trading-monitor/HomeExperience";
+"use client";
+
+import DashboardClient from "@/components/trading-monitor/DashboardClient";
 
 export default function HomePage() {
-  return <HomeExperience />;
+  return <DashboardClient />;
 }

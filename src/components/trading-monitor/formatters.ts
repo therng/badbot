@@ -1,11 +1,8 @@
 "use client";
 
 import type {
-  GrowthResponse,
-  PositionsResponse,
   SerializedAccount,
   Timeframe,
-  WinDetailResponse,
 } from "@/lib/trading/types";
 
 const EMPTY_TEXT_VALUES = new Set(["unknown", "n/a", "na", "--"]);

@@ -809,7 +809,7 @@ export function buildSymbolTradePercent(deals: Array<{ symbol?: string | null; t
     .sort((a, b) => b.percent - a.percent || a.symbol.localeCompare(b.symbol));
 }
 
-export function buildBalanceCurve(deals: BalanceRow[], _openPositions: any[]) {
+export function buildBalanceCurve(deals: BalanceRow[]) {
   let lastKnownBalance: number | null = null;
   const points = [];
   for (const deal of sortDeals(deals)) {

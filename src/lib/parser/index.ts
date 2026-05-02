@@ -396,10 +396,6 @@ function findColumnIndex(headerMap: HeaderMap | null, keys: string[], occurrence
   return -1;
 }
 
-function indexOrFallback(index: number, fallback: number): number {
-  return index >= 0 ? index : fallback;
-}
-
 function getCell(cells: string[], index: number): string {
   return index >= 0 && index < cells.length ? cleanText(cells[index]) : "";
 }
