@@ -42,18 +42,9 @@ const combinedCorruptionSql = Prisma.sql`
   )
 `;
 
-async function main() {
-  console.log(`Scanning for corrupted closed Position rows${APPLY ? " (apply mode)" : " (dry run)" }...`);
-
-  const [zeroPriceCount, slTpCount, sampleRows] = await Promise.all([
-    prisma.position.count({
-      where: zeroPriceWhere,
-    }),
-    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS count
-      FROM "Position"
-      WHERE ${slTpCorruptionSql}
-    `),
+async function getZeroPriceMetrics() {
+  const [count, sampleRows] = await Promise.all([
+    prisma.position.count({ where: zeroPriceWhere }),
     prisma.position.findMany({
       where: zeroPriceWhere,
       take: Math.floor(PREVIEW_LIMIT / 2),
@@ -64,49 +55,56 @@ async function main() {
         reportDate: true,
         comment: true,
         tradingAccount: {
-          select: {
-            accountNo: true,
-          },
+          select: { accountNo: true },
         },
       },
     }),
   ]);
+  return { count, sampleRows };
+}
 
-  const slTpPreview = await prisma.$queryRaw<Array<{
-    id: string;
-    positionNo: string;
-    reportDate: Date;
-    comment: string | null;
-    accountNo: string;
-  }>>(Prisma.sql`
-    SELECT
-      p."id",
-      p."position_no" AS "positionNo",
-      p."report_date" AS "reportDate",
-      p."comment",
-      a."account_number" AS "accountNo"
-    FROM "Position" p
-    JOIN "Account" a ON a."id" = p."account_id"
-    WHERE ${slTpCorruptionSql}
-    ORDER BY p."report_date" DESC, p."position_no" ASC
-    LIMIT ${Math.ceil(PREVIEW_LIMIT / 2)}
-  `);
+async function getSlTpMetrics() {
+  const [countResult, previewRows] = await Promise.all([
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count
+      FROM "Position"
+      WHERE ${slTpCorruptionSql}
+    `),
+    prisma.$queryRaw<Array<{
+      id: string;
+      positionNo: string;
+      reportDate: Date;
+      comment: string | null;
+      accountNo: string;
+    }>>(Prisma.sql`
+      SELECT
+        p."id",
+        p."position_no" AS "positionNo",
+        p."report_date" AS "reportDate",
+        p."comment",
+        a."account_number" AS "accountNo"
+      FROM "Position" p
+      JOIN "Account" a ON a."id" = p."account_id"
+      WHERE ${slTpCorruptionSql}
+      ORDER BY p."report_date" DESC, p."position_no" ASC
+      LIMIT ${Math.ceil(PREVIEW_LIMIT / 2)}
+    `),
+  ]);
 
-  const total = zeroPriceCount + Number(slTpCount[0]?.count ?? 0n);
+  const count = Number(countResult[0]?.count ?? 0n);
+  return { count, previewRows };
+}
 
-  console.log(`Matched ${total} corrupted closed Position row(s).`);
-  console.log(`- zero-price signature: ${zeroPriceCount}`);
-  console.log(`- stop-loss/take-profit misaligned signature: ${Number(slTpCount[0]?.count ?? 0n)}`);
-
+function displayPreview(zeroMetrics: any, slTpMetrics: any) {
   const previewRows = [
-    ...sampleRows.map((row) => ({
+    ...zeroMetrics.sampleRows.map((row: any) => ({
       accountNo: row.tradingAccount.accountNo,
       comment: row.comment,
       id: row.id,
       positionNo: row.positionNo,
       reportDate: row.reportDate,
     })),
-    ...slTpPreview,
+    ...slTpMetrics.previewRows,
   ].slice(0, PREVIEW_LIMIT);
 
   if (previewRows.length > 0) {
@@ -117,26 +115,16 @@ async function main() {
       );
     }
   }
+}
 
-  if (!APPLY) {
-    console.log("Dry run complete. Re-run with --apply to delete these rows.");
-    return;
-  }
-
-  if (total === 0) {
-    console.log("Nothing to delete.");
-    return;
-  }
-
+async function performRemediation() {
   const deleted = await prisma.$executeRaw(Prisma.sql`
     DELETE FROM "Position"
     WHERE ${combinedCorruptionSql}
   `);
 
   const [remainingZeroPrice, remainingSlTp] = await Promise.all([
-    prisma.position.count({
-      where: zeroPriceWhere,
-    }),
+    prisma.position.count({ where: zeroPriceWhere }),
     prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
       SELECT COUNT(*)::bigint AS count
       FROM "Position"
@@ -150,6 +138,35 @@ async function main() {
   if (remaining > 0) {
     throw new Error(`Remediation incomplete: ${remaining} corrupted Position row(s) still remain.`);
   }
+}
+
+async function main() {
+  console.log(`Scanning for corrupted closed Position rows${APPLY ? " (apply mode)" : " (dry run)" }...`);
+
+  const [zeroMetrics, slTpMetrics] = await Promise.all([
+    getZeroPriceMetrics(),
+    getSlTpMetrics()
+  ]);
+
+  const total = zeroMetrics.count + slTpMetrics.count;
+
+  console.log(`Matched ${total} corrupted closed Position row(s).`);
+  console.log(`- zero-price signature: ${zeroMetrics.count}`);
+  console.log(`- stop-loss/take-profit misaligned signature: ${slTpMetrics.count}`);
+
+  displayPreview(zeroMetrics, slTpMetrics);
+
+  if (!APPLY) {
+    console.log("Dry run complete. Re-run with --apply to delete these rows.");
+    return;
+  }
+
+  if (total === 0) {
+    console.log("Nothing to delete.");
+    return;
+  }
+
+  await performRemediation();
 }
 
 void main()

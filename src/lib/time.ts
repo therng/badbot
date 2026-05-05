@@ -333,27 +333,20 @@ export function convertBangkokReportTimeToTableDate(value: Date | string | numbe
   return timestamp == null ? null : new Date(timestamp);
 }
 
-export function parseTableDate(value: string) {
-  const text = value.replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
-  if (!text) {
-    return new Date(Number.NaN);
-  }
-
+function extractDateMatch(text: string) {
   const ymdMatch = text.match(
     /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
   );
   if (ymdMatch) {
     const [, year, month, day, hh = "0", mm = "0", ss = "0"] = ymdMatch;
-    return new Date(
-      Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10),
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
-      ),
-    );
+    return {
+      year: Number.parseInt(year, 10),
+      month: Number.parseInt(month, 10),
+      day: Number.parseInt(day, 10),
+      hh: Number.parseInt(hh, 10),
+      mm: Number.parseInt(mm, 10),
+      ss: Number.parseInt(ss, 10)
+    };
   }
 
   const dmyMatch = text.match(
@@ -361,14 +354,35 @@ export function parseTableDate(value: string) {
   );
   if (dmyMatch) {
     const [, day, month, year, hh = "0", mm = "0", ss = "0"] = dmyMatch;
+    return {
+      year: Number.parseInt(year, 10),
+      month: Number.parseInt(month, 10),
+      day: Number.parseInt(day, 10),
+      hh: Number.parseInt(hh, 10),
+      mm: Number.parseInt(mm, 10),
+      ss: Number.parseInt(ss, 10)
+    };
+  }
+
+  return null;
+}
+
+export function parseTableDate(value: string) {
+  const text = value.replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
+  if (!text) {
+    return new Date(Number.NaN);
+  }
+
+  const match = extractDateMatch(text);
+  if (match) {
     return new Date(
       Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10),
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
+        match.year,
+        match.month - 1,
+        match.day,
+        match.hh,
+        match.mm,
+        match.ss,
       ),
     );
   }
@@ -387,36 +401,16 @@ export function parseBangkokDate(value: string) {
     return new Date(Number.NaN);
   }
 
-  const ymdMatch = text.match(
-    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (ymdMatch) {
-    const [, year, month, day, hh = "0", mm = "0", ss = "0"] = ymdMatch;
+  const match = extractDateMatch(text);
+  if (match) {
     return new Date(
       Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10) - BANGKOK_OFFSET_HOURS,
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
-      ),
-    );
-  }
-
-  const dmyMatch = text.match(
-    /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (dmyMatch) {
-    const [, day, month, year, hh = "0", mm = "0", ss = "0"] = dmyMatch;
-    return new Date(
-      Date.UTC(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10),
-        Number.parseInt(hh, 10) - BANGKOK_OFFSET_HOURS,
-        Number.parseInt(mm, 10),
-        Number.parseInt(ss, 10),
+        match.year,
+        match.month - 1,
+        match.day,
+        match.hh - BANGKOK_OFFSET_HOURS,
+        match.mm,
+        match.ss,
       ),
     );
   }

@@ -1,5 +1,6 @@
 "use client";
-import { memo } from "react";
+import { memo, useCallback, useState } from "react";
+import { KpiActionSheet, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
 
 /**
  * PerformanceQualityPanel
@@ -37,6 +38,7 @@ interface GaugeConfig {
   zones: Zone[];
   scaleMax: number;
   infinityZoneIndex?: number;
+  hint?: KpiHintContent;
 }
 
 // Benchmark thresholds tuned for retail FX accounts. These match the
@@ -109,7 +111,14 @@ interface GaugeProps {
 }
 
 function Gauge({ config }: GaugeProps) {
-  const { label, value, zones, scaleMax, infinityZoneIndex } = config;
+  const { label, value, zones, scaleMax, infinityZoneIndex, hint } = config;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const openSheet = useCallback(() => {
+    if (!hint) return;
+    try { navigator.vibrate?.(12); } catch { /* ignore */ }
+    setSheetOpen(true);
+  }, [hint]);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
   const isPositiveInfinity = value === Number.POSITIVE_INFINITY;
   const hasValue = typeof value === "number" && (Number.isFinite(value) || isPositiveInfinity);
   // Infinity maps to specified zone (e.g., good for profit factor, great for sharpe/recovery)
@@ -142,8 +151,14 @@ function Gauge({ config }: GaugeProps) {
   const showDim = hasValue && dimStartAngle > dimEndAngle;
 
   return (
-    <div className="perf-gauge">
-      <div className="perf-gauge__label">{label}</div>
+    <div
+      className={`perf-gauge${hint ? " perf-gauge--hintable" : ""}`}
+      onClick={hint ? openSheet : undefined}
+    >
+      <div className="perf-gauge__label">
+        {label}
+        {hint ? <span className="perf-gauge__hint-badge" aria-label="ดูคำอธิบาย">?</span> : null}
+      </div>
       <svg
         className="perf-gauge__svg"
         viewBox={`0 0 ${GAUGE_WIDTH} ${GAUGE_HEIGHT}`}
@@ -241,6 +256,15 @@ function Gauge({ config }: GaugeProps) {
       <div className="perf-gauge__tone" style={{ color: currentColor }}>
         {hasValue ? currentZone.label.toUpperCase() : "NO DATA"}
       </div>
+      {hint && sheetOpen ? (
+        <KpiActionSheet
+          hint={hint}
+          label={hint.title ?? label}
+          value={hasValue ? (isPositiveInfinity ? "∞" : safeValue.toFixed(2)) : "-"}
+          tone="neutral"
+          onClose={closeSheet}
+        />
+      ) : null}
     </div>
   );
 }
@@ -257,6 +281,11 @@ function PerformanceQualityPanelImpl({
       value: sharpeRatio,
       zones: SHARPE_ZONES,
       scaleMax: 4,
+      hint: {
+        title: "Sharpe Ratio",
+        definition: "วัดผลตอบแทนที่ได้รับเทียบกับความเสี่ยงที่ยอมรับ คำนวณจากกำไรเฉลี่ยหารด้วยส่วนเบี่ยงเบนมาตรฐานของผลตอบแทน ยิ่งสูงยิ่งหมายความว่าคุณรับความเสี่ยงน้อยแต่ได้ผลตอบแทนมาก",
+        purpose: "< 1 = ต่ำ · 1–2 = พอใช้ · 2–3 = ดี · > 3 = ยอดเยี่ยม",
+      },
     },
     {
       key: "pf",
@@ -265,6 +294,11 @@ function PerformanceQualityPanelImpl({
       zones: PROFIT_FACTOR_ZONES,
       scaleMax: 3,
       infinityZoneIndex: 2,
+      hint: {
+        title: "Profit Factor",
+        definition: "อัตราส่วนระหว่างกำไรรวมและขาดทุนรวมทุกออเดอร์ บอกว่าทุก 1 บาทที่ขาดทุน คุณได้กำไรกลับมากี่บาท ค่าต้องสูงกว่า 1.0 จึงจะทำกำไรสุทธิได้",
+        purpose: "< 1 = ขาดทุน · 1–1.5 = เสมอตัว · 1.5–2 = ดี · > 2 = แข็งแกร่ง",
+      },
     },
     {
       key: "recovery",
@@ -272,6 +306,11 @@ function PerformanceQualityPanelImpl({
       value: recoveryFactor,
       zones: RECOVERY_ZONES,
       scaleMax: 6,
+      hint: {
+        title: "Recovery Factor",
+        definition: "วัดความสามารถในการฟื้นตัวจากการขาดทุนสูงสุด คำนวณจากกำไรสุทธิหารด้วย Maximum Drawdown ค่าสูงแสดงว่าระบบสร้างกำไรได้มากเมื่อเทียบกับช่วงที่ขาดทุนหนักที่สุด",
+        purpose: "< 1 = อ่อนแอ · 1–2 = พอใช้ · 2–4 = ดี · > 4 = แข็งแกร่ง",
+      },
     },
   ];
 

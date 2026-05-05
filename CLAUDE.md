@@ -45,7 +45,6 @@ npm run db:clean                    # Local data cleanup
 - `src/worker/` — Background FTP import and recompute worker
 - `prisma/` — Schema and migrations
 - `scripts/` — Operational scripts (cleanup, backfill, parse)
-- `apps/mobile/` — Legacy/mobile experiments; not part of the main web build
 
 **API routes (`src/app/api/`):**
 - `accounts/` — List all accounts
@@ -136,7 +135,7 @@ See `.env.example` for all variables. Key ones:
 
 ## Agent Workflow Notes
 
-- Before editing, check the worktree — this repo may have unrelated local changes in `apps/mobile/` or elsewhere. Do not revert unrelated changes.
+- Before editing, check the worktree — this repo may have unrelated local experiments or experiments.
 - Dashboard work starts in `src/components/trading-monitor/`, `src/app/globals.css`, and account API routes.
 - This app is optimized for mobile portrait ONLY.
 - Keep API and UI terminology aligned.

@@ -19,7 +19,7 @@ function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
 }
 
 // ── Mobile Action Sheet ───────────────────────────────────────
-function KpiActionSheet({
+export function KpiActionSheet({
   hint,
   label,
   onClose,
@@ -40,7 +40,6 @@ function KpiActionSheet({
     velocity: 0,
   });
   const content = normalizeKpiHint(hint);
-  const bodyText = [content.definition, content.purpose].filter(Boolean).join(" ");
 
   const setDragOffset = useCallback((delta: number) => {
     if (sheetRef.current) {
@@ -165,7 +164,10 @@ function KpiActionSheet({
           <span className="kpi-sheet__metric-label">{content.title ?? label}</span>
         </div>
         <div className="kpi-sheet__divider" />
-        <p className="kpi-sheet__body">{bodyText}</p>
+        <div className="kpi-sheet__body">
+          <p className="kpi-sheet__body-definition">{content.definition}</p>
+          {content.purpose ? <p className="kpi-sheet__body-purpose">{content.purpose}</p> : null}
+        </div>
       </div>
     </div>,
     document.body,
@@ -173,7 +175,7 @@ function KpiActionSheet({
 }
 
 // ── Hook ──────────────────────────────────────────────────────
-function useKpiHint(hasHint: boolean) {
+export function useKpiHint(hasHint: boolean) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const chipRef = useRef<HTMLElement | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>();

@@ -13,7 +13,6 @@
 - `scripts/`: operational scripts such as cleanup, backfills, and report parsing.
 - `public/`: static assets.
 - `Docs/`: supporting notes and examples.
-- `apps/mobile/`: legacy/mobile experiments; not part of the main web build.
 
 ## Core Commands
 - `npm run dev`: run the dashboard locally.
@@ -63,7 +62,6 @@
 
 ## Agent Workflow Notes
 - Check the worktree before editing. This repo may contain unrelated local deletions or experiments.
-- Do not revert unrelated changes in `apps/mobile/` or other in-progress areas unless explicitly asked.
 - If the task is dashboard-facing, start with `src/components/trading-monitor/`, `src/app/globals.css`, and the account API routes.
 - When modifying responsive dashboard behavior, verify both mobile portrait assumptions, not only portrait.
 - Keep API and UI terminology aligned: account list comes from `/api/accounts`; account-level overview comes from `/api/accounts/[id]?timeframe=...`.
@@ -110,6 +108,7 @@ Avoid reverting to a generic card mosaic layout.
 - Primary chart and KPI content should fit without sideways panning.
 - Horizontal scroll is acceptable for secondary tables or timeframe controls.
 - Orientation changes must not reshuffle account ordering.
+- **iOS Optimization**: The layout is optimized for iOS Safari using `dvh` units and `viewport-fit=cover`. The main scrolling area provides a native, full-bleed experience. In standalone PWA mode, top safe-area insets are applied to prevent content from overlapping with the system status bar, while regular browser view remains full-bleed.
 
 ## Account and Metric Rules
 
@@ -185,10 +184,11 @@ For open positions summaries:
 - Pull-to-refresh should show visible progress and only trigger from the top of the scroll container.
 
 ## Visual Direction
-- The main shell uses a dark command-surface aesthetic.
-- Account cards may use a lighter “paper” treatment when that supports readability and hierarchy.
-- Use strong typographic hierarchy.
-- Use monospace sparingly for labels, chips, and numerical utility text.
+- The main shell uses a **Pure Black Terminal** aesthetic optimized for modern OLED screens (specifically targeting iOS).
+- Avoid legacy retro styles like scanlines or heavy borders.
+- The layout is intentionally designed to be full-bleed, disregarding traditional safe-area padding for scrolling content in browser view, while applying top safe-area padding specifically in standalone PWA mode to prevent status bar overlap.
+- Account cards use subtle contrast against the true black background to maintain readability and hierarchy without breaking the dark mode immersion.
+- Use strong typographic hierarchy, defaulting to iOS system fonts (`-apple-system`, `BlinkMacSystemFont`) for the base UI to feel native, while retaining monospace for numerical utility text.
 - Positive, negative, warning, and neutral tones should stay semantically consistent.
 
 Avoid:
@@ -196,6 +196,7 @@ Avoid:
 - decorative gradients that overpower routine data
 - excessive borders around minor elements
 - marketing-style copy inside operational panels
+- legacy mobile fallbacks (`vh` units or manual iOS height calculation scripts)
 
 ## When Updating This File
 Update `AGENTS.md` when any of the following materially change:

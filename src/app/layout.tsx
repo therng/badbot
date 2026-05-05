@@ -1,15 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
+import { azeretMono, manrope, sarabun } from "@/lib/fonts";
+import { Providers } from "@/components/providers";
 
 import "@/app/globals.css";
-
-const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
-const shouldLoadGtm = Boolean(gtmId && gtmId !== "GTM-XXXXXXX");
 
 export const metadata: Metadata = {
   title: "Analytic",
   description: "Dark-themed MT5 multi-account analytics with trading-only growth and balance-operation-aware performance.",
-  manifest: "/site.webmanifest",
+  manifest: "/manifest",
   applicationName: "Analytic",
   appleWebApp: {
     capable: true,
@@ -28,6 +26,17 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  // Basic OpenGraph fallback (Update URL when deploying)
+  openGraph: {
+    title: "Analytic",
+    description: "Dark-themed MT5 multi-account analytics with trading-only growth and balance-operation-aware performance.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Analytic",
+    description: "Dark-themed MT5 multi-account analytics with trading-only growth and balance-operation-aware performance.",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,105 +44,18 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Manrope:wght@500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                var root = document.documentElement;
-                var frame = 0;
-
-                function syncViewportHeight() {
-                  frame = 0;
-                  if (!window.innerHeight) return;
-                  root.style.setProperty("--viewport-height", window.innerHeight + "px");
-                }
-
-                function queueSync() {
-                  if (frame) window.cancelAnimationFrame(frame);
-                  frame = window.requestAnimationFrame(syncViewportHeight);
-                }
-
-                syncViewportHeight();
-                // iOS Safari doesn't report correct innerHeight on first load;
-                // re-measure at multiple intervals to catch when layout settles
-                window.requestAnimationFrame(queueSync);
-                setTimeout(syncViewportHeight, 120);
-                setTimeout(syncViewportHeight, 500);
-                window.addEventListener("resize", queueSync, { passive: true });
-                window.addEventListener("orientationchange", queueSync, { passive: true });
-                window.addEventListener("pageshow", queueSync, { passive: true });
-                document.addEventListener("visibilitychange", function() {
-                  if (!document.hidden) queueSync();
-                });
-
-                if (window.visualViewport) {
-                  window.visualViewport.addEventListener("resize", queueSync, { passive: true });
-                }
-              })();
-            `,
-          }}
-        />
-        {shouldLoadGtm ? (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('consent', 'default', {
-                  'analytics_storage': 'denied',
-                  'ad_storage': 'denied',
-                  'ad_user_data': 'denied',
-                  'ad_personalization': 'denied',
-                  'wait_for_update': 500
-                });
-                gtag('set', 'ads_data_redaction', true);
-              `,
-            }}
-          />
-        ) : null}
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Analytic" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-touch-fullscreen" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="msapplication-TileColor" content="#000000" />
-      </head>
-      <body>
-        {shouldLoadGtm ? (
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
-              height="0"
-              width="0"
-              style={{ display: "none", visibility: "hidden" }}
-            />
-          </noscript>
-        ) : null}
-        {children}
-        {shouldLoadGtm ? (
-          <Script id="gtm-loader" strategy="afterInteractive">
-            {`
-              (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${gtmId}');
-            `}
-          </Script>
-        ) : null}
+    <html lang="en" suppressHydrationWarning className={`${azeretMono.variable} ${manrope.variable} ${sarabun.variable}`}>
+      <body className="antialiased text-slate-200 min-h-screen flex flex-col selection:bg-blue-500/30">
+        <Providers>
+          <main id="main-content" className="flex-1 flex flex-col relative w-full">
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
   );
