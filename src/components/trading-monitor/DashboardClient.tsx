@@ -46,6 +46,7 @@ import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPane
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { PerformanceQualityPanel } from "@/components/trading-monitor/PerformanceQualityPanel";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
+import { CandleAnimation } from "@/components/trading-monitor/LoadingScreen";
 
 const PULL_THRESHOLD = 72;
 const MAX_PULL_DISTANCE = 116;
@@ -937,7 +938,10 @@ export default function DashboardClient() {
   }, [hasSeenRefreshRequest, isRefreshing, pendingRefreshRequests]);
 
   const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
-    if (refreshingRef.current || (scrollRef.current?.scrollTop ?? 0) > 0) {
+    // Determine the scroll position. When using document-level scrolling, window.scrollY is appropriate.
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    
+    if (refreshingRef.current || scrollY > 0) {
       pullStartYRef.current = null;
       pullStartXRef.current = null;
       pullActiveRef.current = false;
@@ -958,7 +962,7 @@ export default function DashboardClient() {
     const startX = pullStartXRef.current;
     const currentY = event.touches[0]?.clientY;
     const currentX = event.touches[0]?.clientX;
-    const scrollTop = scrollRef.current?.scrollTop ?? 0;
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
 
     if (startY == null || startX == null || currentY == null || currentX == null) {
       return;
@@ -974,7 +978,7 @@ export default function DashboardClient() {
       return;
     }
 
-    if (delta <= 0 || scrollTop > 0) {
+    if (delta <= 0 || scrollY > 0) {
       if (!pullActiveRef.current) {
         return;
       }
@@ -1016,11 +1020,10 @@ export default function DashboardClient() {
   return (
     <main className="monitor-page">
       <TradingMonitorSharedStyles />
-      <div className="monitor-shell app-shell">
-        <div
-          className={isRefreshing || pullDistance > 0 ? "pull-refresh is-visible" : "pull-refresh"}
-          aria-hidden="true"
-        >
+      <div
+        className={isRefreshing || pullDistance > 0 ? "pull-refresh is-visible" : "pull-refresh"}
+        aria-hidden="true"
+      >
           <div className={isRefreshing ? "pull-refresh__badge is-refreshing" : "pull-refresh__badge"}>
             <svg className="pull-refresh__spinner" viewBox="0 0 24 24" focusable="false">
               <circle className="pull-refresh__track" cx="12" cy="12" r="10" />
@@ -1049,7 +1052,7 @@ export default function DashboardClient() {
           <section className="dashboard-section" aria-label="Trading accounts">
             {accounts.loading && !accounts.data && !accounts.error ? (
               <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
-            ) : !accounts.error && accounts.data?.length ? (
+            ) : accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
                   key={account.id}
@@ -1059,20 +1062,17 @@ export default function DashboardClient() {
                   onRequestStateChange={handleRequestStateChange}
                 />
               ))
-            ) : !accounts.error ? (
-              <InlineState tone="empty" title="No account" message="No account data is available." />
             ) : null}
           </section>
         </div>
-        {accounts.error ? (
-          <div className="error-retry-wrap">
-            <InlineState tone="error" title="Sync Failed" message={accounts.error} />
-            <button type="button" className="tf-pill-button" onClick={retryAccountsRequest}>
-              Retry Sync
-            </button>
-          </div>
+        {!accounts.loading && (!accounts.data?.length || accounts.error) ? (
+          <CandleAnimation
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+          />
         ) : null}
-      </div>
     </main>
   );
 }
