@@ -1,0 +1,232 @@
+"use client";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { getBangkokDateKey } from "@/lib/time";
+import type { PositionsResponse } from "@/lib/trading/types";
+
+interface Props {
+  positions: PositionsResponse["historyPositions"] | null | undefined;
+  loading?: boolean;
+  error?: string | null;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_LABELS = ["M", "", "W", "", "F", "", "S"];
+
+function getCurrentBangkokYear(): number {
+  const key = getBangkokDateKey(new Date());
+  return key ? parseInt(key.slice(0, 4)) : new Date().getFullYear();
+}
+
+function buildDailyMap(
+  positions: PositionsResponse["historyPositions"],
+  year: number,
+): Map<string, { pnl: number; count: number }> {
+  const map = new Map<string, { pnl: number; count: number }>();
+  const prefix = `${year}-`;
+  for (const pos of positions) {
+    if (!pos.closedAt) continue;
+    const key = getBangkokDateKey(pos.closedAt);
+    if (!key || !key.startsWith(prefix)) continue;
+    const netPnl = pos.profit + (pos.swap ?? 0) + (pos.commission ?? 0);
+    const existing = map.get(key);
+    if (existing) {
+      existing.pnl += netPnl;
+      existing.count += 1;
+    } else {
+      map.set(key, { pnl: netPnl, count: 1 });
+    }
+  }
+  return map;
+}
+
+type WeekColumn = {
+  monthLabel?: string;
+  days: Array<{ dateKey: string | null }>;
+};
+
+function buildWeekGrid(year: number): WeekColumn[] {
+  // Treat "YYYY-01-01T00:00:00Z" as Bangkok Jan 1 date components
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const jan1DayUTC = jan1.getUTCDay(); // 0=Sun … 6=Sat
+  const jan1MonDay = jan1DayUTC === 0 ? 6 : jan1DayUTC - 1; // Mon=0 … Sun=6
+
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const totalDays = isLeap ? 366 : 365;
+  const totalWeeks = Math.ceil((jan1MonDay + totalDays) / 7);
+
+  const weeks: WeekColumn[] = [];
+
+  for (let w = 0; w < totalWeeks; w++) {
+    const days: WeekColumn["days"] = [];
+    let monthLabel: string | undefined;
+
+    for (let d = 0; d < 7; d++) {
+      const dayOffset = w * 7 + d - jan1MonDay;
+      if (dayOffset < 0 || dayOffset >= totalDays) {
+        days.push({ dateKey: null });
+        continue;
+      }
+      const date = new Date(Date.UTC(year, 0, 1 + dayOffset));
+      const m = date.getUTCMonth() + 1;
+      const dd = date.getUTCDate();
+      const dateKey = `${year}-${String(m).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+      days.push({ dateKey });
+      if (dd === 1 && monthLabel === undefined) {
+        monthLabel = MONTHS[m - 1];
+      }
+    }
+
+    weeks.push({ days, monthLabel });
+  }
+
+  return weeks;
+}
+
+function getIntensityClass(pnl: number): string {
+  if (pnl === 0) return "";
+  const abs = Math.abs(pnl);
+  // Levels by order of magnitude: <10 → 1 (units), 10–99 → 2 (tens),
+  // 100–999 → 3 (hundreds), 1000–9999 → 4 (thousands), ≥10000 → 5 (ten-thousands+).
+  const level = abs < 10 ? 1 : abs < 100 ? 2 : abs < 1000 ? 3 : abs < 10000 ? 4 : 5;
+  return pnl > 0 ? `heatmap-cell--pos-${level}` : `heatmap-cell--neg-${level}`;
+}
+
+export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
+  const currentYear = useMemo(() => getCurrentBangkokYear(), []);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
+
+  const availableYears = useMemo(() => {
+    if (!positions?.length) return [currentYear];
+    const years = new Set<number>([currentYear]);
+    for (const pos of positions) {
+      if (!pos.closedAt) continue;
+      const key = getBangkokDateKey(pos.closedAt);
+      if (key) years.add(parseInt(key.slice(0, 4)));
+    }
+    return Array.from(years).sort((a, b) => a - b);
+  }, [positions, currentYear]);
+
+  const dailyMap = useMemo(() => {
+    if (!positions) return new Map<string, { pnl: number; count: number }>();
+    return buildDailyMap(positions, selectedYear);
+  }, [positions, selectedYear]);
+
+  const weekGrid = useMemo(() => buildWeekGrid(selectedYear), [selectedYear]);
+
+  const prevYear = [...availableYears].reverse().find((y) => y < selectedYear);
+  const nextYear = availableYears.find((y) => y > selectedYear);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current && !loading) {
+      const currentKey = getBangkokDateKey(new Date());
+      let weekIndex = -1;
+      if (currentKey) {
+        weekIndex = weekGrid.findIndex((w) => w.days.some((d) => d.dateKey === currentKey));
+      }
+
+      if (weekIndex !== -1) {
+        // Grid columns are 11px wide with 2px gap (auto-columns: 11px, gap: 2px)
+        const columnWidth = 11 + 2;
+        const scrollWidth = scrollRef.current.clientWidth;
+        const targetScroll = weekIndex * columnWidth - scrollWidth / 2 + 5.5; // 5.5 is half of column width
+        scrollRef.current.scrollLeft = Math.max(0, targetScroll);
+      } else {
+        // Fallback for previous years or if today isn't found
+        scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+      }
+    }
+  }, [selectedYear, loading, weekGrid]);
+
+
+  if (error) return null;
+
+  const activeData = activeDateKey ? dailyMap.get(activeDateKey) : null;
+
+  return (
+    <div className="profit-heatmap-panel" aria-label="Yearly profit heatmap" onClick={() => setActiveDateKey(null)}>
+      <div className="heatmap-header">
+        <button
+          className="heatmap-year-btn"
+          disabled={!prevYear}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (prevYear !== undefined) { setSelectedYear(prevYear); setActiveDateKey(null); }
+          }}
+          aria-label="Previous year"
+        >
+          ‹
+        </button>
+        <span className="heatmap-year-label">{selectedYear}</span>
+        <button
+          className="heatmap-year-btn"
+          disabled={!nextYear}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (nextYear !== undefined) { setSelectedYear(nextYear); setActiveDateKey(null); }
+          }}
+          aria-label="Next year"
+        >
+          ›
+        </button>
+
+        {activeDateKey && (
+          <div className="sparkline-tooltip sparkline-tooltip--inset" style={{ position: 'absolute', top: '4px', right: '0', pointerEvents: 'none' }}>
+            <span>{activeDateKey}</span>
+            <strong>{activeData ? (activeData.pnl >= 0 ? "+" : "") + activeData.pnl.toFixed(2) : "0.00"}</strong>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="heatmap-skeleton" aria-hidden="true" />
+      ) : (
+        <div className="heatmap-body">
+          <div className="heatmap-day-labels" aria-hidden="true">
+            {DAY_LABELS.map((label, i) => (
+              <span key={i} className="heatmap-day-label">
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className="heatmap-scroll" ref={scrollRef}>
+            <div className="heatmap-months" aria-hidden="true">
+              {weekGrid.map((week, wi) => (
+                <span key={wi} className="heatmap-month-cell">
+                  {week.monthLabel ?? ""}
+                </span>
+              ))}
+            </div>
+            <div className="heatmap-grid">
+              {weekGrid.flatMap((week, wi) =>
+                week.days.map((day, di) => {
+                  if (!day.dateKey) {
+                    return <div key={`${wi}-${di}`} className="heatmap-cell heatmap-cell--empty" />;
+                  }
+                  const data = dailyMap.get(day.dateKey);
+                  const intensityClass = data ? getIntensityClass(data.pnl) : "";
+                  const tooltipText = data
+                    ? `${day.dateKey}  ${data.pnl >= 0 ? "+" : ""}${data.pnl.toFixed(2)}  (${data.count} trade${data.count !== 1 ? "s" : ""})`
+                    : day.dateKey;
+                  const isActive = activeDateKey === day.dateKey;
+                  return (
+                    <div
+                      key={`${wi}-${di}`}
+                      className={`heatmap-cell${intensityClass ? ` ${intensityClass}` : ""}${isActive ? " is-active" : ""}`}
+                      title={tooltipText ?? undefined}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDateKey(isActive ? null : day.dateKey);
+                      }}
+                    />
+                  );
+                }),
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

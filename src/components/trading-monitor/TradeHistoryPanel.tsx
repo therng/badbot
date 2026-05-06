@@ -80,7 +80,7 @@ export function TradeHistoryPanel({
                   </div>
                   <div className="trade-history-row__detail">
                     <span className="trade-history-row__label">S/L</span>
-                    <span className="trade-history-row__val trade-history-row__val--white">{formatTradePrice(position.sl)}</span>
+                    <span className={`trade-history-row__val ${position.slHit ? "trade-history-row__val--sl-hit" : "trade-history-row__val--white"}`}>{formatTradePrice(position.sl)}</span>
                   </div>
                   <div className="trade-history-row__detail">
                     <span className="trade-history-row__label">Swap</span>
@@ -88,12 +88,18 @@ export function TradeHistoryPanel({
                   </div>
                   <div className="trade-history-row__detail">
                     <span className="trade-history-row__label">T/P</span>
-                    <span className="trade-history-row__val trade-history-row__val--white">{formatTradePrice(position.tp)}</span>
+                    <span className={`trade-history-row__val ${position.tpHit ? "trade-history-row__val--tp-hit" : "trade-history-row__val--white"}`}>{formatTradePrice(position.tp)}</span>
                   </div>
                   <div className="trade-history-row__detail">
                     <span className="trade-history-row__label">Charges</span>
                     <span className="trade-history-row__val trade-history-row__val--white">{formatSignedPlainAmountKpiValue(position.commission, 1)}</span>
                   </div>
+                  {position.comment ? (
+                    <div className="trade-history-row__detail trade-history-row__detail--full trade-history-row__detail--comment">
+                      <span className="trade-history-row__label">Comment</span>
+                      <span className="trade-history-row__val trade-history-row__val--comment">{position.comment}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

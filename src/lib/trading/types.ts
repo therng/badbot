@@ -1,4 +1,4 @@
-export type Timeframe = "1d" | "1w" | "1m" | "ytd" | "1y" | "all";
+export type Timeframe = "1d" | "1w" | "1m" | "6m" | "1y" | "all";
 
 export interface SerializedAccount {
   id: string;
@@ -225,6 +225,9 @@ export interface PositionsResponse {
     swap: number | null;
     commission: number | null;
     pips: number | null;
+    comment: string | null;
+    slHit?: boolean;
+    tpHit?: boolean;
   }>;
   recentDeals: Array<{
     dealId: string;

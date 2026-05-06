@@ -35,6 +35,7 @@ import {
 } from "@/components/trading-monitor/shared";
 import {
   ExpandableKpiKey,
+  formatCompactPercent,
   formatPlainNumberValue,
   formatPlainPercent,
   formatSignedPlainNumberValue,
@@ -45,6 +46,7 @@ import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPa
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { PerformanceQualityPanel } from "@/components/trading-monitor/PerformanceQualityPanel";
+import { ProfitHeatmapPanel } from "@/components/trading-monitor/ProfitHeatmapPanel";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
 import { CandleAnimation } from "@/components/trading-monitor/LoadingScreen";
 
@@ -160,6 +162,10 @@ const DashboardCard = memo(function DashboardCard({
     },
   );
   const positionsDetail = useApiResource<PositionsResponse>(`/api/accounts/${account.id}/positions?timeframe=${timeframe}`, {
+    refreshKey,
+    onRequestStateChange,
+  });
+  const heatmapPositions = useApiResource<PositionsResponse>(`/api/accounts/${account.id}/positions?timeframe=all`, {
     refreshKey,
     onRequestStateChange,
   });
@@ -454,7 +460,7 @@ const DashboardCard = memo(function DashboardCard({
         },
         {
           label: "Level",
-          value: formatPlainPercent(currentMarginLevel, 1),
+          value: formatCompactPercent(currentMarginLevel, 1),
           tone: marginLevelTone(currentMarginLevel),
           fullValue: formatPlainPercent(currentMarginLevel, 1),
           hint: {
@@ -498,12 +504,15 @@ const DashboardCard = memo(function DashboardCard({
               recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
             />
           )}
+          <div className="tf-row">
+            <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
+          </div>
         </div>
       );
       break;
     case "pips":
       compactKpiPanel = (
-        <div className="sp-overlay-panel" role="region" aria-label="Pips performance">
+        <div className="sp-overlay-panel sp-overlay-panel--pips" role="region" aria-label="Pips performance">
           {pipsSummary.error ? (
             <InlineState tone="error" title="Pips data unavailable" message={pipsSummary.error} />
           ) : pipsSummary.loading && !pipsSummary.data ? (
@@ -511,6 +520,11 @@ const DashboardCard = memo(function DashboardCard({
           ) : (
             <PipsPerformanceTable rows={pipsSummary.data?.rows ?? []} />
           )}
+          <ProfitHeatmapPanel
+            positions={heatmapPositions.data?.historyPositions}
+            loading={heatmapPositions.loading && !heatmapPositions.data}
+            error={heatmapPositions.error}
+          />
         </div>
       );
       break;
@@ -576,7 +590,7 @@ const DashboardCard = memo(function DashboardCard({
           </div>
         </div>
 
-        <div className="sp-canvas-stack">
+        <div className={`sp-canvas-stack${expandedKpi === "pips" ? " sp-canvas-stack--pips" : ""}`}>
           {overview.error ? (
             <InlineState tone="error" title="Card unavailable" message={overview.error ?? "Failed to load dashboard card."} />
           ) : overview.loading && !overview.data ? (
@@ -1050,9 +1064,7 @@ export default function DashboardClient() {
           style={scrollStyle}
         >
           <section className="dashboard-section" aria-label="Trading accounts">
-            {accounts.loading && !accounts.data && !accounts.error ? (
-              <InlineState tone="info" title="Loading accounts" message="Fetching latest account data." />
-            ) : accounts.data?.length ? (
+            {accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
                   key={account.id}
@@ -1065,7 +1077,7 @@ export default function DashboardClient() {
             ) : null}
           </section>
         </div>
-        {!accounts.loading && (!accounts.data?.length || accounts.error) ? (
+        {(accounts.loading && !accounts.data && !accounts.error) || (!accounts.loading && (!accounts.data?.length || accounts.error)) ? (
           <CandleAnimation
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}

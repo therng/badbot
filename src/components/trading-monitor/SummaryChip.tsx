@@ -18,155 +18,80 @@ function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
   return hint;
 }
 
-// ── Mobile Action Sheet ───────────────────────────────────────
-export function KpiActionSheet({
+// ── KPI Preview Card ──────────────────────────────────────────
+export function KpiPreviewCard({
   hint,
   label,
   onClose,
+  triggerRef,
 }: {
   hint: string | KpiHintContent;
   label: string;
-  value: string;
-  tone: MetricTone;
+  value?: string;
+  tone?: MetricTone;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement | null>;
 }) {
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef({
-    pointerId: null as number | null,
-    startY: 0,
-    lastY: 0,
-    lastTime: 0,
-    velocity: 0,
-  });
+  const [isClosing, setIsClosing] = useState(false);
+  const [origin, setOrigin] = useState({ tx: 0, ty: 0 });
+  const cardRef = useRef<HTMLDivElement>(null);
   const content = normalizeKpiHint(hint);
 
-  const setDragOffset = useCallback((delta: number) => {
-    if (sheetRef.current) {
-      sheetRef.current.style.transform = `translateY(${delta}px)`;
+  useEffect(() => {
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const wx = window.innerWidth / 2;
+      const wy = window.innerHeight / 2;
+      setOrigin({ tx: cx - wx, ty: cy - wy });
     }
+  }, [triggerRef]);
 
-    if (backdropRef.current) {
-      backdropRef.current.style.opacity = String(Math.max(0.24, 1 - delta / 360));
+  useEffect(() => {
+    if (!isClosing) {
+      cardRef.current?.focus();
     }
-  }, []);
+  }, [isClosing]);
 
-  const animateClosed = useCallback(() => {
-    if (sheetRef.current) {
-      sheetRef.current.style.transition = "transform 260ms cubic-bezier(0.4,0,1,1)";
-      sheetRef.current.style.transform = "translateY(110%)";
-    }
-
-    if (backdropRef.current) {
-      backdropRef.current.style.transition = "opacity 220ms ease";
-      backdropRef.current.style.opacity = "0";
-    }
-
-    window.setTimeout(onClose, 260);
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(onClose, 260); // match CSS animation duration
   }, [onClose]);
 
-  const animateOpen = useCallback(() => {
-    if (sheetRef.current) {
-      sheetRef.current.style.transition = "transform 420ms cubic-bezier(0.16,1,0.3,1)";
-      sheetRef.current.style.transform = "translateY(0)";
-    }
-
-    if (backdropRef.current) {
-      backdropRef.current.style.transition = "opacity 320ms ease";
-      backdropRef.current.style.opacity = "1";
-    }
-  }, []);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!e.isPrimary) return;
-
-    dragRef.current = {
-      pointerId: e.pointerId,
-      startY: e.clientY,
-      lastY: e.clientY,
-      lastTime: performance.now(),
-      velocity: 0,
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
     };
-
-    e.currentTarget.setPointerCapture(e.pointerId);
-    e.stopPropagation();
-
-    if (sheetRef.current) {
-      sheetRef.current.style.animation = "none";
-      sheetRef.current.style.transition = "none";
-    }
-
-    if (backdropRef.current) {
-      backdropRef.current.style.animation = "none";
-      backdropRef.current.style.transition = "none";
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.pointerId !== e.pointerId) return;
-
-    const now = performance.now();
-    const dt = Math.max(1, now - dragRef.current.lastTime);
-    const rawDelta = e.clientY - dragRef.current.startY;
-    const delta = rawDelta < 0 ? rawDelta * 0.18 : rawDelta;
-
-    dragRef.current.velocity = (e.clientY - dragRef.current.lastY) / dt;
-    dragRef.current.lastY = e.clientY;
-    dragRef.current.lastTime = now;
-
-    setDragOffset(delta);
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const finishDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.pointerId !== e.pointerId) return;
-
-    const delta = Math.max(0, e.clientY - dragRef.current.startY);
-    const closeThreshold = Math.min(128, Math.max(72, (sheetRef.current?.offsetHeight ?? 320) * 0.28));
-    const shouldClose = delta > closeThreshold || dragRef.current.velocity > 0.7;
-
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-
-    dragRef.current.pointerId = null;
-    e.stopPropagation();
-
-    if (shouldClose) {
-      animateClosed();
-      return;
-    }
-
-    animateOpen();
-  };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleClose]);
 
   return createPortal(
     <div
-      ref={backdropRef}
-      className="kpi-sheet-backdrop"
-      onClick={onClose}
+      className={`kpi-card-backdrop ${isClosing ? "is-closing" : ""}`}
+      onClick={handleClose}
       aria-modal="true"
       role="dialog"
       aria-label={`${label} — คำอธิบาย`}
     >
       <div
-        ref={sheetRef}
-        className="kpi-sheet"
+        ref={cardRef}
+        className={`kpi-card ${isClosing ? "is-closing" : ""}`}
         onClick={(e) => e.stopPropagation()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
+        tabIndex={-1}
+        style={{
+          "--origin-x": `${origin.tx}px`,
+          "--origin-y": `${origin.ty}px`,
+        } as React.CSSProperties}
       >
-        <div className="kpi-sheet__handle" aria-hidden />
-        <div className="kpi-sheet__head">
-          <span className="kpi-sheet__metric-label">{content.title ?? label}</span>
+        <div className="kpi-card__head">
+          <span className="kpi-card__metric-label">{content.title ?? label}</span>
         </div>
-        <div className="kpi-sheet__divider" />
-        <div className="kpi-sheet__body">
-          <p className="kpi-sheet__body-definition">{content.definition}</p>
-          {content.purpose ? <p className="kpi-sheet__body-purpose">{content.purpose}</p> : null}
+        <div className="kpi-card__divider" />
+        <div className="kpi-card__body">
+          <p className="kpi-card__body-definition">{content.definition}</p>
+          {content.purpose ? <p className="kpi-card__body-purpose">{content.purpose}</p> : null}
         </div>
       </div>
     </div>,
@@ -301,14 +226,15 @@ export function SummaryChip({
       <strong className={`kv tone-${tone}`}>{value}</strong>
       {meta ? <span className="kchip__meta">{meta}</span> : null}
 
-      {/* Mobile action sheet (tap) */}
+      {/* Preview Card (tap/long-press) */}
       {hint && sheetOpen ? (
-        <KpiActionSheet
+        <KpiPreviewCard
           hint={hint}
           label={label}
           value={value}
           tone={tone}
           onClose={closeSheet}
+          triggerRef={chipRef}
         />
       ) : null}
     </>

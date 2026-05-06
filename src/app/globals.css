@@ -56,6 +56,7 @@
   --font-body:    var(--font-manrope, "Manrope"), "Sarabun", "Segoe UI", sans-serif;
   --font-mono:    var(--font-azeret-mono, "Azeret Mono"), "Sarabun", "SFMono-Regular", monospace;
   --font-thai:    var(--font-sarabun, "Sarabun"), sans-serif;
+  --font-thai-display: var(--font-mitr, "Mitr"), "Sarabun", sans-serif;
 
   /* ── Radii ── */
   --r-xs:  4px;
@@ -122,7 +123,9 @@ body {
   z-index: 1;
 }
 
-.dashboard-scroll { width: 100%; }
+.dashboard-scroll { width: 100%;
+  scrollbar-width: none;
+}
 .dashboard-section {
   display: grid;
   gap: 14px;
@@ -331,6 +334,11 @@ body {
   position: relative;
 }
 
+/* Pips panel — taller canvas so overlay fits table + heatmap */
+.dashboard-section > .account-card .sp-canvas-stack--pips {
+  min-height: 280px;
+}
+
 .dashboard-section > .account-card .sp-overlay-panel {
   position: absolute;
   inset: 0;
@@ -342,6 +350,7 @@ body {
   overflow: auto;
   backdrop-filter: blur(8px);
 }
+
 
 .dashboard-section > .account-card .sp-canvas {
   display: block;
@@ -356,8 +365,7 @@ body {
 
 .dashboard-section > .account-card .sp-canvas.is-opens-expanded,
 .dashboard-section > .account-card .sp-canvas.is-pips-expanded {
-  height: var(--account-card-panel-height);
-  min-height: 0;
+  height: auto;
   padding-top: 0;
 }
 
@@ -389,40 +397,13 @@ body {
 .dashboard-section > .account-card .sp-canvas.is-history-expanded .sparkline-chart { height: 128px; }
 
 /* ── Performance Quality panel (DD expand) ── */
-.perf-quality-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  padding: 14px 16px 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
-  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-panel) 100%);
-}
-.perf-quality-panel__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.perf-quality-panel__title {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--text-primary);
-}
-.perf-quality-panel__sub {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
 .perf-quality-panel__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
+  padding: 14px 16px 12px;
+  width: 100%;
 }
 .perf-gauge {
   display: flex;
@@ -492,10 +473,10 @@ body {
 .perf-gauge__value[data-empty="true"] { color: var(--text-muted); }
 .perf-gauge__tone {
   margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font-family: var(--font-thai-display);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
 }
 .perf-gauge__meta {
   margin-top: 2px;
@@ -505,36 +486,6 @@ body {
   text-align: center;
   line-height: 1.2;
 }
-.perf-quality-panel__legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border-dim);
-}
-.perf-quality-panel__legend-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: var(--text-ghost);
-}
-.perf-quality-panel__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: var(--text-muted);
-}
-.perf-quality-panel__legend-swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
-
-
 
 /* Chart skeleton */
 .dashboard-section > .account-card .account-card__chart-skeleton {
@@ -555,6 +506,9 @@ body {
   justify-content: flex-end;
   margin-top: 6px;
   overflow-x: auto;
+}
+.dashboard-section > .account-card .sp-overlay-panel .tf-row {
+  margin-top: auto;
 }
 .dashboard-section > .account-card .tf-row .timeframe-strip {
   gap: 4px;
@@ -797,67 +751,79 @@ body {
   border-bottom: 5px solid rgba(6,8,18,0.98);
 }
 
-/* ── KPI Action Sheet — mobile tap ───────────────────────────── */
-@keyframes kpi-sheet-backdrop-in {
+/* ── KPI Hint Card ───────────────────────────────────────────── */
+@keyframes kpi-card-backdrop-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-@keyframes kpi-sheet-slide-in {
-  from { transform: translateY(100%); opacity: 0.6; }
-  to   { transform: translateY(0); opacity: 1; }
+@keyframes kpi-card-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes kpi-card-zoom-in {
+  0% {
+    opacity: 0;
+    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+@keyframes kpi-card-zoom-out {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.8);
+  }
 }
 
-.kpi-sheet-backdrop {
+.kpi-card-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9990;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
   display: flex;
-  align-items: flex-end;
-  animation: kpi-sheet-backdrop-in 200ms ease both;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: kpi-card-backdrop-in 260ms ease both;
   -webkit-tap-highlight-color: transparent;
 }
 
-.kpi-sheet {
+.kpi-card-backdrop.is-closing {
+  animation: kpi-card-backdrop-out 260ms ease both;
+}
+
+.kpi-card {
+  position: relative;
   width: 100%;
-  max-height: 50dvh;
+  max-width: 320px;
   display: flex;
   flex-direction: column;
-  padding:
-    8px
-    clamp(18px, 5vw, 28px)
-    calc(20px + var(--safe-bottom));
+  padding: 24px;
   background: rgba(10, 12, 22, 0.99);
-  border-top: 1px solid rgba(59,130,246,0.25);
-  border-left: none;
-  border-right: none;
-  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 20px;
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.03) inset,
-    0 -2px 0 rgba(59,130,246,0.12) inset,
-    0 -40px 80px rgba(0,0,0,0.7);
-  animation: kpi-sheet-slide-in 280ms cubic-bezier(0.16,1,0.3,1) both;
+    0 24px 48px -12px rgba(0,0,0,0.8);
+  animation: kpi-card-zoom-in 260ms cubic-bezier(0.16,1,0.3,1) both;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: none;
-  will-change: transform;
-  user-select: none;
-  -webkit-user-select: none;
+  will-change: transform, opacity;
 }
 
-.kpi-sheet__handle {
-  width: 36px;
-  height: 3.5px;
-  border-radius: 2px;
-  background: rgba(255,255,255,0.12);
-  margin: 0 auto 20px;
-  flex-shrink: 0;
-  pointer-events: none;
+.kpi-card.is-closing {
+  animation: kpi-card-zoom-out 260ms cubic-bezier(0.4,0,1,1) both;
 }
 
-.kpi-sheet__head {
+.kpi-card__head {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -865,7 +831,7 @@ body {
   margin-bottom: 16px;
 }
 
-.kpi-sheet__metric-label {
+.kpi-card__metric-label {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -874,33 +840,33 @@ body {
   line-height: 1.3;
 }
 
-.kpi-sheet__divider {
+.kpi-card__divider {
   height: 1px;
   background: linear-gradient(90deg, rgba(59,130,246,0.2) 0%, rgba(255,255,255,0.05) 60%, transparent 100%);
   margin-bottom: 18px;
   flex-shrink: 0;
 }
 
-.kpi-sheet__body {
+.kpi-card__body {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.kpi-sheet__body-definition {
+.kpi-card__body-definition {
   margin: 0;
   font-family: var(--font-thai);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 2.2;
   color: rgba(240,242,245,0.9);
   letter-spacing: 0.01em;
   font-weight: 400;
 }
 
-.kpi-sheet__body-purpose {
+.kpi-card__body-purpose {
   margin: 0;
   font-family: var(--font-thai);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 2.0;
   color: rgba(240,242,245,0.55);
   letter-spacing: 0.01em;
@@ -922,8 +888,8 @@ body {
 /* ── Reduced motion ───────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .kpi-tooltip,
-  .kpi-sheet-backdrop,
-  .kpi-sheet { animation: none; }
+  .kpi-card-backdrop,
+  .kpi-card { animation: none; }
 }
 .dashboard-section > .account-card .kchip.is-actionable:hover,
 .dashboard-section > .account-card .kchip.is-actionable:focus-visible,
@@ -1160,7 +1126,7 @@ body {
 .dashboard-section > .account-card .trade-history-panel {
   display: grid;
   min-height: 0;
-  padding: 10px 12px;
+  padding: 8px 8px;
   border-radius: var(--r-lg);
   border: 0.5px solid rgba(255,255,255,0.07);
   background: transparent;
@@ -1198,21 +1164,34 @@ body {
   align-content: start;
   gap: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   scrollbar-color: rgba(59,130,246,0.2) transparent;
 }
 .dashboard-section > .account-card .trade-history-row {
   display: grid;
   border-bottom: 0.5px solid rgba(255,255,255,0.05);
 }
+.dashboard-section > .account-card .trade-history-row.is-expanded {
+  background: rgba(255, 255, 255, 0.015);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
 .dashboard-section > .account-card .trade-history-row__summary {
   display: grid;
   gap: 4px;
   width: 100%;
-  padding: 8px 0 7px;
+  padding: 8px 0 8px;
   border: 0;
   background: transparent;
   cursor: pointer;
+  text-align: left;
+  outline: none;
+  transition: background 200ms ease;
+}
+.dashboard-section > .account-card .trade-history-row__summary:active {
+  background: rgba(255, 255, 255, 0.03);
+}
+.dashboard-section > .account-card .trade-history-row.is-expanded .trade-history-row__summary {
+  padding-bottom: 4px;
 }
 .dashboard-section > .account-card .trade-history-row__line {
   display: grid;
@@ -1233,11 +1212,11 @@ body {
   color: var(--card-ink);
   letter-spacing: -0.05em;
 }
-.dashboard-section > .account-card .trade-history-row__side { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; }
-.dashboard-section > .account-card .trade-history-row__side--buy  { color: var(--card-positive); }
+.dashboard-section > .account-card .trade-history-row__side { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+.dashboard-section > .account-card .trade-history-row__side--buy  { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__side--sell { color: var(--card-negative); }
-.dashboard-section > .account-card .trade-history-row__volume { font-family: var(--font-mono); font-size: 9px; color: var(--card-muted); }
-.dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--buy  { color: var(--card-positive); }
+.dashboard-section > .account-card .trade-history-row__volume { font-family: var(--font-mono); font-size: 10px; color: var(--card-muted); }
+.dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--buy  { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--sell { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__trail { display: grid; gap: 2px; justify-items: end; text-align: right; }
 .dashboard-section > .account-card .trade-history-panel__list .trade-history-row__trail strong { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
@@ -1251,30 +1230,45 @@ body {
 .dashboard-section > .account-card .trade-history-row__details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 4px 8px;
-  padding: 0 0 7px;
+  gap: 8px 12px;
+  padding: 0 0 12px;
 }
 .dashboard-section > .account-card .trade-history-row__detail { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; }
 .dashboard-section > .account-card .trade-history-row__detail--val-only { justify-content: flex-end; }
+.dashboard-section > .account-card .trade-history-row__detail--full {
+  grid-column: 1 / -1;
+}
 .dashboard-section > .account-card .trade-history-row__label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
 .dashboard-section > .account-card .trade-history-row__val { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
 .dashboard-section > .account-card .trade-history-row__val--white { color: var(--card-ink); }
+.dashboard-section > .account-card .trade-history-row__val--sl-hit  { color: var(--card-negative); }
+.dashboard-section > .account-card .trade-history-row__val--tp-hit  { color: var(--card-neutral); }
+.dashboard-section > .account-card .trade-history-row__val--comment {
+  color: var(--card-muted);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
 .dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--positive { color: var(--card-positive); }
 .dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--negative { color: var(--card-negative); }
 
 /* ── Pips performance table ── */
 .dashboard-section > .account-card .pips-performance {
   display: grid;
-  height: 100%;
+  height: auto;
   min-height: 0;
   margin-top: 0;
 }
+/* Inside pips+heatmap panel — let it expand to full content */
+.dashboard-section > .account-card .sp-overlay-panel--pips .pips-performance {
+  height: auto;
+}
 .dashboard-section > .account-card .pips-performance__table-shell {
-  height: 100%;
+  height: auto;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   border-radius: var(--r-sm);
-  border: 0.5px solid rgba(255,255,255,0.06);
+  border: none;
   background: transparent;
 }
 .dashboard-section > .account-card .pips-performance__table {
@@ -1288,16 +1282,16 @@ body {
 }
 .dashboard-section > .account-card .pips-performance__table th,
 .dashboard-section > .account-card .pips-performance__table td {
-  padding: 7px 8px;
+  padding: 7px 5px;
   text-align: right;
-  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+  border-bottom: none;
   white-space: nowrap;
 }
 .dashboard-section > .account-card .pips-performance__table thead th {
   font-size: 7px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-secondary);
   background: rgba(3,6,16,0.72);
   position: sticky;
   top: 0;
@@ -1309,17 +1303,15 @@ body {
   color: var(--card-ink);
 }
 .dashboard-section > .account-card .pips-performance__table tbody th:first-child {
-  font-family: var(--font-mono);
-  font-size: 7px;
+  font-family: var(--font-mitr);
+  font-size: 11px;
   font-weight: 400;
-  text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-secondary);
 }
-.dashboard-section > .account-card .pips-performance__table tr:last-child td { border-bottom: none; }
 
 /* Monthly performance */
-.dashboard-section > .account-card .monthly-performance { display: grid; gap: 6px; }
+.dashboard-section > .account-card .monthly-performance { display: grid; gap: 4px; }
 .monthly-performance__table-shell {
   overflow: auto;
   border-radius: var(--r-sm);
@@ -1703,63 +1695,219 @@ a:focus-visible, button:focus-visible {
   40%, 100% { transform: scale(1); }
 }
 
-/* Candle Chart Animation */
+/* ─── Candle Animation ─── */
 .candle-anim-container {
   position: fixed;
   inset: 0;
-  background: #0a0e17;
+  background: #07090f;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 9999;
 }
 
+.candle-anim-footer {
+  position: absolute;
+  bottom: max(15px, env(safe-area-inset-bottom, 15px));
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.18);
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}
+
 .candle-anim-chart {
-  width: 220px;
-  height: 110px;
+  width: 200px;
+  height: 90px;
   overflow: visible;
 }
 
+/* baseline */
+.candle-baseline {
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 0.5;
+}
+
+/* each candle group starts hidden; nth-child selects by order in SVG
+   (baseline is first child, so candles start at nth-child(2)) */
 .candle-body {
   transform-origin: bottom;
   transform-box: fill-box;
-  animation: candle-grow 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  opacity: 0;
+  transform: scaleY(0);
+  animation: c-body 1.2s ease-in-out infinite both;
 }
 
 .candle-wick {
   opacity: 0;
-  animation: wick-appear 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: c-wick 1.2s ease-in-out infinite both;
 }
 
-.candle-group:nth-child(1) .candle-body,
-.candle-group:nth-child(1) .candle-wick { animation-delay: 0s; }
-.candle-group:nth-child(2) .candle-body,
-.candle-group:nth-child(2) .candle-wick { animation-delay: 0.18s; }
-.candle-group:nth-child(3) .candle-body,
-.candle-group:nth-child(3) .candle-wick { animation-delay: 0.36s; }
-.candle-group:nth-child(4) .candle-body,
-.candle-group:nth-child(4) .candle-wick { animation-delay: 0.54s; }
-.candle-group:nth-child(5) .candle-body,
-.candle-group:nth-child(5) .candle-wick { animation-delay: 0.72s; }
-.candle-group:nth-child(6) .candle-body,
-.candle-group:nth-child(6) .candle-wick { animation-delay: 0.9s; }
-.candle-group:nth-child(7) .candle-body,
-.candle-group:nth-child(7) .candle-wick { animation-delay: 1.08s; }
-.candle-group:nth-child(8) .candle-body,
-.candle-group:nth-child(8) .candle-wick { animation-delay: 1.26s; }
+/* stagger: 6 candles × 0.18s = 0.9s total spread within 1.2s cycle */
+.candle-group--1 .candle-body, .candle-group--1 .candle-wick { animation-delay: 0s; }
+.candle-group--2 .candle-body, .candle-group--2 .candle-wick { animation-delay: 0.18s; }
+.candle-group--3 .candle-body, .candle-group--3 .candle-wick { animation-delay: 0.36s; }
+.candle-group--4 .candle-body, .candle-group--4 .candle-wick { animation-delay: 0.54s; }
+.candle-group--5 .candle-body, .candle-group--5 .candle-wick { animation-delay: 0.72s; }
+.candle-group--6 .candle-body, .candle-group--6 .candle-wick { animation-delay: 0.9s; }
 
-@keyframes candle-grow {
-  0%   { transform: scaleY(0); opacity: 0; }
-  15%  { transform: scaleY(1); opacity: 1; }
-  70%  { transform: scaleY(1); opacity: 1; }
-  90%  { transform: scaleY(0); opacity: 0; }
-  100% { transform: scaleY(0); opacity: 0; }
+@keyframes c-body {
+  /* pop in, hold, fade out */
+  0%   { opacity: 0; transform: scaleY(0); }
+  8%   { opacity: 1; transform: scaleY(1); }
+  60%  { opacity: 1; transform: scaleY(1); }
+  78%  { opacity: 0; transform: scaleY(0); }
+  100% { opacity: 0; transform: scaleY(0); }
 }
 
-@keyframes wick-appear {
+@keyframes c-wick {
   0%   { opacity: 0; }
-  20%  { opacity: 0.7; }
-  70%  { opacity: 0.7; }
-  90%  { opacity: 0; }
+  12%  { opacity: 0.5; }
+  60%  { opacity: 0.5; }
+  75%  { opacity: 0; }
   100% { opacity: 0; }
+}
+
+/* ═══════════════════════════════════════
+   PROFIT HEATMAP PANEL
+═══════════════════════════════════════ */
+.dashboard-section > .account-card .profit-heatmap-panel {
+  display: block;
+  position: relative;
+  padding: 8px 0 0;
+  border-top: 0.5px solid rgba(255,255,255,0.07);
+  margin-top: 4px;
+}
+
+.dashboard-section > .account-card .heatmap-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.dashboard-section > .account-card .heatmap-year-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  min-width: 32px;
+  text-align: center;
+}
+
+.dashboard-section > .account-card .heatmap-year-btn {
+  background: none;
+  border: none;
+  padding: 2px 0 2px 6px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+.dashboard-section > .account-card .heatmap-year-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.dashboard-section > .account-card .heatmap-year-btn:not(:disabled):hover {
+  color: var(--text-primary);
+}
+
+.dashboard-section > .account-card .heatmap-body {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.dashboard-section > .account-card .heatmap-day-labels {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 2px;
+  flex-shrink: 0;
+  padding-top: 18px; /* align with grid, below month row */
+}
+
+.dashboard-section > .account-card .heatmap-day-label {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: var(--text-secondary);
+  line-height: 16px;
+  text-align: right;
+  width: 8px;
+}
+
+.dashboard-section > .account-card .heatmap-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.dashboard-section > .account-card .heatmap-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-section > .account-card .heatmap-months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 13px;
+  gap: 0;
+  margin-bottom: 2px;
+  height: 14px;
+}
+
+.dashboard-section > .account-card .heatmap-month-cell {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: var(--text-secondary);
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.dashboard-section > .account-card .heatmap-grid {
+  display: inline-grid;
+  grid-template-rows: repeat(7, 11px);
+  grid-auto-flow: column;
+  grid-auto-columns: 11px;
+  gap: 2px;
+}
+
+.dashboard-section > .account-card .heatmap-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.05);
+}
+.dashboard-section > .account-card .heatmap-cell.is-active {
+  box-shadow: 0 0 0 1px var(--text-primary);
+  z-index: 1;
+}
+.dashboard-section > .account-card .heatmap-cell--empty {
+  background: transparent;
+}
+
+/* Positive intensity levels */
+.dashboard-section > .account-card .heatmap-cell--pos-1 { background: rgba(61,214,140,0.15); }
+.dashboard-section > .account-card .heatmap-cell--pos-2 { background: rgba(61,214,140,0.32); }
+.dashboard-section > .account-card .heatmap-cell--pos-3 { background: rgba(61,214,140,0.52); }
+.dashboard-section > .account-card .heatmap-cell--pos-4 { background: rgba(61,214,140,0.75); }
+.dashboard-section > .account-card .heatmap-cell--pos-5 { background: rgba(61,214,140,1.0); }
+
+/* Negative intensity levels */
+.dashboard-section > .account-card .heatmap-cell--neg-1 { background: rgba(240,77,77,0.15); }
+.dashboard-section > .account-card .heatmap-cell--neg-2 { background: rgba(240,77,77,0.32); }
+.dashboard-section > .account-card .heatmap-cell--neg-3 { background: rgba(240,77,77,0.52); }
+.dashboard-section > .account-card .heatmap-cell--neg-4 { background: rgba(240,77,77,0.75); }
+.dashboard-section > .account-card .heatmap-cell--neg-5 { background: rgba(240,77,77,1.0); }
+
+.dashboard-section > .account-card .heatmap-skeleton {
+  height: 95px;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.03);
+  animation: shimmer 1.4s linear infinite;
 }

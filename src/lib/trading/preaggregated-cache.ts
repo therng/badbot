@@ -670,10 +670,10 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
     timeframe,
     account,
     rows: [
-      getPipsSummaryRow("Today", startOfToday),
-      getPipsSummaryRow("Weekly", startOfWeek),
-      getPipsSummaryRow("Monthly", startOfMonth),
-      getPipsSummaryRow("Yearly", startOfYear),
+      getPipsSummaryRow("วันนี้", startOfToday),
+      getPipsSummaryRow("สัปดาห์นี้", startOfWeek),
+      getPipsSummaryRow("เดือนนี้", startOfMonth),
+      getPipsSummaryRow("ปีนี้", startOfYear),
     ],
   };
 
@@ -872,28 +872,121 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       })),
   };
 
+  // Build separate maps for opening (direction="in") and closing (direction="out") deals.
+  // - Opening deal comment → shown as the trade note in UI (e.g. "Axonshift-N Buy").
+  // - Closing deal comment → parsed for "[sl <price>]" / "[tp <price>]" tags to override
+  //   the displayed SL/TP and flag the close reason.
+  // Match positions to deals via "symbol:seconds:price" (price disambiguates basket closes
+  // at the same instant); fall back to a FIFO queue on "symbol:seconds" when prices collide.
+  type DealEntry = { comment: string | null };
+  const openingByPriceKey = new Map<string, DealEntry>();
+  const openingQueueByTimeKey = new Map<string, DealEntry[]>();
+  const closingByPriceKey = new Map<string, DealEntry>();
+  const closingQueueByTimeKey = new Map<string, DealEntry[]>();
+  for (const deal of deals) {
+    if (!isTradingDeal(deal.type)) continue;
+    const dir = (deal.direction ?? "").toLowerCase().trim();
+    if (dir !== "in" && dir !== "out") continue;
+    if (!deal.symbol || !deal.time) continue;
+    const secs = Math.floor(new Date(deal.time).getTime() / 1000);
+    const timeKey = `${deal.symbol}:${secs}`;
+    const entry: DealEntry = { comment: deal.comment ?? null };
+    const byPriceKey = dir === "in" ? openingByPriceKey : closingByPriceKey;
+    const queueByTimeKey = dir === "in" ? openingQueueByTimeKey : closingQueueByTimeKey;
+    if (deal.price != null) {
+      const priceKey = `${timeKey}:${Number(deal.price).toFixed(5)}`;
+      if (!byPriceKey.has(priceKey)) {
+        byPriceKey.set(priceKey, entry);
+      }
+    }
+    const queue = queueByTimeKey.get(timeKey);
+    if (queue) {
+      queue.push(entry);
+    } else {
+      queueByTimeKey.set(timeKey, [entry]);
+    }
+  }
+
+  function lookupDealComment(
+    byPriceKey: Map<string, DealEntry>,
+    queueByTimeKey: Map<string, DealEntry[]>,
+    symbol: string | null | undefined,
+    timeMs: number | null,
+    price: number | null,
+  ): string | null | undefined {
+    if (!symbol || timeMs == null) return undefined;
+    const timeKey = `${symbol}:${Math.floor(timeMs / 1000)}`;
+    if (price != null) {
+      const priceKey = `${timeKey}:${Number(price).toFixed(5)}`;
+      const hit = byPriceKey.get(priceKey);
+      if (hit) return hit.comment;
+    }
+    const queue = queueByTimeKey.get(timeKey);
+    if (queue && queue.length > 0) {
+      return (queue.shift() as DealEntry).comment;
+    }
+    return undefined;
+  }
+
+  const SL_TAG_RE = /\[sl\s+([\d.]+)\]/i;
+  const TP_TAG_RE = /\[tp\s+([\d.]+)\]/i;
+
   const orderedScopedPositions = [...scopedClosedPositions].sort(
     (left, right) => new Date(left.closeTime ?? 0).getTime() - new Date(right.closeTime ?? 0).getTime(),
   );
   const historyPositions = [...orderedScopedPositions]
     .sort((left, right) => new Date(right.closeTime ?? right.reportDate ?? 0).getTime() - new Date(left.closeTime ?? left.reportDate ?? 0).getTime())
-    .map((position) => ({
-      positionId: position.positionNo ?? "",
-      symbol: position.symbol ?? "UNKNOWN",
-      type: position.type ?? "",
-      volume: position.volume ?? 0,
-      openedAt: position.openTime ? new Date(position.openTime) : null,
-      closedAt: position.closeTime ? new Date(position.closeTime) : null,
-      openPrice: position.openPrice == null ? null : Number(position.openPrice),
-      closePrice: position.closePrice == null ? null : Number(position.closePrice),
-      marketPrice: position.closePrice == null ? null : Number(position.closePrice),
-      profit: position.profit == null ? 0 : Number(position.profit),
-      sl: position.sl == null ? null : Number(position.sl),
-      tp: position.tp == null ? null : Number(position.tp),
-      swap: position.swap == null ? null : Number(position.swap),
-      commission: position.commission == null ? null : Number(position.commission),
-      pips: positionPips(position),
-    }));
+    .map((position) => {
+      const openMs = position.openTime ? new Date(position.openTime).getTime() : null;
+      const closeMs = position.closeTime ? new Date(position.closeTime).getTime() : null;
+      const openPriceNum = position.openPrice == null ? null : Number(position.openPrice);
+      const closePriceNum = position.closePrice == null ? null : Number(position.closePrice);
+
+      const openingComment = lookupDealComment(openingByPriceKey, openingQueueByTimeKey, position.symbol, openMs, openPriceNum);
+      const closingComment = lookupDealComment(closingByPriceKey, closingQueueByTimeKey, position.symbol, closeMs, closePriceNum);
+
+      const comment = openingComment ?? null;
+
+      let sl = position.sl == null ? null : Number(position.sl);
+      let tp = position.tp == null ? null : Number(position.tp);
+      let slHit = false;
+      let tpHit = false;
+      if (closingComment) {
+        const slMatch = SL_TAG_RE.exec(closingComment);
+        if (slMatch) {
+          const parsed = Number(slMatch[1]);
+          if (Number.isFinite(parsed)) sl = parsed;
+          slHit = true;
+        }
+        const tpMatch = TP_TAG_RE.exec(closingComment);
+        if (tpMatch) {
+          const parsed = Number(tpMatch[1]);
+          if (Number.isFinite(parsed)) tp = parsed;
+          tpHit = true;
+        }
+      }
+
+      return {
+        positionId: position.positionNo ?? "",
+        symbol: position.symbol ?? "UNKNOWN",
+        type: position.type ?? "",
+        volume: position.volume ?? 0,
+        openedAt: position.openTime ? new Date(position.openTime) : null,
+        closedAt: position.closeTime ? new Date(position.closeTime) : null,
+        openPrice: openPriceNum,
+        closePrice: closePriceNum,
+        marketPrice: closePriceNum,
+        profit: position.profit == null ? 0 : Number(position.profit),
+        sl,
+        tp,
+        swap: position.swap == null ? null : Number(position.swap),
+        commission: position.commission == null ? null : Number(position.commission),
+        pips: positionPips(position),
+        comment,
+        slHit,
+        tpHit,
+      };
+    });
   const scopedPositionTrades = orderedScopedPositions.map((position) => ({
     dealId: position.positionNo ?? "",
     symbol: position.symbol ?? "UNKNOWN",

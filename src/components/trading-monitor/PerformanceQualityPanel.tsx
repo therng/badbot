@@ -1,6 +1,6 @@
 "use client";
-import { memo, useCallback, useState } from "react";
-import { KpiActionSheet, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
+import { useRef, useState, useCallback, useMemo, memo } from "react";
+import { KpiPreviewCard, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
 
 /**
  * PerformanceQualityPanel
@@ -44,24 +44,24 @@ interface GaugeConfig {
 // Benchmark thresholds tuned for retail FX accounts. These match the
 // MQL5-style interpretations operators already use when reviewing reports.
 const SHARPE_ZONES: Zone[] = [
-  { limit: 1.0, tone: "poor", label: "Poor" },
-  { limit: 2.0, tone: "fair", label: "Fair" },
-  { limit: 3.0, tone: "good", label: "Good" },
-  { limit: 4.0, tone: "great", label: "Great" },
+  { limit: 1.0, tone: "poor", label: "แย่" },
+  { limit: 2.0, tone: "fair", label: "พอไหว" },
+  { limit: 3.0, tone: "good", label: "เยี่ยม" },
+  { limit: 4.0, tone: "great", label: "แกร่ง" },
 ];
 
 const PROFIT_FACTOR_ZONES: Zone[] = [
-  { limit: 1.0, tone: "poor", label: "Loss" },
-  { limit: 1.5, tone: "fair", label: "Thin" },
-  { limit: 2.0, tone: "good", label: "Solid" },
-  { limit: 3.0, tone: "great", label: "Strong" },
+  { limit: 1.0, tone: "poor", label: "ขาดทุน" },
+  { limit: 1.5, tone: "fair", label: "เสมอตัว" },
+  { limit: 2.0, tone: "good", label: "กำไรดี" },
+  { limit: 3.0, tone: "great", label: "แกร่ง" },
 ];
 
 const RECOVERY_ZONES: Zone[] = [
-  { limit: 1.0, tone: "poor", label: "Weak" },
-  { limit: 2.0, tone: "fair", label: "OK" },
-  { limit: 4.0, tone: "good", label: "Good" },
-  { limit: 6.0, tone: "great", label: "Robust" },
+  { limit: 1.0, tone: "poor", label: "แย่" },
+  { limit: 2.0, tone: "fair", label: "พอใช้" },
+  { limit: 4.0, tone: "good", label: "เยี่ยม" },
+  { limit: 6.0, tone: "great", label: "แกร่ง" },
 ];
 
 const TONE_COLOR: Record<ZoneTone, string> = {
@@ -113,6 +113,7 @@ interface GaugeProps {
 function Gauge({ config }: GaugeProps) {
   const { label, value, zones, scaleMax, infinityZoneIndex, hint } = config;
   const [sheetOpen, setSheetOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const openSheet = useCallback(() => {
     if (!hint) return;
     try { navigator.vibrate?.(12); } catch { /* ignore */ }
@@ -152,6 +153,7 @@ function Gauge({ config }: GaugeProps) {
 
   return (
     <div
+      ref={triggerRef}
       className={`perf-gauge${hint ? " perf-gauge--hintable" : ""}`}
       onClick={hint ? openSheet : undefined}
     >
@@ -257,12 +259,13 @@ function Gauge({ config }: GaugeProps) {
         {hasValue ? currentZone.label.toUpperCase() : "NO DATA"}
       </div>
       {hint && sheetOpen ? (
-        <KpiActionSheet
+        <KpiPreviewCard
           hint={hint}
           label={hint.title ?? label}
           value={hasValue ? (isPositiveInfinity ? "∞" : safeValue.toFixed(2)) : "-"}
           tone="neutral"
           onClose={closeSheet}
+          triggerRef={triggerRef}
         />
       ) : null}
     </div>
@@ -315,13 +318,11 @@ function PerformanceQualityPanelImpl({
   ];
 
   return (
-    <section className="perf-quality-panel" aria-label="Performance quality">
-      <div className="perf-quality-panel__grid">
-        {gauges.map((config) => (
-          <Gauge key={config.key} config={config} />
-        ))}
-      </div>
-    </section>
+    <div className="perf-quality-panel__grid" role="region" aria-label="Performance quality">
+      {gauges.map((config) => (
+        <Gauge key={config.key} config={config} />
+      ))}
+    </div>
   );
 }
 

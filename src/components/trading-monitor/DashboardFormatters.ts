@@ -4,12 +4,21 @@ import type {
 import { formatTableDateTime } from "@/lib/time";
 
 import {
+  formatCompactNumber,
   getSignedPrefix,
   toneFromNumber,
 } from "@/components/trading-monitor/formatters";
 
 export type MonthlyDisplayMode = "percent" | "amount";
 export type ExpandableKpiKey = "gain" | "dd" | "pips" | "trades" | "opens";
+
+export function formatCompactPercent(value: number | null | undefined, digits = 1) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${formatCompactNumber(value, digits)}%`;
+}
 
 export function getSideToneClass(sideLabel: string) {
   const normalizedSide = sideLabel.toLowerCase();

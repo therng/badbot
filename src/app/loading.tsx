@@ -1,5 +1,5 @@
-import { LoadingScreen } from "@/components/trading-monitor/LoadingScreen";
+import { CandleAnimation } from "@/components/trading-monitor/LoadingScreen";
 
 export default function Loading() {
-  return <LoadingScreen />;
+  return <CandleAnimation />;
 }

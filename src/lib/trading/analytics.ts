@@ -5,7 +5,6 @@ import {
   getBangkokDateKey,
   startOfThaiDayInTableTime,
   startOfBangkokDay,
-  startOfBangkokYear,
 } from "@/lib/time";
 
 type NumericLike = number | { valueOf(): unknown } | null | undefined;
@@ -183,7 +182,7 @@ export function parseTimeframe(value: string | null): Timeframe {
     case "1d": case "day": return "1d";
     case "1w": case "w": case "5d": case "week": return "1w";
     case "1m": case "m": case "month": return "1m";
-    case "ytd": case "year-to-date": case "year_to_date": case "3m": case "6m": return "ytd";
+    case "6m": case "ytd": case "year-to-date": case "year_to_date": case "3m": return "6m";
     case "1y": case "year": return "1y";
     case "a": case "all": case "all-time": default: return "all";
   }
@@ -202,7 +201,7 @@ export function getSinceDate(timeframe: Timeframe, now = new Date()) {
     case "1d": return startOfThaiDayInTableTime(now) ?? startOfDay(now);
     case "1w": return addBangkokDays(startOfDay(now), -6);
     case "1m": return addBangkokDays(startOfDay(now), -30);
-    case "ytd": return startOfBangkokYear(now);
+    case "6m": return addBangkokDays(startOfDay(now), -180);
     case "1y": return addBangkokDays(startOfDay(now), -365);
     default: return null;
   }
@@ -213,7 +212,7 @@ export function getTimeframeLabel(timeframe: Timeframe) {
     case "1d": return "D";
     case "1w": return "W";
     case "1m": return "M";
-    case "ytd": return "YTD";
+    case "6m": return "6M";
     case "1y": return "1Y";
     default: return "A";
   }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { PositionsResponse } from "@/lib/trading/types";
 
 import {
@@ -31,6 +32,7 @@ export function OpenPositionsPanel({
 }: {
   positions: PositionsResponse["openPositions"] | null | undefined;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const rankedPositions = rankOpenPositions(positions);
 
   if (!rankedPositions.length) {
@@ -50,13 +52,18 @@ export function OpenPositionsPanel({
           const comment = position.comment?.trim() || "-";
           const volumeLabel = formatPlainNumberValue(position.volume, 2);
           const priceRangeLabel = `${formatTradePrice(position.openPrice)} -> ${formatTradePrice(position.marketPrice)}`;
-          const stopLossLabel = `SL ${formatStopTargetPrice(position.sl)}`;
-          const takeProfitLabel = `TP ${formatStopTargetPrice(position.tp)}`;
+          const stopLossLabel = formatStopTargetPrice(position.sl);
+          const takeProfitLabel = formatStopTargetPrice(position.tp);
           const pnlToneClass = getPnlToneClass(position.floatingProfit ?? 0);
+          const isExpanded = expandedId === position.positionId;
 
           return (
-            <div key={position.positionId} className="trade-history-row">
-              <div className="open-positions-panel__summary trade-history-row__summary">
+            <div key={position.positionId} className={`trade-history-row ${isExpanded ? "is-expanded" : ""}`}>
+              <button
+                className="open-positions-panel__summary trade-history-row__summary"
+                onClick={() => setExpandedId(isExpanded ? null : (position.positionId as string))}
+                aria-expanded={isExpanded}
+              >
                 <div className="trade-history-row__line">
                   <div className="trade-history-row__instrument">
                     <strong>{position.symbol}</strong>
@@ -69,16 +76,30 @@ export function OpenPositionsPanel({
                 </div>
                 <div className="trade-history-row__line trade-history-row__line--secondary">
                   <div className="trade-history-row__prices">
-                    <span className="trade-history-row__comment">{comment}</span>
                     <span>{priceRangeLabel}</span>
-                    <span>{stopLossLabel}</span>
-                    <span>{takeProfitLabel}</span>
                   </div>
                   <div className="trade-history-row__trail trade-history-row__trail--secondary">
                     <span>{formatTradeHistoryDateTime(position.openedAt)}</span>
                   </div>
                 </div>
-              </div>
+              </button>
+
+              {isExpanded ? (
+                <div className="trade-history-row__details">
+                  <div className="trade-history-row__detail">
+                    <span className="trade-history-row__label">S/L</span>
+                    <span className="trade-history-row__val">{stopLossLabel}</span>
+                  </div>
+                  <div className="trade-history-row__detail">
+                    <span className="trade-history-row__label">T/P</span>
+                    <span className="trade-history-row__val">{takeProfitLabel}</span>
+                  </div>
+                  <div className="trade-history-row__detail trade-history-row__detail--full">
+                    <span className="trade-history-row__label">Comment</span>
+                    <span className="trade-history-row__val trade-history-row__val--comment">{comment}</span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           );
         })}

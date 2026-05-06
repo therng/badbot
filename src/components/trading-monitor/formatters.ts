@@ -11,7 +11,7 @@ export const TIMEFRAME_OPTIONS: Array<{ value: Timeframe; label: string; ariaLab
   { value: "1d", label: "1D", ariaLabel: "Day" },
   { value: "1w", label: "1W", ariaLabel: "Week" },
   { value: "1m", label: "1M", ariaLabel: "Month" },
-  { value: "ytd", label: "YTD", ariaLabel: "Year to date" },
+  { value: "6m", label: "6M", ariaLabel: "6 months" },
   { value: "1y", label: "1Y", ariaLabel: "1 year" },
   { value: "all", label: "ALL", ariaLabel: "All time" },
 ];

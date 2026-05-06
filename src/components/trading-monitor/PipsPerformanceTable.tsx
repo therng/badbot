@@ -22,7 +22,7 @@ export function PipsPerformanceTable({
         <table className="pips-performance__table">
           <thead>
             <tr>
-              <th scope="col">Period</th>
+              <th scope="col"></th>
               <th scope="col">Pips</th>
               <th scope="col">Vol.</th>
               <th scope="col">Profit</th>
