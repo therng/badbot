@@ -10,7 +10,7 @@ interface Props {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DAY_LABELS = ["S", "", "T", "", "T", "", "S"];
+const DAY_LABELS = ["", "M", "", "W", "", "F", ""];
 
 function getCurrentUTCYear(): number {
   return new Date().getUTCFullYear();
