@@ -558,14 +558,10 @@ export function TradingMonitorSharedStyles() {
         --max-scale: 2.8;
         --pulse-duration: 3.2s;
         --pulse-delay: 1.6s;
-        --stroke-color: rgba(255, 255, 255, 0.76);
-        --fill-color: rgba(255, 255, 255, 0.16);
-        --bg-glow: rgba(255, 255, 255, 0.1);
-        --shadow-glow: rgba(255, 255, 255, 0.25);
-        --stroke-color: color-mix(in srgb, currentColor 76%, white 24%);
-        --fill-color: color-mix(in srgb, currentColor 16%, transparent);
-        --bg-glow: color-mix(in srgb, currentColor 10%, transparent);
-        --shadow-glow: color-mix(in srgb, currentColor 25%, transparent);
+        --stroke-color: rgba(61, 214, 140, 0.9);
+        --fill-color: rgba(61, 214, 140, 0.14);
+        --bg-glow: rgba(61, 214, 140, 0.13);
+        --shadow-glow: rgba(61, 214, 140, 0.55);
         position: absolute;
         pointer-events: none;
         isolation: isolate;
@@ -614,13 +610,14 @@ export function TradingMonitorSharedStyles() {
         position: absolute;
         left: 0;
         top: 0;
-        width: 18px;
-        height: 18px;
+        width: 22px;
+        height: 22px;
         transform: translate(-50%, -50%);
         border-radius: 999px;
         background: var(--bg-glow);
-        box-shadow: 0 0 14px var(--shadow-glow);
+        box-shadow: 0 0 12px 4px var(--shadow-glow);
         z-index: -1;
+        animation: trading-monitor-ambient-pulse var(--pulse-duration) ease-out infinite;
       }
 
       .sparkline-live-beacon__pulse {
@@ -646,8 +643,7 @@ export function TradingMonitorSharedStyles() {
       }
 
       .sparkline-live-dot__core {
-        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.42));
-        filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 80%, transparent));
+        filter: drop-shadow(0 0 6px rgba(61, 214, 140, 0.9)) drop-shadow(0 0 12px rgba(61, 214, 140, 0.5));
       }
 
       .sparkline-dot__active {
@@ -656,6 +652,15 @@ export function TradingMonitorSharedStyles() {
 
       .detail-chart-dot--active {
         filter: drop-shadow(0 0 12px rgba(83, 119, 165, 0.22));
+      }
+
+      @keyframes trading-monitor-ambient-pulse {
+        0%   { opacity: 0.5; box-shadow: 0 0 10px 3px var(--shadow-glow); }
+        5%   { opacity: 1;   box-shadow: 0 0 20px 8px var(--shadow-glow); }
+        45%  { opacity: 0.3; box-shadow: 0 0 6px 1px var(--shadow-glow); }
+        50%  { opacity: 1;   box-shadow: 0 0 20px 8px var(--shadow-glow); }
+        95%  { opacity: 0.3; box-shadow: 0 0 6px 1px var(--shadow-glow); }
+        100% { opacity: 0.5; box-shadow: 0 0 10px 3px var(--shadow-glow); }
       }
 
       @keyframes trading-monitor-pulse-ring {
@@ -674,7 +679,8 @@ export function TradingMonitorSharedStyles() {
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .sparkline-live-beacon__pulse {
+        .sparkline-live-beacon__pulse,
+        .sparkline-live-beacon__ambient {
           animation: none;
           opacity: 0;
         }

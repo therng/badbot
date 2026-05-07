@@ -820,6 +820,10 @@ export default function DashboardClient() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingRefreshRequests, setPendingRefreshRequests] = useState(0);
   const [hasSeenRefreshRequest, setHasSeenRefreshRequest] = useState(false);
+  
+  // Track if the initial animation loop has completed
+  const [initialAnimationDone, setInitialAnimationDone] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pullStartYRef = useRef<number | null>(null);
   const pullStartXRef = useRef<number | null>(null);
@@ -835,6 +839,14 @@ export default function DashboardClient() {
       page_title: document.title,
     });
   }, [pathname]);
+
+  useEffect(() => {
+    // Force at least one animation loop (2.2s) before showing content
+    const timer = setTimeout(() => {
+      setInitialAnimationDone(true);
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleRequestStateChange = useCallback(({ loading, refreshKey: requestRefreshKey }: { loading: boolean; refreshKey: number }) => {
     if (!refreshingRef.current || requestRefreshKey !== activeRefreshKeyRef.current) {
@@ -1064,7 +1076,7 @@ export default function DashboardClient() {
           style={scrollStyle}
         >
           <section className="dashboard-section" aria-label="Trading accounts">
-            {accounts.data?.length ? (
+            {initialAnimationDone && accounts.data?.length ? (
               accounts.data.map((account, index) => (
                 <LazyDashboardCard
                   key={account.id}
@@ -1077,7 +1089,7 @@ export default function DashboardClient() {
             ) : null}
           </section>
         </div>
-        {(accounts.loading && !accounts.data && !accounts.error) || (!accounts.loading && (!accounts.data?.length || accounts.error)) ? (
+        {!initialAnimationDone || (accounts.loading && !accounts.data && !accounts.error) || (!accounts.loading && (!accounts.data?.length || accounts.error)) ? (
           <CandleAnimation
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
