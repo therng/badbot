@@ -1,6 +1,6 @@
 "use client";
-import { useRef, useState, useCallback, useMemo, memo } from "react";
-import { KpiPreviewCard, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
+import { useMemo, memo } from "react";
+import { KpiPreviewCard, useKpiHint, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
 
 /**
  * PerformanceQualityPanel
@@ -112,14 +112,16 @@ interface GaugeProps {
 
 function Gauge({ config }: GaugeProps) {
   const { label, value, zones, scaleMax, infinityZoneIndex, hint } = config;
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const openSheet = useCallback(() => {
-    if (!hint) return;
-    try { navigator.vibrate?.(12); } catch { /* ignore */ }
-    setSheetOpen(true);
-  }, [hint]);
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const {
+    chipRef: triggerRef,
+    sheetOpen,
+    closeSheet,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchCancel,
+    handleTouchEnd,
+    wrapClick,
+  } = useKpiHint(Boolean(hint));
   const isPositiveInfinity = value === Number.POSITIVE_INFINITY;
   const hasValue = typeof value === "number" && (Number.isFinite(value) || isPositiveInfinity);
   // Infinity maps to specified zone (e.g., good for profit factor, great for sharpe/recovery)
@@ -153,13 +155,16 @@ function Gauge({ config }: GaugeProps) {
 
   return (
     <div
-      ref={triggerRef}
+      ref={triggerRef as unknown as React.RefObject<HTMLDivElement>}
       className={`perf-gauge${hint ? " perf-gauge--hintable" : ""}`}
-      onClick={hint ? openSheet : undefined}
+      onClick={wrapClick()}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchCancel={handleTouchCancel}
+      onTouchEnd={handleTouchEnd}
     >
       <div className="perf-gauge__label">
         {label}
-        {hint ? <span className="perf-gauge__hint-badge" aria-label="ดูคำอธิบาย">?</span> : null}
       </div>
       <svg
         className="perf-gauge__svg"

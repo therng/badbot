@@ -89,6 +89,13 @@ export function getBangkokDateKey(value: Date | string | number | null | undefin
   return `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)}`;
 }
 
+export function getUTCDateKey(value: Date | string | number | null | undefined): string | null {
+  if (value == null) return null;
+  const d = new Date(value as string | number | Date);
+  if (!Number.isFinite(d.getTime())) return null;
+  return `${d.getUTCFullYear()}-${padTwo(d.getUTCMonth() + 1)}-${padTwo(d.getUTCDate())}`;
+}
+
 export function getBangkokHour(value: Date | string | number | null | undefined) {
   const parts = getBangkokDateParts(value);
   return parts ? parts.hours : null;

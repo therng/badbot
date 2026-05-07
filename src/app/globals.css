@@ -44,6 +44,7 @@
   --warning-dim:   rgba(245,166,35,0.12);
   --neutral:       #4da8f5;
   --neutral-dim:   rgba(77,168,245,0.12);
+  --animation:     rgba(61, 214, 140, 0.945);
 
   /* ── Text hierarchy ── */
   --text-primary:  #f0f2f5;
@@ -264,17 +265,17 @@ body {
 
 .dashboard-section > .account-card .sp-account-status.is-active {
   background: var(--positive);
-  box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgba(61,214,140,0.4);
+  box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px var(--animation);
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
 
 @keyframes pulse-dot {
-  0%,100% { opacity: 1;    box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgba(61,214,140,0.35); }
+  0%,100% { opacity: 1;    box-shadow: 0 0 0 2px rgba(61,214,140,0.15), 0 0 8px rgb(61, 214, 140); }
   50%      { opacity: 0.3; box-shadow: 0 0 0 2px rgba(61,214,140,0.05), 0 0 4px rgba(61,214,140,0.15); }
 }
 
 .dashboard-section > .account-card .sp-account-status.is-inactive {
-  background: rgba(100,110,125,0.5);
+  background: rgba(14, 14, 15, 0.901);
 }
 
 /* Balance + growth side */
@@ -349,6 +350,10 @@ body {
   flex-direction: column;
   overflow: auto;
   backdrop-filter: blur(8px);
+}
+
+.dashboard-section > .account-card .sp-overlay-panel--pips {
+  overflow-y: hidden;
 }
 
 
@@ -763,21 +768,33 @@ body {
 @keyframes kpi-card-zoom-in {
   0% {
     opacity: 0;
-    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.6);
+    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.04);
+    filter: blur(4px);
+  }
+  40% {
+    opacity: 1;
+    filter: blur(0);
   }
   100% {
     opacity: 1;
     transform: translate(0, 0) scale(1);
+    filter: blur(0);
   }
 }
 @keyframes kpi-card-zoom-out {
   0% {
     opacity: 1;
     transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+  60% {
+    opacity: 0.4;
+    filter: blur(2px);
   }
   100% {
     opacity: 0;
-    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.8);
+    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.04);
+    filter: blur(6px);
   }
 }
 
@@ -805,22 +822,45 @@ body {
   max-width: 320px;
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  background: rgba(10, 12, 22, 0.99);
-  border: 1px solid rgba(59,130,246,0.2);
-  border-radius: 20px;
+  padding: 22px 24px 24px;
+  background: rgba(8, 10, 20, 0.98);
+  border: 1px solid rgba(59,130,246,0.18);
+  border-radius: 22px;
   box-shadow:
-    0 0 0 1px rgba(255,255,255,0.03) inset,
-    0 24px 48px -12px rgba(0,0,0,0.8);
-  animation: kpi-card-zoom-in 260ms cubic-bezier(0.16,1,0.3,1) both;
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 32px 64px -16px rgba(0,0,0,0.9),
+    0 0 0 0.5px rgba(59,130,246,0.12);
+  animation: kpi-card-zoom-in 320ms cubic-bezier(0.16,1,0.3,1) both;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
+}
+
+.kpi-card--tone-positive {
+  border-color: rgba(61,214,140,0.2);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 32px 64px -16px rgba(0,0,0,0.9),
+    0 0 32px -8px rgba(61,214,140,0.12);
+}
+.kpi-card--tone-negative {
+  border-color: rgba(240,77,77,0.2);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 32px 64px -16px rgba(0,0,0,0.9),
+    0 0 32px -8px rgba(240,77,77,0.12);
+}
+.kpi-card--tone-warning {
+  border-color: rgba(245,166,35,0.2);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 32px 64px -16px rgba(0,0,0,0.9),
+    0 0 32px -8px rgba(245,166,35,0.12);
 }
 
 .kpi-card.is-closing {
-  animation: kpi-card-zoom-out 260ms cubic-bezier(0.4,0,1,1) both;
+  animation: kpi-card-zoom-out 240ms cubic-bezier(0.4,0,1,1) both;
 }
 
 .kpi-card__head {
@@ -828,7 +868,7 @@ body {
   align-items: flex-start;
   justify-content: flex-start;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .kpi-card__metric-label {
@@ -838,6 +878,27 @@ body {
   text-transform: uppercase;
   color: var(--gold-300);
   line-height: 1.3;
+  opacity: 0.8;
+}
+
+.kpi-card__value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+  padding: 8px 0 6px;
+  border-bottom: none;
+}
+
+.kpi-card__value-display {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: inherit;
+  text-shadow: 0 0 24px currentColor;
+  opacity: 0.95;
 }
 
 .kpi-card__divider {
@@ -1177,7 +1238,8 @@ body {
 }
 .dashboard-section > .account-card .trade-history-row__summary {
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  line-height: 1.25;
   width: 100%;
   padding: 8px 0 8px;
   border: 0;
@@ -1196,7 +1258,7 @@ body {
 .dashboard-section > .account-card .trade-history-row__line {
   display: grid;
   grid-template-columns: minmax(0,1fr) auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 .dashboard-section > .account-card .trade-history-row__instrument {
@@ -1218,38 +1280,57 @@ body {
 .dashboard-section > .account-card .trade-history-row__volume { font-family: var(--font-mono); font-size: 10px; color: var(--card-muted); }
 .dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--buy  { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--sell { color: var(--card-negative); }
-.dashboard-section > .account-card .trade-history-row__trail { display: grid; gap: 2px; justify-items: end; text-align: right; }
+.dashboard-section > .account-card .trade-history-row__trail { display: grid; gap: 1px; justify-items: end; text-align: right; }
 .dashboard-section > .account-card .trade-history-panel__list .trade-history-row__trail strong { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
 .dashboard-section > .account-card .trade-history-row__trail--positive strong { color: var(--card-positive); }
 .dashboard-section > .account-card .trade-history-row__trail--negative strong { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__trail--neutral  strong { color: var(--card-ink); }
-.dashboard-section > .account-card .trade-history-row__prices { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dashboard-section > .account-card .trade-history-row__prices { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .dashboard-section > .account-card .trade-history-row__prices span,
 .dashboard-section > .account-card .trade-history-row__trail span { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
 .dashboard-section > .account-card .trade-history-row__comment { color: var(--card-dim); overflow: hidden; text-overflow: ellipsis; }
 .dashboard-section > .account-card .trade-history-row__details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 8px 12px;
+  gap: 6px 10px;
+  line-height: 1.25;
   padding: 0 0 12px;
 }
-.dashboard-section > .account-card .trade-history-row__detail { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; }
+.dashboard-section > .account-card .trade-history-row__detail {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 6px;
+}
 .dashboard-section > .account-card .trade-history-row__detail--val-only { justify-content: flex-end; }
 .dashboard-section > .account-card .trade-history-row__detail--full {
   grid-column: 1 / -1;
 }
-.dashboard-section > .account-card .trade-history-row__label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
-.dashboard-section > .account-card .trade-history-row__val { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.02em; color: var(--card-muted); }
+.dashboard-section > .account-card .trade-history-row__label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: var(--card-muted);
+  line-height: 1.25;
+}
+.dashboard-section > .account-card .trade-history-row__val {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: var(--card-muted);
+  line-height: 1.25;
+}
 .dashboard-section > .account-card .trade-history-row__val--white { color: var(--card-ink); }
 .dashboard-section > .account-card .trade-history-row__val--sl-hit  { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__val--tp-hit  { color: var(--card-neutral); }
-.dashboard-section > .account-card .trade-history-row__val--comment {
-  color: var(--card-muted);
+.dashboard-section > .account-card .trade-history-row__val--comment { color: var(--warning);
   font-size: 9px;
   letter-spacing: 0.02em;
   word-break: break-all;
+  line-height: 1.3;
 }
-.dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--positive { color: var(--card-positive); }
+.dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--positive { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__detail .trade-history-row__trail--negative { color: var(--card-negative); }
 
 /* ── Pips performance table ── */
@@ -1305,7 +1386,7 @@ body {
 .dashboard-section > .account-card .pips-performance__table tbody th:first-child {
   font-family: var(--font-mitr);
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 100;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
 }
@@ -1397,7 +1478,7 @@ body {
   transform: translate(-50%,-50%);
   border-radius: 50%;
   background: rgba(59,130,246,0.1);
-  box-shadow: 0 0 12px  rgba(59,130,246,0.5);
+  box-shadow: 0 0 12px  rgba(26, 231, 74, 0.788);
   z-index: -1;
 }
 .sparkline-live-beacon__pulse {
@@ -1409,7 +1490,7 @@ body {
   transform-origin: center;
   border-radius: 50%;
   background: rgba(59,130,246,0.12);
-  border: 1px solid rgba(59,130,246,0.5);
+  border: 1px solid var(--animation);
   opacity: 100;
 }
 .sparkline-live-beacon__pulse--one  { animation: pulse-ring var(--pulse-duration) ease-out infinite; }
@@ -1422,7 +1503,7 @@ body {
 }
 
 .sparkline-live-dot__core {
-  filter: drop-shadow(0 0 6px rgba(59,130,246,0.6));
+  filter: drop-shadow(0 0 6px var(--animation));
 }
 
 .trade-history-empty {
@@ -1699,21 +1780,25 @@ a:focus-visible, button:focus-visible {
 .candle-anim-container {
   position: fixed;
   inset: 0;
-  background: #07090f;
+  background: #03040a;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .candle-anim-footer {
   position: absolute;
-  bottom: max(15px, env(safe-area-inset-bottom, 15px));
+  bottom: 15px;
+  font-family: var(--font-mono, monospace);
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.18);
+  letter-spacing: 0.15em;
+  color: rgba(240, 242, 245, 0.18);
   text-transform: uppercase;
   pointer-events: none;
   user-select: none;
@@ -1725,10 +1810,9 @@ a:focus-visible, button:focus-visible {
   overflow: visible;
 }
 
-/* baseline */
+/* baseline — inherits stroke from JSX attribute */
 .candle-baseline {
-  stroke: rgba(255, 255, 255, 0.07);
-  stroke-width: 0.5;
+  stroke-width: 0.75;
 }
 
 /* each candle group starts hidden; nth-child selects by order in SVG
@@ -1777,15 +1861,15 @@ a:focus-visible, button:focus-visible {
 .dashboard-section > .account-card .profit-heatmap-panel {
   display: block;
   position: relative;
-  padding: 8px 0 0;
-  border-top: 0.5px solid rgba(255,255,255,0.07);
+  padding: 4px 0 0;
   margin-top: 4px;
+  margin-bottom: 10px;
 }
 
 .dashboard-section > .account-card .heatmap-header {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   margin-bottom: 2px;
 }
 
@@ -1802,7 +1886,7 @@ a:focus-visible, button:focus-visible {
 .dashboard-section > .account-card .heatmap-year-btn {
   background: none;
   border: none;
-  padding: 2px 0 2px 6px;
+  padding: 2px 0 2px 0px;
   font-size: 13px;
   line-height: 1;
   color: var(--text-muted);

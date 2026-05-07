@@ -22,6 +22,8 @@ function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
 export function KpiPreviewCard({
   hint,
   label,
+  value,
+  tone,
   onClose,
   triggerRef,
 }: {
@@ -56,7 +58,7 @@ export function KpiPreviewCard({
 
   const handleClose = useCallback(() => {
     setIsClosing(true);
-    setTimeout(onClose, 260); // match CSS animation duration
+    setTimeout(onClose, 240);
   }, [onClose]);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export function KpiPreviewCard({
     >
       <div
         ref={cardRef}
-        className={`kpi-card ${isClosing ? "is-closing" : ""}`}
+        className={`kpi-card ${isClosing ? "is-closing" : ""}${tone ? ` kpi-card--tone-${tone}` : ""}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         style={{
@@ -88,6 +90,11 @@ export function KpiPreviewCard({
         <div className="kpi-card__head">
           <span className="kpi-card__metric-label">{content.title ?? label}</span>
         </div>
+        {value != null ? (
+          <div className={`kpi-card__value-row tone-${tone ?? "neutral"}`}>
+            <span className="kpi-card__value-display">{value}</span>
+          </div>
+        ) : null}
         <div className="kpi-card__divider" />
         <div className="kpi-card__body">
           <p className="kpi-card__body-definition">{content.definition}</p>
