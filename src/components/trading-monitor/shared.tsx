@@ -513,8 +513,7 @@ export function SparklineChart({
       {beaconStyle ? (
         <span className="sparkline-live-beacon" style={beaconStyle} aria-hidden="true">
           <span className="sparkline-live-beacon__ambient" />
-          <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--one" />
-          <span className="sparkline-live-beacon__pulse sparkline-live-beacon__pulse--two" />
+          <span className="sparkline-live-beacon__pulse" />
         </span>
       ) : null}
       {timeframe === "1d" && highlightedIndex !== null && activeDataPoint ? (
@@ -557,7 +556,6 @@ export function TradingMonitorSharedStyles() {
         --pulse-base-size: 14px;
         --max-scale: 2.8;
         --pulse-duration: 3.6s;
-        --pulse-delay: 1.8s;
         --blink-duration: 2.4s;
         --stroke-color: rgba(61, 214, 140, 0.9);
         --fill-color: rgba(61, 214, 140, 0.14);
@@ -633,14 +631,7 @@ export function TradingMonitorSharedStyles() {
         background: var(--fill-color);
         border: 1px solid var(--stroke-color);
         opacity: 0;
-      }
-
-      .sparkline-live-beacon__pulse--one {
         animation: trading-monitor-pulse-ring var(--pulse-duration) ease-out infinite;
-      }
-
-      .sparkline-live-beacon__pulse--two {
-        animation: trading-monitor-pulse-ring var(--pulse-duration) ease-out var(--pulse-delay) infinite;
       }
 
       .sparkline-live-dot__core {

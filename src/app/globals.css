@@ -1445,7 +1445,6 @@ body {
   --pulse-base-size: 14px;
   --max-scale: 2.6;
   --pulse-duration: 5s;
-  --pulse-delay: 1.5s;
   --blink-duration: 2.4s;
   position: absolute;
   pointer-events: none;
@@ -1494,9 +1493,8 @@ body {
   background: rgba(59,130,246,0.12);
   border: 1px solid var(--animation);
   opacity: 100;
+  animation: pulse-ring var(--pulse-duration) ease-out infinite;
 }
-.sparkline-live-beacon__pulse--one  { animation: pulse-ring var(--pulse-duration) ease-out infinite; }
-.sparkline-live-beacon__pulse--two  { animation: pulse-ring var(--pulse-duration) ease-out var(--pulse-delay) infinite; }
 
 @keyframes pulse-ring {
   0%   { transform: translate(-50%,-50%) scale(1); opacity: 0; }
