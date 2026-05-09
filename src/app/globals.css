@@ -1444,7 +1444,7 @@ body {
   --core-size: 8px;
   --pulse-base-size: 14px;
   --max-scale: 2.6;
-  --pulse-duration: 5s;
+  --pulse-duration: 2.4s;
   --blink-duration: 2.4s;
   position: absolute;
   pointer-events: none;

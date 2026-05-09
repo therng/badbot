@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { startOfBangkokDay, startOfThaiDayInTableTime } from "@/lib/time";
+import { startOfBangkokDay, startOfBangkokWeek, startOfThaiDayInTableTime } from "@/lib/time";
 import {
   computeCompoundedGrowth,
   dealNet,
@@ -119,19 +119,9 @@ type ReportAnchoredPosition = {
 };
 
 export function compareAccountListItems(a: SerializedAccount, b: SerializedAccount) {
-  const growthDelta = b.today_growth_percent - a.today_growth_percent;
-  if (Math.abs(growthDelta) > BALANCE_SORT_EPSILON) {
-    return growthDelta;
-  }
-
-  const pipsDelta = b.today_net_pips - a.today_net_pips;
-  if (Math.abs(pipsDelta) > BALANCE_SORT_EPSILON) {
-    return pipsDelta;
-  }
-
-  const profitDelta = b.today_net_profit - a.today_net_profit;
-  if (Math.abs(profitDelta) > BALANCE_SORT_EPSILON) {
-    return profitDelta;
+  const weekGrowthDelta = b.week_growth_percent - a.week_growth_percent;
+  if (Math.abs(weekGrowthDelta) > BALANCE_SORT_EPSILON) {
+    return weekGrowthDelta;
   }
 
   const balanceDelta = b.balance - a.balance;
@@ -178,6 +168,24 @@ function getTodayGrowthPercent(
   anchorDate: Date,
 ) {
   return computeCompoundedGrowth(deals as any, getReportDayWindow(anchorDate).start, null);
+}
+
+function getTodayWeekGrowthPercent(
+  deals: Array<{
+    time: Date | string;
+    dealNo?: string;
+    type?: string | null;
+    comment?: string | null;
+    profit?: NullableNumericLike;
+    commission?: NullableNumericLike;
+    swap?: NullableNumericLike;
+    balance?: NullableNumericLike;
+  }>,
+  anchorDate: Date,
+) {
+  const weekStart = startOfBangkokWeek(anchorDate);
+  if (!weekStart) return 0;
+  return computeCompoundedGrowth(deals as any, weekStart, null);
 }
 
 function getTodayNetProfit(
@@ -322,6 +330,7 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
     status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
     last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
     today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+    week_growth_percent: getTodayWeekGrowthPercent(account.deals, anchorDate),
     today_net_profit: getTodayNetProfit(account.deals, anchorDate),
     today_net_pips: getTodayNetPips(account.positions, anchorDate),
     balance: getLatestDealBalance(account.deals, latestSnapshot?.balance ?? 0),
@@ -401,6 +410,7 @@ export async function getAccountListItems() {
       server: sanitizeOptionalText(account.serverName) ?? "",
       status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
       today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
+      week_growth_percent: getTodayWeekGrowthPercent(account.deals, anchorDate),
       today_net_profit: getTodayNetProfit(account.deals, anchorDate),
       today_net_pips: getTodayNetPips(account.positions, anchorDate),
       balance: getLatestDealBalance(account.deals, account.accountSnapshot?.balance ?? 0),

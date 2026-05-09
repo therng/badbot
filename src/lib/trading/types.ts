@@ -9,6 +9,7 @@ export interface SerializedAccount {
   status: "Active" | "Inactive";
   last_updated: Date | null;
   today_growth_percent: number;
+  week_growth_percent: number;
   today_net_profit: number;
   today_net_pips: number;
   balance: number;
