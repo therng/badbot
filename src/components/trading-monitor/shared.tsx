@@ -373,7 +373,7 @@ export function SparklineChart({
     positive: "var(--positive)",
     negative: "var(--negative)",
     neutral: "var(--account-chart, var(--neutral))",
-    muted: "var(--account-chart-muted, #0051ff)",
+    muted: "var(--account-chart-muted, #97a3b1)",
   } as const;
 
   const palette = {
@@ -400,11 +400,12 @@ export function SparklineChart({
     setHighlightedBalance(index);
   };
 
+  const baseStroke = active ? palette.stroke : ACCOUNT_CHART_MUTED_COLOR;
   const segments = sparklinePoints.slice(1).map((point, index) => {
     const event = resolvedPoints[index + 1] as BalanceEventPoint | undefined;
     const label = event ? labelBalanceEvent(event.eventType, event.eventDelta) : "Trading";
 
-    let stroke = active ? palette.stroke : ACCOUNT_CHART_MUTED_COLOR;
+    let stroke = baseStroke;
     if (label === "Deposit") {
       stroke = "var(--positive)";
     } else if (label === "Withdrawal") {
