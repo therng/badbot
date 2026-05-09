@@ -551,23 +551,6 @@ export function TradingMonitorSharedStyles() {
         height: 100%;
       }
 
-      .sparkline-live-beacon {
-        --core-size: 8px;
-        --pulse-base-size: 14px;
-        --max-scale: 2.8;
-        --pulse-duration: 3.6s;
-        --blink-duration: 2.4s;
-        --stroke-color: rgba(61, 214, 140, 0.9);
-        --fill-color: rgba(61, 214, 140, 0.14);
-        --bg-glow: rgba(61, 214, 140, 0.13);
-        --shadow-glow: rgba(61, 214, 140, 0.55);
-        position: absolute;
-        pointer-events: none;
-        isolation: isolate;
-        width: 0;
-        height: 0;
-      }
-
       .sparkline-tooltip {
         position: absolute;
         z-index: 3;
@@ -605,124 +588,12 @@ export function TradingMonitorSharedStyles() {
         font-family: var(--font-mono);
       }
 
-      .sparkline-live-beacon__ambient {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 22px;
-        height: 22px;
-        transform: translate(-50%, -50%);
-        border-radius: 999px;
-        background: var(--bg-glow);
-        box-shadow: 0 0 12px 4px var(--shadow-glow);
-        z-index: -1;
-        animation: trading-monitor-ambient-breath var(--blink-duration) cubic-bezier(0.45, 0, 0.25, 1) infinite;
-      }
-
-      .sparkline-live-beacon__pulse {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: var(--pulse-base-size);
-        height: var(--pulse-base-size);
-        transform: translate(-50%, -50%) scale(1);
-        transform-origin: center;
-        border-radius: 999px;
-        background: var(--fill-color);
-        border: 1px solid var(--stroke-color);
-        opacity: 0;
-        animation: trading-monitor-pulse-ring var(--pulse-duration) ease-out infinite;
-      }
-
-      .sparkline-live-dot__core {
-        filter: drop-shadow(0 0 6px rgba(61, 214, 140, 0.9)) drop-shadow(0 0 12px rgba(61, 214, 140, 0.5));
-        transform-box: fill-box;
-        transform-origin: center;
-        animation: trading-monitor-beacon-blink var(--blink-duration, 2.4s) cubic-bezier(0.45, 0, 0.25, 1) infinite;
-      }
-
       .sparkline-dot__active {
         filter: none;
       }
 
       .detail-chart-dot--active {
         filter: drop-shadow(0 0 12px rgba(83, 119, 165, 0.22));
-      }
-
-      @keyframes trading-monitor-ambient-breath {
-        0%, 100% {
-          opacity: 0.55;
-          box-shadow: 0 0 10px 2px var(--shadow-glow);
-        }
-        14% {
-          opacity: 1;
-          box-shadow: 0 0 18px 6px var(--shadow-glow);
-        }
-        28% {
-          opacity: 0.7;
-          box-shadow: 0 0 9px 2px var(--shadow-glow);
-        }
-        42% {
-          opacity: 0.95;
-          box-shadow: 0 0 16px 5px var(--shadow-glow);
-        }
-        62% {
-          opacity: 0.5;
-          box-shadow: 0 0 8px 2px var(--shadow-glow);
-        }
-      }
-
-      @keyframes trading-monitor-beacon-blink {
-        0%, 100% {
-          opacity: 1;
-          transform: scale(1);
-        }
-        14% {
-          opacity: 0.5;
-          transform: scale(0.85);
-        }
-        28% {
-          opacity: 1;
-          transform: scale(1.18);
-        }
-        42% {
-          opacity: 0.7;
-          transform: scale(0.94);
-        }
-        56% {
-          opacity: 1;
-          transform: scale(1.08);
-        }
-        72% {
-          opacity: 0.92;
-          transform: scale(1);
-        }
-      }
-
-      @keyframes trading-monitor-pulse-ring {
-        0% {
-          transform: translate(-50%, -50%) scale(1);
-          opacity: 0;
-        }
-        5% {
-          opacity: 1;
-        }
-        45%,
-        100% {
-          transform: translate(-50%, -50%) scale(var(--max-scale));
-          opacity: 0;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .sparkline-live-beacon__pulse,
-        .sparkline-live-beacon__ambient {
-          animation: none;
-          opacity: 0;
-        }
-        .sparkline-live-dot__core {
-          animation: none;
-        }
       }
     `}</style>
   );

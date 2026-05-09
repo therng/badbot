@@ -1700,11 +1700,6 @@ a:focus-visible, button:focus-visible {
   font-size: 11px;
 }
 
-@keyframes trading-monitor-pulse-ring {
-  0% { transform: translate(-50%,-50%) scale(1); opacity: 0; }
-  5% { opacity: 1; }
-  45%, 100% { transform: translate(-50%,-50%) scale(2.6); opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .sparkline-live-beacon__pulse { animation: none; opacity: 0; }
   .sparkline-live-beacon__ambient { animation: none; opacity: 0; }
