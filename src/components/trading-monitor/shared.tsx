@@ -403,8 +403,8 @@ export function SparklineChart({
   const segments = sparklinePoints.slice(1).map((point, index) => {
     const event = resolvedPoints[index + 1] as BalanceEventPoint | undefined;
     const label = event ? labelBalanceEvent(event.eventType, event.eventDelta) : "Trading";
-    
-    let stroke = palette.stroke;
+
+    let stroke = active ? palette.stroke : ACCOUNT_CHART_MUTED_COLOR;
     if (label === "Deposit") {
       stroke = "var(--positive)";
     } else if (label === "Withdrawal") {

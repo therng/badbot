@@ -244,6 +244,10 @@ body {
   text-overflow: ellipsis;
 }
 
+.dashboard-section > .account-card.account-card--inactive .sp-name {
+  color: var(--card-muted);
+}
+
 .dashboard-section > .account-card .sp-account {
   display: flex;
   align-items: center;
