@@ -516,17 +516,11 @@ export function SparklineChart({
           <span className="sparkline-live-beacon__pulse" />
         </span>
       ) : null}
-      {highlightedIndex !== null && activeDataPoint ? (
+      {timeframe === "1d" && highlightedIndex !== null && activeDataPoint ? (
         <div className="sparkline-tooltip sparkline-tooltip--inset" role="status" aria-live="polite">
           <span>{formatReportLocalDate(activeDataPoint.x)}</span>
-          {timeframe === "1d" ? (
-            <strong>{formatReportLocalTime(activeDataPoint.x)}</strong>
-          ) : (
-            <strong>{formatCurrency(resolveBalanceValue(activeDataPoint))}</strong>
-          )}
-          {timeframe === "1d" ? (
-            <span>{formatCurrency(resolveBalanceValue(activeDataPoint))}</span>
-          ) : null}
+          <strong>{formatReportLocalTime(activeDataPoint.x)}</strong>
+          <span>{formatCurrency(resolveBalanceValue(activeDataPoint))}</span>
         </div>
       ) : null}
     </div>
