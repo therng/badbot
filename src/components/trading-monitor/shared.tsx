@@ -470,22 +470,15 @@ export function SparklineChart({
             r="8"
             fill="transparent"
             stroke="none"
-            tabIndex={0}
             onMouseEnter={() => {
               if (timeframe !== "1d") {
                 setHighlightedBalance(index);
               }
             }}
-            onFocus={() => setHighlightedBalance(index)}
             onClick={() => handleActivatePoint(index, timeframe === "1d")}
             onTouchStart={(event) => {
               event.preventDefault();
               handleActivatePoint(index, true);
-            }}
-            onBlur={() => {
-              if (timeframe !== "1d") {
-                setHighlightedBalance(null);
-              }
             }}
           />
         ))}
