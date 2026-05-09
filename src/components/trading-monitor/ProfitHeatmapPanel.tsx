@@ -195,7 +195,7 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
                 </span>
               ))}
             </div>
-            <div className="heatmap-grid">
+            <div className="heatmap-grid" onMouseLeave={() => setActiveDateKey(null)}>
               {weekGrid.flatMap((week, wi) =>
                 week.days.map((day, di) => {
                   if (!day.dateKey) {
@@ -212,6 +212,7 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
                       key={`${wi}-${di}`}
                       className={`heatmap-cell${intensityClass ? ` ${intensityClass}` : ""}${isActive ? " is-active" : ""}`}
                       title={tooltipText ?? undefined}
+                      onMouseEnter={() => setActiveDateKey(day.dateKey)}
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveDateKey(isActive ? null : day.dateKey);
