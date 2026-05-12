@@ -1325,7 +1325,6 @@ body {
 .dashboard-section > .account-card .trade-history-row__val--sl-hit  { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__val--tp-hit  { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__val--comment { color: var(--warning);
-  font-size: 9px;
   letter-spacing: 0.02em;
   word-break: break-all;
   line-height: 1.3;
