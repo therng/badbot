@@ -4,140 +4,153 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-`analytic` is a Next.js trading account monitor for MT5-style account data. It is an operational dashboard — not a marketing site — built to help operators quickly identify which accounts matter most, track balance/equity curves, and drill into performance without losing context.
+`analytic` is a Next.js trading account monitor for MT5-style account data. It is an operational dashboard — not a marketing site — built to help operators quickly identify which accounts matter most, track balance/equity curves, and drill into performance without losing context. Optimized for mobile (portrait and landscape) on iOS Safari.
 
 ## Core Commands
 
 ```bash
-npm run dev              # Run dashboard locally
-npm run maintain         # Dev server with maintenance mode enabled
-npm run build            # Required baseline verification for all app changes
-npm run lint             # ESLint checks (Next.js defaults)
+npm run dev              # Next dev server
+npm run build            # Required baseline verification for app changes
+npm run start            # Run the production (standalone) build
+npm run lint             # ESLint (Next.js defaults)
 
-# Unit tests (Node built-in runner)
-npm run test:formatters  # Test currency/compact formatters
-npm run test:parser      # Test MT5 HTML report parser
+# Unit tests (Node built-in test runner via tsx)
+npm run test:formatters  # Currency/compact formatters
+npm run test:parser      # MT5 HTML report parser
 
-# Worker (background import job)
-npm run worker:once      # Single worker pass
-npm run worker:reimport  # Force reimport from configured FTP source
-npm run worker:reimport:local  # Force reimport from local files
+# Run a single test file directly (no package script needed)
+node --import tsx --test src/lib/time.test.ts
+node --import tsx --test src/lib/trading/analytics.test.ts
+node --import tsx --test src/lib/trading/account-data.test.ts
+node --import tsx --test src/lib/trading/position-metrics.test.ts
+node --import tsx --test src/components/trading-monitor/formatters.test.ts
 
-# Scripts
-npm run parse:mt5-report -- path/to/report.html  # Parse an MT5 report
-npm run db:backfill-report-results  # Recompute persisted report results
+# Worker (background FTP import + recompute)
+npm run worker           # Build + run continuously
+npm run worker:dev       # Run via ts-node (no build)
+npm run worker:once      # Single pass
+npm run worker:reimport  # Single pass, force reimport from configured (FTP) source
+npm run worker:reimport:local  # Single pass, force reimport from local files (REPORT_SOURCE=local)
+
+# Operational scripts
+npm run db:backfill-report-results  # Recompute persisted AccountReportResult rows
 npm run db:remediate-positions      # Dry-run fix for corrupted positions (add --apply to execute)
 npm run db:clean                    # Local data cleanup
+
+# Prisma
+npx prisma migrate dev   # Apply migrations locally
+npx prisma generate      # Regenerate client after schema edits
 ```
 
-**Verification:** No end-to-end test suite. `npm run build` and `npm run lint` are the baseline. Run `test:formatters` and `test:parser` for logic changes. For parser, analytics, or import changes, also run the relevant script against representative data.
+**Verification baseline:** No end-to-end suite. `npm run build` + `npm run lint` are the standard checks. Run the relevant `*.test.ts` files for logic changes. For parser, analytics, or import changes, also run the closest operational script against representative data.
 
 ## Architecture
 
-**Stack:** Next.js 15 App Router + React 18, Prisma 6 + PostgreSQL 15, background worker (esbuild-bundled Node.js), Caddy reverse proxy.
+**Stack:** Next.js 15 App Router + React 18, Prisma 6 + PostgreSQL 15, background worker (esbuild-bundled Node 20), Caddy reverse proxy.
 
 **Key directories:**
 - `src/app/` — App Router pages, layouts, API routes
-- `src/components/trading-monitor/` — Dashboard UI, formatters, account card logic
-- `src/lib/trading/` — Analytics, preaggregated cache views, account helpers, types
-- `src/lib/parser/` — MT5 HTML report parsing and normalization (uses cheerio)
-- `src/lib/time.ts` — Bangkok-timezone utilities (critical for Thai trading hours)
-- `src/worker/` — Background FTP import and recompute worker
-- `prisma/` — Schema and migrations
-- `scripts/` — Operational scripts (cleanup, backfill, parse)
+- `src/components/trading-monitor/` — Dashboard UI, formatters, account card logic, panels
+- `src/lib/trading/` — Analytics, preaggregated cache views, account helpers, types, report-result computation
+- `src/lib/parser/` — MT5 HTML report parsing/normalization (cheerio)
+- `src/lib/time.ts` — Bangkok-timezone utilities (Asia/Bangkok, UTC+7) — critical for chart boundaries and trade-time analytics
+- `src/lib/prisma.ts` — Prisma client singleton
+- `src/lib/analytics.ts` — Client analytics event tracking
+- `src/worker/` — Background FTP import + recompute worker (single `index.ts`, bundled to `dist/worker.js`)
+- `prisma/schema.prisma` + `prisma/migrations/`
+- `scripts/` — Operational scripts (cleanup, backfill, remediation)
 
 **API routes (`src/app/api/`):**
 - `accounts/` — List all accounts
-- `accounts/[id]/` — Account overview with timeframe
-- `accounts/[id]/balance-detail/` — Balance curve data
-- `accounts/[id]/profit-detail/` — Profit analytics
-- `accounts/[id]/win-detail/` — Win rate analytics
-- `accounts/[id]/positions/` — Closed positions list
-- `accounts/[id]/pips-summary/` — Pips performance summary
+- `accounts/[id]/` — Overview (KPIs, balance curve, open positions); `route-helpers.ts` is shared by sibling routes
+- `accounts/[id]/balance-detail/` — Balance + drawdown details
+- `accounts/[id]/profit-detail/` — Profit analytics (commissions, swaps, deposits/withdrawals)
+- `accounts/[id]/win-detail/` — Win rate, short/long, largest profit, consecutive wins
+- `accounts/[id]/positions/` — Open + historical positions
+- `accounts/[id]/pips-summary/` — Pips performance by symbol
+- `economic-events/`, `xauusd-candles/` — Market context endpoints
 - `health/` — Health check
 
-All account-level endpoints support `?timeframe=1d|1w|1m|ytd|1y|all`.
+All `accounts/[id]/*` endpoints accept `?timeframe=1d|1w|1m|ytd|1y|all`. Heavy reads go through the preaggregated cache layer in `src/lib/trading/preaggregated-cache.ts`.
 
-**Docker Compose stack:** `db` (postgres:15-alpine) → `web` (Next.js, runs migrations when `RUN_DB_MIGRATIONS=true`) → `worker` → `caddy` (port 80).
+**Docker Compose stack:** `db` (postgres:15-alpine) → `web` (Next.js, runs migrations when `RUN_DB_MIGRATIONS=true`) → `worker` (runs `dist/worker.js`) → `caddy` (port 80, proxies to web).
 
 ## Data Model
 
-Core tables:
-- `TradingAccount` — Account metadata (accountNo, owner, company, currency, server, reportDate)
-- `AccountSnapshot` — Current state (balance, equity, margin, floatingPL, marginLevel, creditFacility)
-- `AccountReportResult` — Precomputed performance metrics (profitFactor, sharpeRatio, drawdown, win stats, streaks)
-- `Position` — Closed positions; source for win rate, profit factor, trade counts; includes `pips` column for O(1) lookup
-- `Deal` — All transactions; source for balance curve, growth, drawdown, intraday D-timeframe
-- `OpenPosition` — Active positions; source for floating P/L and open exposure; unique on `(accountId, positionNo)` for safe upsert
-- `ReportImport` — Import tracking with SHA256 file hash deduplication
+Core tables (Prisma `@@map` exposes alternate SQL names — e.g. `TradingAccount` → `Account`):
+- `TradingAccount` — Account metadata (accountNo, accountName, company, currency, serverName, reportDate)
+- `AccountSnapshot` — Current state (balance, equity, margin, marginLevel, floatingPl, creditFacility, freeMargin)
+- `AccountReportResult` — Precomputed metrics cache (profitFactor, sharpeRatio, drawdowns, win stats, streaks, gross profit/loss)
+- `Position` — Closed positions; unique on `(accountId, positionNo)`; includes `pips` for O(1) lookup; indexed on `(accountId, openTime|closeTime|reportDate)`
+- `Deal` — All transactions; unique on `(accountId, dealNo)`; indexed on `(accountId, time|type|reportDate)` and `symbol`
+- `OpenPosition` — Active positions; unique on `(accountId, positionNo)` enables safe upsert (replaces older delete-all + re-insert pattern)
+- `ReportImport` — Import tracking with SHA256 `fileHash` for dedup (unique on `(accountId, fileHash)`)
 
-**v4.0 schema improvements:**
-- Unique constraint on `OpenPosition(accountId, positionNo)` enables safe upsert (vs delete-all + re-insert)
-- Composite index on `Deal(accountId, type)` for trading vs. balance deal filtering
-- Composite index on `Position(accountId, openTime)` for hold-time analytics
-- `pips` column on `Position` for O(1) pips lookup
-
-**Source boundaries (critical):**
-- Win rate, profit factor, Sharpe, expected payoff, trade streaks → `Position`
+**Source boundaries (critical — do not mix sources):**
+- Win rate, profit factor, Sharpe, expected payoff, average/largest win-loss trade, consecutive streaks, trades-per-week, avg hold time → `Position`
 - Balance curve, growth, drawdown, intraday D-timeframe → `Deal`
-- Floating P/L, open exposure → `OpenPosition`
-- Latest balance, equity, margin level → `TradingAccount` / `AccountSnapshot`
-- `positionNetPnl = profit + swap + commission` (always include swap + commission)
+- Floating P/L, open exposure, open counts → `OpenPosition`
+- Latest balance, equity, margin, marginLevel → `TradingAccount` / `AccountSnapshot`
+- Trade P/L is always `positionNetPnl = profit + swap + commission` (include swap + commission)
+
+**Precomputed `AccountReportResult` is a cache, not an authoritative source** — source-derived computation must remain correct on its own.
 
 ## Key Conventions
 
-**Code style:** 2-space indent, semicolons, double quotes, `@/` import aliases, `PascalCase` for components/types, `camelCase` for functions/variables/hooks.
+**Code style:** 2-space indent, semicolons, double quotes, `@/` import aliases, `PascalCase` for components/types, `camelCase` for functions/hooks/variables. App and script code is TypeScript.
 
 **Number formatting:**
-- Full currency: always 2 decimals with symbol, no space (`$1,234.57`)
-- Compact monetary: no symbol, max 1 decimal, uppercase K/M/B suffixes, strip trailing `.0`
+- Full currency: 2 decimals, currency symbol with no space (`$1,234.57`, `-$1,234.57`)
+- Compact monetary: no symbol, max 1 decimal, uppercase `K`/`M`/`B` suffixes, strip trailing `.0`
 - Never mix compact and full currency in the same metric surface
-- Round only at presentation layer; keep backend at full precision
+- Provide access to full-precision value via tooltip/tap when compact is shown
+- Backend keeps full precision; round only at the presentation layer
 
-**Growth/analytics:** Follow MQL5-style logic so deposits/withdrawals don't distort performance metrics. Precomputed `AccountReportResult` rows are a cache, not an authoritative source.
+**Financial precision:** Use Prisma `Decimal` for monetary values in worker and DB layer. Convert to `number` only at the serialization boundary before sending to the client.
 
-**Timezone:** All date/time handling uses Bangkok timezone (Asia/Bangkok, UTC+7). Use helpers from `src/lib/time.ts`. This is critical for correct chart boundaries and trade-time analytics.
+**Growth/analytics:** MQL5-style logic so deposits/withdrawals don't distort performance. Preserve balance-operation segmentation logic across UI and backend changes.
 
-**Account ordering:** Balance descending, preserved across breakpoints and orientation changes.
+**Timezone:** All date/time uses Bangkok (Asia/Bangkok, UTC+7) via `src/lib/time.ts`. Critical for chart boundaries and trade-time analytics.
 
-**Financial precision:** Use Prisma `Decimal` for all monetary values in the worker and database layer. Convert to `number` only at the serialization boundary before sending to the client.
+**Account ordering:** Default sort is `Growth` `1D` descending. Tie-breakers: `Pips` `1D`, then balance desc, then accountNo asc. Same ordering must be preserved across breakpoints, orientation changes, and selection.
 
 ## Dashboard Layout Model
 
-- **Mobile landscape:** Two-zone layout; balance chart dominant; horizontal paging between accounts acceptable
-- **Mobile portrait:** Single-column stack; chart above secondary content; KPI chips immediately after chart
+The dashboard answers three questions fast: which accounts matter most, what the balance/equity curve is doing, and where to drill next without losing context.
 
-**Required KPI chips:** net gain, floating P/L, relative drawdown, margin level, win rate, total trades, open positions.
+- **Mobile landscape:** Two-zone account workspace; balance chart dominant; identity/growth/balance in card header; KPI chips visible without drill-down; horizontal paging between accounts acceptable if order remains stable.
+- **Mobile portrait:** Single-column stack; compact header; chart above secondary content; timeframe controls attached to chart; KPI chips immediately after chart as a dense grid.
+- **Shared:** Pull-to-refresh works from top of dashboard only (72px threshold, 116px max). Primary chart + KPIs fit without sideways panning. Horizontal scroll OK for secondary tables.
 
-**Balance chart:** Single continuous line. `D` timeframe uses intraday sparkline anchored to report date with prior-day close as baseline, fixed 0–23 hourly axis in report-local time. Segment color marks balance operations (deposit/withdrawal).
+Avoid generic card-mosaic layouts, decorative gradients, marketing-style copy, or legacy `vh`/manual iOS height shims (uses `dvh` + `viewport-fit=cover`; PWA standalone mode applies top safe-area insets only).
+
+**Required KPI chips:** net gain, floating P/L, relative drawdown, margin level (when available), win rate, total trades, open positions. The `TRADES` chip count and history list both use timeframe-filtered closed positions from `Position` only.
+
+**Balance chart:** Single continuous line per selected account/timeframe. `D` timeframe is an intraday sparkline anchored to report date, prior-day close as baseline, fixed 0–23 hourly axis in report-local time, no permanent gridlines in the compact card, hover/tap reveals point balance + timestamp. Segment color marks balance-operation events (deposit/withdrawal). Live snapshot may append a live point when newer than the last historical point.
 
 ## Key Components
 
-- `DashboardClient.tsx` — Main client component; owns account list state, selected account, timeframe, pull-to-refresh (72px threshold, 116px max), analytics event tracking
+- `DashboardClient.tsx` — Main client; owns account list, selected account, timeframe, pull-to-refresh, analytics
 - `shared.tsx` — Shared UI: `SparklineChart`, `TimeframeStrip`, `InlineState` skeletons, `TradingMonitorSharedStyles`
-- `LoadingScreen.tsx` — Startup splash screen (AI Core aesthetic)
-- `SummaryChip.tsx` — KPI chip components
-- `OpenPositionsPanel.tsx` — Open positions table
-- `TradeHistoryPanel.tsx` — Closed trade history
-- `MonthlyPerformanceTable.tsx` — Monthly P&L breakdown
-- `PipsPerformanceTable.tsx` — Pips performance by symbol
-- `formatters.ts` / `DashboardFormatters.ts` — All number/date formatting helpers
-- `useApiResource.ts` — Custom hook for API data fetching with loading/error states
+- `LoadingScreen.tsx` — Startup splash (Pure Black Terminal aesthetic)
+- `SummaryChip.tsx`, `OpenPositionsPanel.tsx`, `TradeHistoryPanel.tsx`, `PipsPerformanceTable.tsx`, `ProfitHeatmapPanel.tsx`, `PerformanceQualityPanel.tsx`, `BotPnLPanel.tsx` — Dashboard panels
+- `formatters.ts` / `DashboardFormatters.ts` — Number/date formatting helpers (each with companion `.test.ts`)
+- `useApiResource.ts` — API fetch hook with loading/error states
 
 ## Environment Variables
 
-See `.env.example` for all variables. Key ones:
+See `.env.example`. Key ones:
 - `DATABASE_URL` — PostgreSQL connection string
 - `FTP_HOST/PORT/USER/PASS/PATH` — FTP source for report imports
 - `WORKER_POLL_MS`, `WORKER_FILE_STABLE_MS`, `WORKER_MIN_FILE_SIZE_BYTES` — Worker tuning
+- `WORKER_RUN_ONCE`, `WORKER_FORCE_REIMPORT`, `REPORT_SOURCE` — Worker mode flags (set by `worker:once|reimport|reimport:local` scripts)
 - `NEXT_PUBLIC_MAINTENANCE_MODE` — Enables maintenance mode banner
 - `RUN_DB_MIGRATIONS` — Auto-migrate on web container startup
 
 ## Agent Workflow Notes
 
-- Before editing, check the worktree — this repo may have unrelated local experiments or experiments.
+- Check the worktree before editing — this repo may have unrelated local experiments.
 - Dashboard work starts in `src/components/trading-monitor/`, `src/app/globals.css`, and account API routes.
-- This app is optimized for mobile portrait ONLY.
-- Keep API and UI terminology aligned.
-- Update `AGENTS.md` when dashboard composition, responsive rules, KPI definitions, or API contracts materially change.
-- Test file locations: `src/lib/trading/position-metrics.test.ts`, `src/lib/parser/index.test.ts`, `src/components/trading-monitor/DashboardFormatters.test.ts`, `src/lib/time.test.ts`.
+- Keep API and UI terminology aligned (`/api/accounts` for list, `/api/accounts/[id]?timeframe=...` for overview).
+- When changing parser/backfill behavior, note input expectations, migration risk, and rollback considerations in the PR.
+- Update `AGENTS.md` when dashboard composition, responsive rules, account ordering, KPI definitions, API contracts, or verification expectations materially change.
