@@ -99,7 +99,7 @@ function formatTick(value: number): string {
   return value.toString();
 }
 
-const ZOOM_LEVELS = [1, 4, 8, 16] as const;
+const ZOOM_LEVELS = [1, 2, 4] as const;
 type ZoomLevel = (typeof ZOOM_LEVELS)[number];
 
 interface Props {
@@ -157,12 +157,9 @@ function BotPnLPanelImpl({ positions }: Props) {
     >
       <div className="bot-pnl-toolbar">
         <div className="bot-pnl-title">
-          <strong>{`${bots.length} bots`}</strong>
-          <span className="bot-pnl-col__count">{totalTrades}</span>
-        </div>
         <div className="bot-pnl-zoom" aria-label="Zoom range">
           {ZOOM_LEVELS.map((level) => (
-            <button
+            <silder
               key={level}
               type="button"
               className={`bot-pnl-zoom__button${zoom === level ? " is-active" : ""}`}
