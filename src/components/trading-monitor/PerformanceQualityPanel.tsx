@@ -234,7 +234,7 @@ function PerformanceQualityPanelImpl({
   ];
 
   const hasTradeCount = typeof totalTrades === "number" && Number.isFinite(totalTrades);
-  const tradesText = hasTradeCount ? formatWholeNumber(totalTrades) ?? "—" : "—";
+  const tradesText = hasTradeCount ? formatWholeNumber(totalTrades) : "—";
 
   return (
     <div className="perf-quality-panel" role="region" aria-label="Performance quality">
