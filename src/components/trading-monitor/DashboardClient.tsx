@@ -502,6 +502,7 @@ const DashboardCard = memo(function DashboardCard({
               sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
               profitFactor={balanceDetail.data?.summary.profitFactor}
               recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+              totalTrades={overview.data?.kpis.trades}
             />
           )}
           <div className="tf-row">

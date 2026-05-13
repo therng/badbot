@@ -1,6 +1,7 @@
 "use client";
 import { memo } from "react";
 import { KpiPreviewCard, useKpiHint, type KpiHintContent } from "@/components/trading-monitor/SummaryChip";
+import { formatWholeNumber } from "@/components/trading-monitor/formatters";
 
 /**
  * PerformanceQualityPanel
@@ -29,6 +30,7 @@ export interface PerformanceQualityPanelProps {
   sharpeRatio: number | null | undefined;
   profitFactor: number | null | undefined;
   recoveryFactor: number | null | undefined;
+  totalTrades: number | null | undefined;
 }
 
 interface BarConfig {
@@ -189,6 +191,7 @@ function PerformanceQualityPanelImpl({
   sharpeRatio,
   profitFactor,
   recoveryFactor,
+  totalTrades,
 }: PerformanceQualityPanelProps) {
   const bars: BarConfig[] = [
     {
@@ -230,8 +233,17 @@ function PerformanceQualityPanelImpl({
     },
   ];
 
+  const hasTradeCount = typeof totalTrades === "number" && Number.isFinite(totalTrades);
+  const tradesText = hasTradeCount ? formatWholeNumber(totalTrades) ?? "—" : "—";
+
   return (
     <div className="perf-quality-panel" role="region" aria-label="Performance quality">
+      <div className="perf-quality-panel__head">
+        <span className="perf-quality-panel__head-label">TRADES</span>
+        <span className="perf-quality-panel__head-value" data-empty={hasTradeCount ? undefined : "true"}>
+          {tradesText}
+        </span>
+      </div>
       {bars.map((config) => (
         <QualityBar key={config.key} config={config} />
       ))}

@@ -344,9 +344,9 @@ body {
   min-height: 280px;
 }
 
-/* DD panel — taller canvas so the stacked quality bars are not cramped */
+/* DD panel — taller canvas so the trades header + stacked quality bars fit */
 .dashboard-section > .account-card .sp-canvas-stack--dd {
-  min-height: 280px;
+  min-height: 304px;
 }
 
 .dashboard-section > .account-card .sp-overlay-panel {
@@ -415,9 +415,33 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px 12px;
+  padding: 12px 16px 12px;
   width: 100%;
 }
+.perf-quality-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.perf-quality-panel__head-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+}
+.perf-quality-panel__head-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.perf-quality-panel__head-value[data-empty="true"] { color: var(--text-muted); }
 .quality-bar {
   display: flex;
   flex-direction: column;
