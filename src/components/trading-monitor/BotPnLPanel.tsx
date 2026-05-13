@@ -167,7 +167,7 @@ function BotPnLPanelImpl({ positions }: Props) {
               onClick={() => setZoom(level)}
             >
               {level}x
-            </button>
+            </slider>
           ))}
         </div>
       </div>
@@ -176,13 +176,17 @@ function BotPnLPanelImpl({ positions }: Props) {
         {activeBot && (
           <div
             className="bot-pnl-tooltip"
-            style={{ left: `${tooltipX}%` }}
+            style={{
+            position: "absolute",
+            left: tooltipPos.x,
+            top: tooltipPos.y,
+            transform: "translate(-50%, calc(-100% - 8px))",
+            pointerEvents: "none",
+            zIndex: 10,
+          }}
             aria-live="polite"
           >
             <div className="bot-pnl-tooltip__name">{activeBot.name}</div>
-            <div className="bot-pnl-tooltip__net" data-sign={activeBot.netPnl >= 0 ? "pos" : "neg"}>
-              {formatSignedCurrency(activeBot.netPnl, 2)}
-            </div>
             <div className="bot-pnl-tooltip__rows">
               <span className="bot-pnl-tooltip__profit">{formatSignedCurrency(activeBot.grossProfit, 2)}</span>
               <span className="bot-pnl-tooltip__loss">{formatSignedCurrency(activeBot.grossLoss, 2)}</span>
