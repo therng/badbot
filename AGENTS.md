@@ -10,12 +10,14 @@
 - `src/lib/parser/`: report parsing and normalization.
 - `src/worker/`: background import/recompute worker.
 - `prisma/`: schema and migrations.
-- `scripts/`: operational scripts such as cleanup, backfills, and report parsing.
+- `scripts/`: operational scripts such as cleanup, backfills, and data remediation.
 - `public/`: static assets.
 - `Docs/`: supporting notes and examples.
 
 ## Core Commands
 - `npm run dev`: run the dashboard locally.
+- `docker-compose up -d`: start the local PostgreSQL-backed stack from `docker-compose.yml`.
+- `npx prisma migrate dev`: apply local Prisma schema changes after the database is up.
 - `npm run build`: required baseline verification for app changes.
 - `npm run start`: run the production build.
 - `npm run lint`: run Next.js ESLint checks.
@@ -25,7 +27,6 @@
 - `npm run worker:once`: run a single worker pass.
 - `npm run worker:reimport`: force a single worker reimport pass using the configured normal source.
 - `npm run worker:reimport:local`: force a single worker reimport pass from local source files only.
-- `npm run parse:mt5-report -- path/to/report.html`: parse representative MT5 report input.
 - `npm run db:backfill-report-results`: recompute persisted report result rows.
 - `npm run db:remediate-positions`: dry-run the corrupted closed-position remediation path; pass `--apply` to delete the impossible rows.
 - `npm run db:clean`: cleanup script for local data.

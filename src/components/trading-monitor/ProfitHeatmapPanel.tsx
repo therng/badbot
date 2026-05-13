@@ -92,6 +92,8 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
   const currentYear = useMemo(() => getCurrentUTCYear(), []);
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const availableYears = useMemo(() => {
     if (!positions?.length) return [currentYear];
@@ -142,7 +144,7 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
   const activeData = activeDateKey ? dailyMap.get(activeDateKey) : null;
 
   return (
-    <div className="profit-heatmap-panel" aria-label="Yearly profit heatmap" onClick={() => setActiveDateKey(null)}>
+    <div ref={panelRef} className="profit-heatmap-panel" aria-label="Yearly profit heatmap" onClick={() => { setActiveDateKey(null); setTooltipPos(null); }}>
       <div className="heatmap-header">
         <button
           className="heatmap-year-btn"
@@ -168,12 +170,6 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
           ›
         </button>
 
-        {activeDateKey && (
-          <div className="sparkline-tooltip sparkline-tooltip--inset" style={{ position: 'absolute', top: '4px', right: '0', pointerEvents: 'none' }}>
-            <span>{activeDateKey}</span>
-            <strong>{activeData ? (activeData.pnl >= 0 ? "+" : "") + activeData.pnl.toFixed(2) : "0.00"}</strong>
-          </div>
-        )}
       </div>
 
       {loading ? (
@@ -214,7 +210,20 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
                       title={tooltipText ?? undefined}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveDateKey(isActive ? null : day.dateKey);
+                        if (isActive) {
+                          setActiveDateKey(null);
+                          setTooltipPos(null);
+                        } else {
+                          setActiveDateKey(day.dateKey);
+                          if (panelRef.current) {
+                            const cellRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            const panelRect = panelRef.current.getBoundingClientRect();
+                            setTooltipPos({
+                              x: cellRect.left + cellRect.width / 2 - panelRect.left,
+                              y: cellRect.top - panelRect.top,
+                            });
+                          }
+                        }
                       }}
                     />
                   );
@@ -222,6 +231,23 @@ export function ProfitHeatmapPanel({ positions, loading, error }: Props) {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {activeDateKey && tooltipPos && (
+        <div
+          className="sparkline-tooltip"
+          style={{
+            position: "absolute",
+            left: tooltipPos.x,
+            top: tooltipPos.y,
+            transform: "translate(-50%, calc(-100% - 8px))",
+            pointerEvents: "none",
+            zIndex: 10,
+          }}
+        >
+          <span>{activeDateKey}</span>
+          <strong>{activeData ? (activeData.pnl >= 0 ? "+" : "") + activeData.pnl.toFixed(2) : "0.00"}</strong>
+          {activeData && <span>{activeData.count} trade{activeData.count !== 1 ? "s" : ""}</span>}
         </div>
       )}
     </div>

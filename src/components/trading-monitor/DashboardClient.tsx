@@ -46,6 +46,7 @@ import { OpenPositionsPanel } from "@/components/trading-monitor/OpenPositionsPa
 import { TradeHistoryPanel } from "@/components/trading-monitor/TradeHistoryPanel";
 import { PipsPerformanceTable } from "@/components/trading-monitor/PipsPerformanceTable";
 import { PerformanceQualityPanel } from "@/components/trading-monitor/PerformanceQualityPanel";
+import { BotPnLPanel } from "@/components/trading-monitor/BotPnLPanel";
 import { ProfitHeatmapPanel } from "@/components/trading-monitor/ProfitHeatmapPanel";
 import { useApiResource } from "@/components/trading-monitor/useApiResource";
 import { CandleAnimation } from "@/components/trading-monitor/LoadingScreen";
@@ -122,6 +123,25 @@ function applyPullResistance(distance: number) {
   return Math.min(MAX_PULL_DISTANCE, PULL_THRESHOLD + (dampenedDistance - PULL_THRESHOLD) * 0.35);
 }
 
+function BotPnLToggleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="5" y1="20" x2="5" y2="13" />
+      <line x1="11" y1="20" x2="11" y2="8" />
+      <line x1="17" y1="20" x2="17" y2="15" />
+      <path d="M19.6 3l0.5 1.4 1.4 0.5-1.4 0.5-0.5 1.4-0.5-1.4-1.4-0.5 1.4-0.5z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 const DashboardCard = memo(function DashboardCard({
   account,
   refreshKey,
@@ -136,6 +156,9 @@ const DashboardCard = memo(function DashboardCard({
   const [expandedKpiState, setExpandedKpiState] = useState<{ scope: string; value: ExpandableKpiKey | null } | null>(null);
   const expandedKpiScope = `${account.id}:${timeframe}`;
   const expandedKpi = expandedKpiState?.scope === expandedKpiScope ? expandedKpiState.value : null;
+  const [ddSubPanelState, setDdSubPanelState] = useState<{ scope: string; value: "quality" | "bots" } | null>(null);
+  const ddSubPanelScope = account.id;
+  const ddSubPanel = ddSubPanelState?.scope === ddSubPanelScope ? ddSubPanelState.value : "quality";
   const overview = useApiResource<AccountOverviewResponse>(`/api/accounts/${account.id}?timeframe=${timeframe}`, {
     refreshKey,
     onRequestStateChange,
@@ -348,7 +371,7 @@ const DashboardCard = memo(function DashboardCard({
       detailRows = [
         {
           label: "ABS",
-          value: formatCompactNumber(balanceDetail.data?.summary.absoluteDrawdown, 1),
+          value: formatCompactNumber(balanceDetail.data?.summary.absoluteDrawdown, 2),
           tone: drawdownTone(balanceDetail.data?.summary.absoluteDrawdown),
           meta: "Balance absolute drawdown",
           fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
@@ -360,7 +383,7 @@ const DashboardCard = memo(function DashboardCard({
         },
         {
           label: "MAX",
-          value: formatCompactNumber(balanceDetail.data?.summary.maximalDrawdownAmount, 1),
+          value: formatCompactNumber(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
           tone: drawdownTone(balanceDetail.data?.summary.maximalDrawdownAmount),
           meta: "Balance maximal drawdown",
           fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
@@ -372,10 +395,10 @@ const DashboardCard = memo(function DashboardCard({
         },
         {
           label: "WIN",
-          value: formatPlainPercent(overview.data?.kpis.winPercent, 1),
+          value: formatPlainPercent(overview.data?.kpis.winPercent, 2),
           tone: toneFromNumber(overview.data?.kpis.winPercent),
           meta: "Closed positions win rate",
-          fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 1),
+          fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 2),
           hint: {
             title: "Win Rate",
             definition: "สัดส่วนออเดอร์ที่ปิดเป็นกำไร",
@@ -493,7 +516,15 @@ const DashboardCard = memo(function DashboardCard({
     case "dd":
       compactKpiPanel = (
         <div className="sp-overlay-panel sp-overlay-panel--dd" role="region" aria-label="Drawdown quality">
-          {balanceDetail.error ? (
+          {ddSubPanel === "bots" ? (
+            positionsDetail.error ? (
+              <InlineState tone="error" title="Bot performance unavailable" message={positionsDetail.error} />
+            ) : positionsDetail.loading && !positionsDetail.data ? (
+              <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
+            ) : (
+              <BotPnLPanel positions={positionsDetail.data?.historyPositions} />
+            )
+          ) : balanceDetail.error ? (
             <InlineState tone="error" title="Quality metrics unavailable" message={balanceDetail.error} />
           ) : balanceDetail.loading && !balanceDetail.data ? (
             <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
@@ -685,6 +716,22 @@ const DashboardCard = memo(function DashboardCard({
                   hint={row.hint}
                 />
               ))}
+              {expandedKpi === "dd" ? (
+                <button
+                  type="button"
+                  className={`kchip kchip--icon is-actionable${ddSubPanel === "bots" ? " is-selected" : ""}`}
+                  aria-label="Toggle bot P/L panel"
+                  aria-pressed={ddSubPanel === "bots"}
+                  onClick={() => {
+                    setDdSubPanelState({
+                      scope: ddSubPanelScope,
+                      value: ddSubPanel === "bots" ? "quality" : "bots",
+                    });
+                  }}
+                >
+                  <BotPnLToggleIcon />
+                </button>
+              ) : null}
             </div>
           )}
         </section>

@@ -541,6 +541,11 @@ body {
 }
 .dashboard-section > .account-card .sp-overlay-panel .tf-row {
   margin-top: auto;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.dashboard-section > .account-card .sp-overlay-panel .tf-row .timeframe-pill {
+  flex: 0 0 auto;
 }
 .dashboard-section > .account-card .tf-row .timeframe-strip {
   gap: 4px;
@@ -990,6 +995,326 @@ body {
   background: rgba(59,130,246,0.1);
 }
 
+.dashboard-section > .account-card .kchip--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 8px 9px;
+  color: var(--text-secondary);
+}
+.dashboard-section > .account-card .kchip--icon.is-selected {
+  color: var(--text-primary);
+}
+.dashboard-section > .account-card .kchip--icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.dashboard-section > .account-card .bot-pnl-panel {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 6px 3px;
+  gap: 4px;
+}
+.dashboard-section > .account-card .bot-pnl-panel--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dashboard-section > .account-card .bot-pnl-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.dashboard-section > .account-card .bot-pnl-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.dashboard-section > .account-card .bot-pnl-title span {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--warning);
+}
+.dashboard-section > .account-card .bot-pnl-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+.dashboard-section > .account-card .bot-pnl-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 0.5px solid rgba(255, 255, 255, 0.075);
+}
+.dashboard-section > .account-card .bot-pnl-zoom__button {
+  min-width: 25px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.dashboard-section > .account-card .bot-pnl-zoom__button.is-active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+.dashboard-section > .account-card .bot-pnl-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 112px;
+  max-height: 152px;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.018);
+  padding: 7px 7px 6px 5px;
+}
+.dashboard-section > .account-card .bot-pnl-chart-area {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+.dashboard-section > .account-card .bot-pnl-axis {
+  flex: 0 0 auto;
+  width: 24px;
+  position: relative;
+  padding-bottom: 23px;
+}
+.dashboard-section > .account-card .bot-pnl-axis-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 23px;
+}
+.dashboard-section > .account-card .bot-pnl-tick-label {
+  position: absolute;
+  right: 3px;
+  transform: translateY(50%);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.36);
+  white-space: nowrap;
+}
+.dashboard-section > .account-card .bot-pnl-tick-label--max {
+  top: -4px;
+  bottom: auto;
+  color: var(--gold-300);
+}
+.dashboard-section > .account-card .bot-pnl-plot {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+.dashboard-section > .account-card .bot-pnl-gridlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 23px;
+  pointer-events: none;
+  z-index: 1;
+}
+.dashboard-section > .account-card .bot-pnl-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.dashboard-section > .account-card .bot-pnl-gridline--baseline {
+  background: rgba(255, 255, 255, 0.22);
+}
+.dashboard-section > .account-card .bot-pnl-scroll {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  position: relative;
+  z-index: 2;
+}
+.dashboard-section > .account-card .bot-pnl-chart {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  min-width: 100%;
+  height: 100%;
+}
+.dashboard-section > .account-card .bot-pnl-col {
+  flex: 1 1 0;
+  min-width: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 120ms ease;
+  padding: 0;
+}
+.dashboard-section > .account-card .bot-pnl-panel.has-active-bot .bot-pnl-col:not(.is-active) {
+  opacity: 0.34;
+}
+.dashboard-section > .account-card .bot-pnl-col:hover,
+.dashboard-section > .account-card .bot-pnl-col.is-active {
+  background: rgba(255, 255, 255, 0.055);
+  opacity: 1;
+}
+.dashboard-section > .account-card .bot-pnl-col__bars {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 44px;
+}
+.dashboard-section > .account-card .bot-pnl-bar {
+  position: absolute;
+  bottom: 0;
+  width: 12px;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dashboard-section > .account-card .bot-pnl-col:hover .bot-pnl-bar,
+.dashboard-section > .account-card .bot-pnl-col.is-active .bot-pnl-bar {
+  transform: scaleY(1.05);
+}
+.dashboard-section > .account-card .bot-pnl-bar--profit {
+  left: calc(50% - 13px);
+  background: var(--positive);
+  opacity: 0.85;
+}
+.dashboard-section > .account-card .bot-pnl-bar--loss {
+  left: calc(50% + 1px);
+  background: var(--negative);
+  opacity: 0.85;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip {
+  position: absolute;
+  top: 7px;
+  z-index: 10;
+  transform: translateX(-50%);
+  min-width: 112px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(10, 10, 14, 0.88);
+  border: 0.5px solid rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__name {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--card-warning);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__net {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__net[data-sign="pos"] {
+  color: var(--positive);
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__net[data-sign="neg"] {
+  color: var(--negative);
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__rows {
+  display: flex;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__profit {
+  color: var(--positive);
+  opacity: 0.8;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__loss {
+  color: var(--negative);
+  opacity: 0.8;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__meta {
+  display: flex;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+  padding-top: 3px;
+  margin-top: 1px;
+}
+.dashboard-section > .account-card .bot-pnl-col__legend {
+  flex: 0 0 23px;
+  height: 23px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding-top: 3px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.dashboard-section > .account-card .bot-pnl-col__label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--card-warning);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-section > .account-card .bot-pnl-col__count {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--warning);
+}
 .dashboard-section > .account-card .kchip--skeleton {
   min-height: 46px;
   background: rgba(255,255,255,0.03);

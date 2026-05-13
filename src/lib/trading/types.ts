@@ -1,4 +1,4 @@
-export type Timeframe = "1d" | "1w" | "1m" | "6m" | "1y" | "all";
+export type Timeframe = "1d" | "1w" | "1m" | "3m" | "6m" | "1y" | "all";
 
 export interface SerializedAccount {
   id: string;

@@ -3,23 +3,23 @@ import test from "node:test";
 
 import { getAccountStatus, getSinceDate } from "./analytics";
 
-test("getAccountStatus keeps same-day report snapshots active by default", () => {
+test("getAccountStatus marks fresh snapshots (within 7 min) active", () => {
   const now = new Date("2026-04-15T18:00:00.000Z");
-  const sameDaySnapshot = new Date("2026-04-15T02:30:00.000Z");
+  const freshSnapshot = new Date(now.getTime() - 5 * 60_000); // 5 minutes ago (one MT5 cycle)
 
   const originalNow = Date.now;
   Date.now = () => now.getTime();
 
   try {
-    assert.equal(getAccountStatus(sameDaySnapshot), "Active");
+    assert.equal(getAccountStatus(freshSnapshot), "Active");
   } finally {
     Date.now = originalNow;
   }
 });
 
-test("getAccountStatus marks stale snapshots inactive after the daily freshness window", () => {
+test("getAccountStatus marks stale snapshots (over 7 min) inactive", () => {
   const now = new Date("2026-04-15T18:00:00.000Z");
-  const staleSnapshot = new Date("2026-04-14T10:59:59.000Z");
+  const staleSnapshot = new Date(now.getTime() - 10 * 60_000); // 10 minutes ago (missed two cycles)
 
   const originalNow = Date.now;
   Date.now = () => now.getTime();

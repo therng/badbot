@@ -271,6 +271,30 @@ export function formatTableTimeLabel(value: Date | string | number | null | unde
   return `${padTwo(parts.hours)}:${padTwo(parts.minutes)}:${padTwo(parts.seconds)}`;
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SHORT_MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function formatTooltipDateLabel(value: Date | string | number | null | undefined) {
+  if (value == null) {
+    return "-";
+  }
+  const raw = getRawUtcDate(value);
+  if (!raw) {
+    return "-";
+  }
+
+  return `${WEEKDAY_LABELS[raw.getUTCDay()]} ${raw.getUTCDate()} ${SHORT_MONTH_LABELS[raw.getUTCMonth()]}`;
+}
+
+export function formatTooltipTimeLabel(value: Date | string | number | null | undefined) {
+  const parts = getRawDateParts(value);
+  if (!parts) {
+    return "-";
+  }
+
+  return `${padTwo(parts.hours)}:${padTwo(parts.minutes)}`;
+}
+
 export function getTableHour(value: Date | string | number | null | undefined) {
   const parts = getRawDateParts(value);
   return parts ? parts.hours : null;

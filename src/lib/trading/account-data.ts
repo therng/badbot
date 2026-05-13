@@ -327,7 +327,7 @@ export function serializeAccountBundle(bundle: AccountBundle | null): Serialized
     owner_name: sanitizeOptionalText(account.accountName),
     currency: sanitizeOptionalText(account.currency) ?? "USD",
     server: sanitizeOptionalText(account.serverName) ?? "",
-    status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
+    status: getAccountStatus(account.updatedAt),
     last_updated: latestReportTimestamp ? new Date(latestReportTimestamp) : null,
     today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
     week_growth_percent: getTodayWeekGrowthPercent(account.deals, anchorDate),
@@ -353,6 +353,7 @@ export async function getAccountListItems() {
       currency: true,
       serverName: true,
       reportDate: true,
+      updatedAt: true,
       accountSnapshot: true,
       deals: {
         select: {
@@ -408,7 +409,7 @@ export async function getAccountListItems() {
       owner_name: sanitizeOptionalText(account.accountName),
       currency: sanitizeOptionalText(account.currency) ?? "USD",
       server: sanitizeOptionalText(account.serverName) ?? "",
-      status: getAccountStatus(latestReportTimestamp ? new Date(latestReportTimestamp) : null),
+      status: getAccountStatus(account.updatedAt),
       today_growth_percent: getTodayGrowthPercent(account.deals, anchorDate),
       week_growth_percent: getTodayWeekGrowthPercent(account.deals, anchorDate),
       today_net_profit: getTodayNetProfit(account.deals, anchorDate),

@@ -10,8 +10,8 @@ import type {
 import {
   convertBangkokReportTimeToTableTimestamp,
   endOfThaiDayInTableTimeTimestamp,
-  formatTableDateLabel,
-  formatTableTimeLabel,
+  formatTooltipDateLabel,
+  formatTooltipTimeLabel,
   startOfThaiDayInTableTimeTimestamp,
   toTimestamp,
 } from "@/lib/time";
@@ -116,11 +116,11 @@ function resolveBalanceValue(point: ChartPoint | BalanceEventPoint) {
 }
 
 function formatReportLocalDate(value: Date | string | null | undefined) {
-  return formatTableDateLabel(value);
+  return formatTooltipDateLabel(value);
 }
 
 function formatReportLocalTime(value: Date | string | null | undefined) {
-  return formatTableTimeLabel(value);
+  return formatTooltipTimeLabel(value);
 }
 
 
@@ -510,11 +510,28 @@ export function SparklineChart({
           <span className="sparkline-live-beacon__pulse" />
         </span>
       ) : null}
-      {timeframe === "1d" && highlightedIndex !== null && activeDataPoint ? (
-        <div className="sparkline-tooltip sparkline-tooltip--inset" role="status" aria-live="polite">
+      {highlightedIndex !== null && activeDataPoint && activePoint ? (
+        <div
+          className="sparkline-tooltip"
+          style={(() => {
+            const xPct = (activePoint.x / chartWidth) * 100;
+            const yPct = (activePoint.y / chartHeight) * 100;
+            if (xPct < 20) {
+              return { left: 0, top: `${yPct}%`, transform: "translateY(calc(-100% - 10px))" };
+            }
+            if (xPct > 80) {
+              return { right: 0, top: `${yPct}%`, transform: "translateY(calc(-100% - 10px))" };
+            }
+            return { left: `${xPct}%`, top: `${yPct}%`, transform: "translate(-50%, calc(-100% - 10px))" };
+          })()}
+          role="status"
+          aria-live="polite"
+        >
           <span>{formatReportLocalDate(activeDataPoint.x)}</span>
-          <strong>{formatReportLocalTime(activeDataPoint.x)}</strong>
-          <span>{formatCurrency(resolveBalanceValue(activeDataPoint))}</span>
+          {timeframe === "1d" ? (
+            <strong>{formatReportLocalTime(activeDataPoint.x)}</strong>
+          ) : null}
+          <strong>{formatCurrency(resolveBalanceValue(activeDataPoint))}</strong>
         </div>
       ) : null}
     </div>
@@ -559,13 +576,6 @@ export function TradingMonitorSharedStyles() {
         -webkit-backdrop-filter: blur(10px);
         backdrop-filter: blur(10px);
         pointer-events: none;
-      }
-
-      .sparkline-tooltip--inset {
-        top: 10px;
-        right: 10px;
-        min-width: 124px;
-        transform: none;
       }
 
       .sparkline-tooltip strong {
