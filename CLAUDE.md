@@ -124,7 +124,7 @@ The dashboard answers three questions fast: which accounts matter most, what the
 
 Avoid generic card-mosaic layouts, decorative gradients, marketing-style copy, or legacy `vh`/manual iOS height shims (uses `dvh` + `viewport-fit=cover`; PWA standalone mode applies top safe-area insets only).
 
-**Required KPI chips:** net gain, floating P/L, relative drawdown, margin level (when available), win rate, total trades, open positions. The `TRADES` chip count and history list both use timeframe-filtered closed positions from `Position` only.
+**Required KPI chips:** net gain, relative drawdown, pips, total trades, open positions. Sub-metrics like floating P/L, margin level (when available), and win rate are surfaced in the expandable detail panels. The `TRADES` chip count and history list both use timeframe-filtered closed positions from `Position` only.
 
 **Balance chart:** Single continuous line per selected account/timeframe. `D` timeframe is an intraday sparkline anchored to report date, prior-day close as baseline, fixed 0–23 hourly axis in report-local time, no permanent gridlines in the compact card, hover/tap reveals point balance + timestamp. Segment color marks balance-operation events (deposit/withdrawal). Live snapshot may append a live point when newer than the last historical point.
 
