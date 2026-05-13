@@ -344,6 +344,11 @@ body {
   min-height: 280px;
 }
 
+/* DD panel — taller canvas so the stacked quality bars are not cramped */
+.dashboard-section > .account-card .sp-canvas-stack--dd {
+  min-height: 282px;
+}
+
 .dashboard-section > .account-card .sp-overlay-panel {
   position: absolute;
   inset: 0;
@@ -406,94 +411,112 @@ body {
 .dashboard-section > .account-card .sp-canvas.is-history-expanded .sparkline-chart { height: 128px; }
 
 /* ── Performance Quality panel (DD expand) ── */
-.perf-quality-panel__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  align-items: stretch;
+.perf-quality-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 14px 16px 12px;
   width: 100%;
 }
-.perf-gauge {
+.quality-bar {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 6px 6px;
+  gap: 4px;
+  padding: 9px 10px 8px;
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.015);
   border: 1px solid var(--border-dim);
   min-width: 0;
 }
-.perf-gauge--hintable {
+.quality-bar--hintable {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.perf-gauge--hintable:active {
+.quality-bar--hintable:active {
   background: rgba(59, 130, 246, 0.06);
 }
-.perf-gauge__label {
+.quality-bar__head {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.quality-bar__label {
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
-.perf-gauge__hint-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(59,130,246,0.18);
-  color: var(--gold-300);
-  font-family: var(--font-body);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1;
-  flex-shrink: 0;
+.quality-bar__readout {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
-.perf-gauge__svg {
-  width: 100%;
-  max-width: 180px;
-  height: auto;
-  display: block;
-}
-.perf-gauge__tick {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  fill: var(--text-ghost);
-  letter-spacing: 0.04em;
-}
-.perf-gauge__value {
-  margin-top: -18px;
+.quality-bar__value {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   line-height: 1;
 }
-.perf-gauge__value[data-empty="true"] { color: var(--text-muted); }
-.perf-gauge__tone {
-  margin-top: 2px;
+.quality-bar__value[data-empty="true"] { color: var(--text-muted); }
+.quality-bar__tone {
   font-family: var(--font-thai-display);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.perf-gauge__meta {
-  margin-top: 2px;
-  font-family: var(--font-body);
-  font-size: 10px;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
-  text-align: center;
-  line-height: 1.2;
+  white-space: nowrap;
+}
+.quality-bar__track {
+  position: relative;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+.quality-bar__seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  opacity: 0.62;
+}
+.quality-bar__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.4px;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+}
+.quality-bar__dim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.58);
+}
+.quality-bar__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.5px;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.quality-bar__scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--text-ghost);
 }
 
 /* Chart skeleton */
