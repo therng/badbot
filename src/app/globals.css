@@ -346,7 +346,7 @@ body {
 
 /* DD panel — taller canvas so the stacked quality bars are not cramped */
 .dashboard-section > .account-card .sp-canvas-stack--dd {
-  min-height: 282px;
+  min-height: 280px;
 }
 
 .dashboard-section > .account-card .sp-overlay-panel {
