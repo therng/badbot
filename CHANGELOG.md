@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-05-16
+
+### Added
+- Added BotPnLPanel showing per-bot gross profit/loss as bars with a tap tooltip.
+- Added a timeframe selector below the history list in the Trades panel.
+
+### Changed
+- Redesigned the Performance Quality panel as semicircular benchmark gauges (Poor/Fair/Good/Great) with a zone-colored value and per-metric subtitle.
+
+### Fixed
+- Fixed the BotPnL tooltip being clipped by the chart frame so it is now visible, and trimmed it to show only the bar values.
+- Updated the app version to 6.3.
+
 ## [6.2.0] - 2026-05-13
 
 ### Added

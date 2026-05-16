@@ -5,16 +5,15 @@ import { KpiPreviewCard, useKpiHint, type KpiHintContent } from "@/components/tr
 /**
  * PerformanceQualityPanel
  * ------------------------
- * Renders the three core DD-quality metrics as horizontal benchmark bars:
+ * Renders the three core DD-quality metrics as semicircular gauges:
  *   • Sharpe Ratio
  *   • Profit Factor
  *   • Recovery Factor
  *
- * Each bar is split into 4 benchmark zones (Poor / Fair / Good / Great).
- * The portion past the current value is dimmed, a bright marker sits on the
- * value, and the readout / zone label live on their own line so nothing
- * overlaps on a narrow phone. Styling follows the dashboard's AI-Core
- * palette via design tokens in src/app/globals.css.
+ * Each gauge is a 4-zone benchmark arc (Poor / Fair / Good / Great) with
+ * the active zone highlighted, a pin marking the value on the arc, and a
+ * bold zone-colored value plus subtitle at the center. Styling follows the
+ * dashboard's AI-Core palette via design tokens in src/app/globals.css.
  */
 
 type ZoneTone = "poor" | "fair" | "good" | "great";
@@ -34,11 +33,33 @@ export interface PerformanceQualityPanelProps {
 interface BarConfig {
   key: string;
   label: string;
+  subtitle: string;
   value: number | null | undefined;
   zones: Zone[];
   scaleMax: number;
   infinityZoneIndex?: number;
   hint?: KpiHintContent;
+}
+
+// Semicircular gauge geometry (SVG user units).
+const GAUGE = { cx: 100, cy: 100, r: 80, sw: 13 } as const;
+
+function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+
+function gaugePoint(frac: number, radius: number = GAUGE.r) {
+  const ang = Math.PI * (1 - clamp01(frac));
+  return {
+    x: GAUGE.cx + radius * Math.cos(ang),
+    y: GAUGE.cy - radius * Math.sin(ang),
+  };
+}
+
+function arcPath(from: number, to: number, radius: number = GAUGE.r): string {
+  const p0 = gaugePoint(from, radius);
+  const p1 = gaugePoint(to, radius);
+  return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${radius} ${radius} 0 0 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
 }
 
 // Benchmark thresholds tuned for retail FX accounts. These match the
@@ -78,23 +99,8 @@ function pickZone(value: number, zones: Zone[]): Zone {
   return zones[zones.length - 1];
 }
 
-interface BarSegment {
-  tone: ZoneTone;
-  startPct: number;
-  widthPct: number;
-}
-
-function buildSegments(zones: Zone[], scaleMax: number): BarSegment[] {
-  return zones.map((zone, index) => {
-    const previousLimit = index === 0 ? 0 : zones[index - 1]?.limit ?? 0;
-    const startPct = (Math.min(previousLimit, scaleMax) / scaleMax) * 100;
-    const endPct = (Math.min(zone.limit, scaleMax) / scaleMax) * 100;
-    return { tone: zone.tone, startPct, widthPct: Math.max(0, endPct - startPct) };
-  });
-}
-
-function QualityBar({ config }: { config: BarConfig }) {
-  const { label, value, zones, scaleMax, infinityZoneIndex, hint } = config;
+function QualityGauge({ config }: { config: BarConfig }) {
+  const { label, subtitle, value, zones, scaleMax, infinityZoneIndex, hint } = config;
   const {
     chipRef: triggerRef,
     sheetOpen,
@@ -110,67 +116,91 @@ function QualityBar({ config }: { config: BarConfig }) {
   const hasValue = typeof value === "number" && (Number.isFinite(value) || isPositiveInfinity);
   const safeValue = isPositiveInfinity ? scaleMax : hasValue ? (value as number) : 0;
   const clampedValue = Math.max(0, Math.min(safeValue, scaleMax));
-  const markerPct = (clampedValue / scaleMax) * 100;
+  const valueFrac = clampedValue / scaleMax;
   const currentZone = isPositiveInfinity && infinityZoneIndex !== undefined
     ? zones[infinityZoneIndex]
     : hasValue ? pickZone(safeValue, zones) : zones[0];
   const currentColor = TONE_COLOR[currentZone.tone];
-  const segments = buildSegments(zones, scaleMax);
-  const dividers = zones.slice(0, -1).map((zone) => (Math.min(zone.limit, scaleMax) / scaleMax) * 100);
+
+  // One arc segment per zone, with a small angular gap between zones.
+  const GAP = 0.009;
+  const segments = zones.map((zone, index) => {
+    const rawStart = (index === 0 ? 0 : zones[index - 1].limit) / scaleMax;
+    const rawEnd = Math.min(zone.limit, scaleMax) / scaleMax;
+    const start = clamp01(index === 0 ? rawStart : rawStart + GAP);
+    const end = clamp01(index === zones.length - 1 ? rawEnd : rawEnd - GAP);
+    return { tone: zone.tone, d: arcPath(start, Math.max(start, end)) };
+  });
+
+  const knobOnArc = gaugePoint(valueFrac, GAUGE.r);
+  const knobOuter = gaugePoint(valueFrac, GAUGE.r + 13);
 
   const valueText = !hasValue ? "—" : isPositiveInfinity ? "∞" : safeValue.toFixed(2);
 
   return (
     <div
       ref={triggerRef as unknown as React.RefObject<HTMLDivElement>}
-      className={`quality-bar${hint ? " quality-bar--hintable" : ""}`}
+      className={`quality-gauge${hint ? " quality-gauge--hintable" : ""}`}
       onClick={wrapClick()}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchCancel={handleTouchCancel}
       onTouchEnd={handleTouchEnd}
+      role="img"
+      aria-label={`${label} ${hasValue ? `${valueText} (${currentZone.label}) จาก ${scaleMax}` : "ไม่มีข้อมูล"}`}
     >
-      <div className="quality-bar__head">
-        <span className="quality-bar__label">{label}</span>
-        <span className="quality-bar__readout">
-          <span className="quality-bar__value" data-empty={!hasValue ? "true" : undefined}>
+      <span className="quality-gauge__label">{label}</span>
+      <div className="quality-gauge__dial">
+        <svg className="quality-gauge__svg" viewBox="0 0 200 118" preserveAspectRatio="xMidYMin meet">
+          <path
+            className="quality-gauge__base"
+            d={arcPath(0, 1)}
+            fill="none"
+            strokeWidth={GAUGE.sw}
+            strokeLinecap="round"
+          />
+          {segments.map((seg) => (
+            <path
+              key={seg.tone}
+              d={seg.d}
+              fill="none"
+              stroke={TONE_COLOR[seg.tone]}
+              strokeWidth={GAUGE.sw}
+              strokeLinecap="round"
+              opacity={hasValue ? (seg.tone === currentZone.tone ? 1 : 0.4) : 0.32}
+            />
+          ))}
+          {hasValue ? (
+            <g className="quality-gauge__needle">
+              <line
+                x1={knobOnArc.x}
+                y1={knobOnArc.y}
+                x2={knobOuter.x}
+                y2={knobOuter.y}
+                stroke="rgba(255,255,255,0.55)"
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+              <circle cx={knobOuter.x} cy={knobOuter.y} r={6.5} fill={currentColor} stroke="#fff" strokeWidth={2} />
+            </g>
+          ) : null}
+        </svg>
+        <div className="quality-gauge__center">
+          <span
+            className="quality-gauge__value"
+            data-empty={!hasValue ? "true" : undefined}
+            style={hasValue ? { color: currentColor } : undefined}
+          >
             {valueText}
           </span>
-          <span className="quality-bar__tone" style={hasValue ? { color: currentColor } : undefined}>
+          <span className="quality-gauge__tone" style={hasValue ? { color: currentColor } : undefined}>
             {hasValue ? currentZone.label : "ไม่มีข้อมูล"}
           </span>
-        </span>
+        </div>
+        <span className="quality-gauge__min">0</span>
+        <span className="quality-gauge__max">{scaleMax}</span>
       </div>
-      <div
-        className="quality-bar__track"
-        role="img"
-        aria-label={`${label} ${hasValue ? `${valueText} จาก ${scaleMax}` : "ไม่มีข้อมูล"}`}
-      >
-        {segments.map((seg) => (
-          <span
-            key={seg.tone}
-            className="quality-bar__seg"
-            style={{
-              left: `${seg.startPct}%`,
-              width: `${seg.widthPct}%`,
-              background: TONE_COLOR[seg.tone],
-            }}
-          />
-        ))}
-        {dividers.map((pct, index) => (
-          <span key={`divider-${index}`} className="quality-bar__divider" style={{ left: `${pct}%` }} />
-        ))}
-        {markerPct < 100 ? (
-          <span className="quality-bar__dim" style={{ left: `${markerPct}%` }} />
-        ) : null}
-        {hasValue ? (
-          <span className="quality-bar__marker" style={{ left: `${markerPct}%` }} />
-        ) : null}
-      </div>
-      <div className="quality-bar__scale">
-        <span>0</span>
-        <span>{scaleMax}</span>
-      </div>
+      <span className="quality-gauge__subtitle">{subtitle}</span>
       {hint && sheetOpen ? (
         <KpiPreviewCard
           hint={hint}
@@ -194,6 +224,7 @@ function PerformanceQualityPanelImpl({
     {
       key: "sharpe",
       label: "SHARPE",
+      subtitle: "ผลตอบแทนปรับด้วยความเสี่ยง",
       value: sharpeRatio,
       zones: SHARPE_ZONES,
       scaleMax: 4,
@@ -205,7 +236,8 @@ function PerformanceQualityPanelImpl({
     },
     {
       key: "pf",
-      label: "PROFIT",
+      label: "PROFIT F.",
+      subtitle: "กำไรรวม / ขาดทุนรวม",
       value: profitFactor,
       zones: PROFIT_FACTOR_ZONES,
       scaleMax: 3,
@@ -219,6 +251,7 @@ function PerformanceQualityPanelImpl({
     {
       key: "recovery",
       label: "RECOVERY",
+      subtitle: "กำไรสุทธิ / ดรอว์ดาวน์สูงสุด",
       value: recoveryFactor,
       zones: RECOVERY_ZONES,
       scaleMax: 6,
@@ -233,7 +266,7 @@ function PerformanceQualityPanelImpl({
   return (
     <div className="perf-quality-panel" role="region" aria-label="Performance quality">
       {bars.map((config) => (
-        <QualityBar key={config.key} config={config} />
+        <QualityGauge key={config.key} config={config} />
       ))}
     </div>
   );

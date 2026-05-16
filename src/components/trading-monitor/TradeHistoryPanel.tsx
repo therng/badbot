@@ -1,7 +1,8 @@
 import { useState } from "react";
 
-import type { PositionsResponse } from "@/lib/trading/types";
+import type { PositionsResponse, Timeframe } from "@/lib/trading/types";
 
+import { TimeframeStrip } from "@/components/trading-monitor/shared";
 import {
   formatPlainNumberValue,
   formatPositionSide,
@@ -15,17 +16,28 @@ import {
 
 export function TradeHistoryPanel({
   positions,
+  timeframe,
+  onTimeframeChange,
 }: {
   positions: PositionsResponse["historyPositions"] | null | undefined;
+  timeframe: Timeframe;
+  onTimeframeChange: (value: Timeframe) => void;
 }) {
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const historyPositions = [...(positions ?? [])]
     .sort((left, right) => new Date(right.closedAt ?? 0).getTime() - new Date(left.closedAt ?? 0).getTime());
 
+  const footer = (
+    <div className="trade-history-panel__footer">
+      <TimeframeStrip active={timeframe} onChange={onTimeframeChange} />
+    </div>
+  );
+
   if (!historyPositions.length) {
     return (
       <div className="trade-history-panel trade-history-panel--list-only" aria-label="Trades list">
         <div className="trade-history-empty">No trades in this timeframe</div>
+        {footer}
       </div>
     );
   }
@@ -106,6 +118,7 @@ export function TradeHistoryPanel({
           );
         })}
       </div>
+      {footer}
     </div>
   );
 }

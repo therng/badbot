@@ -346,7 +346,7 @@ body {
 
 /* DD panel — taller canvas so the stacked quality bars are not cramped */
 .dashboard-section > .account-card .sp-canvas-stack--dd {
-  min-height: 280px;
+  min-height: auto;
 }
 
 .dashboard-section > .account-card .sp-overlay-panel {
@@ -412,111 +412,130 @@ body {
 
 /* ── Performance Quality panel (DD expand) ── */
 .perf-quality-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 12px 12px 14px;
   width: 100%;
 }
-.quality-bar {
+@media (max-width: 460px) {
+  .perf-quality-panel {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+.perf-quality-panel__header {
+  display: flex;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-dim);
+  margin-bottom: 1px;
+}
+.perf-quality-panel__title {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.20em;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+}
+.quality-gauge {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 9px 10px 8px;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 11px;
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(255, 255, 255, 0.018);
   border: 1px solid var(--border-dim);
   min-width: 0;
 }
-.quality-bar--hintable {
+.quality-gauge--hintable {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background var(--t-fast), border-color var(--t-fast);
 }
-.quality-bar--hintable:active {
-  background: rgba(59, 130, 246, 0.06);
+.quality-gauge--hintable:active {
+  background: rgba(59, 130, 246, 0.07);
+  border-color: rgba(59, 130, 246, 0.18);
 }
-.quality-bar__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
-.quality-bar__label {
+.quality-gauge__label {
   font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.quality-bar__readout {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  min-width: 0;
-}
-.quality-bar__value {
-  font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.22em;
+  color: var(--text-ghost);
+  text-transform: uppercase;
+}
+.quality-gauge__dial {
+  position: relative;
+  width: 100%;
+  max-width: 168px;
+  aspect-ratio: 200 / 118;
+}
+.quality-gauge__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.quality-gauge__base {
+  stroke: rgba(255, 255, 255, 0.05);
+}
+.quality-gauge__svg path[stroke],
+.quality-gauge__needle line,
+.quality-gauge__needle circle {
+  transition: all 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.quality-gauge__center {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  pointer-events: none;
+}
+.quality-gauge__value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
-.quality-bar__value[data-empty="true"] { color: var(--text-muted); }
-.quality-bar__tone {
-  font-family: var(--font-thai-display);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+.quality-gauge__value[data-empty="true"] {
   color: var(--text-muted);
-  white-space: nowrap;
+  font-size: 22px;
 }
-.quality-bar__track {
-  position: relative;
-  height: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--bg-panel);
+.quality-gauge__tone {
+  font-family: var(--font-thai-display);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-transform: uppercase;
 }
-.quality-bar__seg {
+.quality-gauge__min,
+.quality-gauge__max {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  opacity: 0.62;
-}
-.quality-bar__divider {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1.4px;
-  transform: translateX(-50%);
-  background: var(--bg-panel);
-}
-.quality-bar__dim {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.58);
-}
-.quality-bar__marker {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2.5px;
-  transform: translateX(-50%);
-  background: var(--text-primary);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
-}
-.quality-bar__scale {
-  display: flex;
-  justify-content: space-between;
+  bottom: 2%;
   font-family: var(--font-mono);
   font-size: 8px;
-  letter-spacing: 0.04em;
   color: var(--text-ghost);
+}
+.quality-gauge__min { left: 2%; }
+.quality-gauge__max { right: 2%; }
+.quality-gauge__subtitle {
+  font-family: var(--font-thai-display);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
 }
 
 /* Chart skeleton */
@@ -1035,7 +1054,7 @@ body {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
   min-height: 24px;
 }
@@ -1546,8 +1565,15 @@ body {
 }
 .dashboard-section > .account-card .trade-history-panel--list-only {
   height: 100%;
-  grid-template-rows: minmax(0,1fr);
+  grid-template-rows: minmax(0,1fr) auto;
   overflow: hidden;
+}
+.dashboard-section > .account-card .trade-history-panel__footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  margin-top: 6px;
+  border-top: 0.5px solid rgba(255,255,255,0.07);
 }
 .dashboard-section > .account-card .trade-history-panel__header {
   display: flex;

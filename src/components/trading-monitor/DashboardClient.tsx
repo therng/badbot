@@ -567,7 +567,11 @@ const DashboardCard = memo(function DashboardCard({
           ) : positionsDetail.loading && !positionsDetail.data ? (
             <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
           ) : (
-            <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+            <TradeHistoryPanel
+              positions={positionsDetail.data?.historyPositions}
+              timeframe={timeframe}
+              onTimeframeChange={handleTimeframeChange}
+            />
           )}
         </div>
       );

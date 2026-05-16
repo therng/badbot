@@ -1,7 +1,7 @@
 "use client";
 import { memo, useMemo, useRef, useState } from "react";
 import type { PositionsResponse } from "@/lib/trading/types";
-import { formatSignedCurrency, formatPercent } from "@/components/trading-monitor/formatters";
+import { formatSignedCurrency } from "@/components/trading-monitor/formatters";
 
 const SEP_REGEX = /[-_ #[(.]/;
 const MANUAL_LABEL = "Manual";
@@ -157,9 +157,10 @@ function BotPnLPanelImpl({ positions }: Props) {
     >
       <div className="bot-pnl-toolbar">
         <div className="bot-pnl-title">
+        </div>
         <div className="bot-pnl-zoom" aria-label="Zoom range">
           {ZOOM_LEVELS.map((level) => (
-            <silder
+            <button
               key={level}
               type="button"
               className={`bot-pnl-zoom__button${zoom === level ? " is-active" : ""}`}
@@ -167,7 +168,7 @@ function BotPnLPanelImpl({ positions }: Props) {
               onClick={() => setZoom(level)}
             >
               {level}x
-            </slider>
+            </button>
           ))}
         </div>
       </div>
@@ -176,24 +177,12 @@ function BotPnLPanelImpl({ positions }: Props) {
         {activeBot && (
           <div
             className="bot-pnl-tooltip"
-            style={{
-            position: "absolute",
-            left: tooltipPos.x,
-            top: tooltipPos.y,
-            transform: "translate(-50%, calc(-100% - 8px))",
-            pointerEvents: "none",
-            zIndex: 10,
-          }}
+            style={{ left: `${tooltipX}%` }}
             aria-live="polite"
           >
-            <div className="bot-pnl-tooltip__name">{activeBot.name}</div>
             <div className="bot-pnl-tooltip__rows">
               <span className="bot-pnl-tooltip__profit">{formatSignedCurrency(activeBot.grossProfit, 2)}</span>
               <span className="bot-pnl-tooltip__loss">{formatSignedCurrency(activeBot.grossLoss, 2)}</span>
-            </div>
-            <div className="bot-pnl-tooltip__meta">
-              <span>{formatPercent(activeBot.winRate * 100, 0)} win</span>
-              <span>{activeBot.trades}T</span>
             </div>
           </div>
         )}
