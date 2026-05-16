@@ -473,8 +473,8 @@ body {
 .quality-gauge__dial {
   position: relative;
   width: 100%;
-  max-width: 168px;
-  aspect-ratio: 200 / 118;
+  max-width: 150px;
+  aspect-ratio: 1 / 1;
 }
 .quality-gauge__svg {
   display: block;
@@ -485,20 +485,19 @@ body {
 .quality-gauge__base {
   stroke: rgba(255, 255, 255, 0.05);
 }
-.quality-gauge__svg path[stroke],
-.quality-gauge__needle line,
-.quality-gauge__needle circle {
-  transition: all 460ms cubic-bezier(0.22, 1, 0.36, 1);
+.quality-gauge__value-arc,
+.quality-gauge__knob {
+  transition: all 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .quality-gauge__center {
   position: absolute;
   left: 50%;
-  bottom: 4%;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   pointer-events: none;
 }
 .quality-gauge__value {
@@ -522,16 +521,13 @@ body {
   color: var(--text-muted);
   text-transform: uppercase;
 }
-.quality-gauge__min,
-.quality-gauge__max {
-  position: absolute;
-  bottom: 2%;
+.quality-gauge__scale {
+  margin-top: 2px;
   font-family: var(--font-mono);
   font-size: 8px;
+  letter-spacing: 0.08em;
   color: var(--text-ghost);
 }
-.quality-gauge__min { left: 2%; }
-.quality-gauge__max { right: 2%; }
 .quality-gauge__subtitle {
   font-family: var(--font-thai-display);
   font-size: 10px;

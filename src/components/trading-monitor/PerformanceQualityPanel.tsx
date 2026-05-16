@@ -5,14 +5,15 @@ import { KpiPreviewCard, useKpiHint, type KpiHintContent } from "@/components/tr
 /**
  * PerformanceQualityPanel
  * ------------------------
- * Renders the three core DD-quality metrics as semicircular gauges:
+ * Renders the three core DD-quality metrics as circular radial bars:
  *   • Sharpe Ratio
  *   • Profit Factor
  *   • Recovery Factor
  *
- * Each gauge is a 4-zone benchmark arc (Poor / Fair / Good / Great) with
- * the active zone highlighted, a pin marking the value on the arc, and a
- * bold zone-colored value plus subtitle at the center. Styling follows the
+ * Each metric is a 270° radial bar over a faint track. The value arc is
+ * stroked with a gradient running from the lower benchmark zone color into
+ * the active zone color (Poor / Fair / Good / Great), tipped with a glowing
+ * knob, with the bold value and zone label centered. Styling follows the
  * dashboard's AI-Core palette via design tokens in src/app/globals.css.
  */
 
@@ -41,25 +42,31 @@ interface BarConfig {
   hint?: KpiHintContent;
 }
 
-// Semicircular gauge geometry (SVG user units).
-const GAUGE = { cx: 100, cy: 100, r: 80, sw: 13 } as const;
+// Circular radial-bar geometry (SVG user units). A 270° sweep starting at
+// the lower-left, leaving a 90° gap at the bottom.
+const GAUGE = { cx: 100, cy: 100, r: 78, sw: 14 } as const;
+const START_DEG = 135;
+const SWEEP_DEG = 270;
 
 function clamp01(n: number): number {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
 
 function gaugePoint(frac: number, radius: number = GAUGE.r) {
-  const ang = Math.PI * (1 - clamp01(frac));
+  const rad = ((START_DEG + clamp01(frac) * SWEEP_DEG) * Math.PI) / 180;
   return {
-    x: GAUGE.cx + radius * Math.cos(ang),
-    y: GAUGE.cy - radius * Math.sin(ang),
+    x: GAUGE.cx + radius * Math.cos(rad),
+    y: GAUGE.cy + radius * Math.sin(rad),
   };
 }
 
 function arcPath(from: number, to: number, radius: number = GAUGE.r): string {
-  const p0 = gaugePoint(from, radius);
-  const p1 = gaugePoint(to, radius);
-  return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${radius} ${radius} 0 0 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+  const a = clamp01(from);
+  const b = clamp01(to);
+  const p0 = gaugePoint(a, radius);
+  const p1 = gaugePoint(b, radius);
+  const largeArc = (b - a) * SWEEP_DEG > 180 ? 1 : 0;
+  return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
 }
 
 // Benchmark thresholds tuned for retail FX accounts. These match the
@@ -122,18 +129,15 @@ function QualityGauge({ config }: { config: BarConfig }) {
     : hasValue ? pickZone(safeValue, zones) : zones[0];
   const currentColor = TONE_COLOR[currentZone.tone];
 
-  // One arc segment per zone, with a small angular gap between zones.
-  const GAP = 0.009;
-  const segments = zones.map((zone, index) => {
-    const rawStart = (index === 0 ? 0 : zones[index - 1].limit) / scaleMax;
-    const rawEnd = Math.min(zone.limit, scaleMax) / scaleMax;
-    const start = clamp01(index === 0 ? rawStart : rawStart + GAP);
-    const end = clamp01(index === zones.length - 1 ? rawEnd : rawEnd - GAP);
-    return { tone: zone.tone, d: arcPath(start, Math.max(start, end)) };
-  });
+  const currentIndex = zones.indexOf(currentZone);
+  // Gradient runs from the lower benchmark zone color into the active zone
+  // color, so the fill itself reads Poor → Great.
+  const gradFrom = TONE_COLOR[zones[Math.max(0, currentIndex - 1)].tone];
+  const gradTo = currentColor;
+  const gradId = `qg-grad-${config.key}`;
 
-  const knobOnArc = gaugePoint(valueFrac, GAUGE.r);
-  const knobOuter = gaugePoint(valueFrac, GAUGE.r + 13);
+  const arcStart = gaugePoint(0);
+  const knob = gaugePoint(valueFrac, GAUGE.r);
 
   const valueText = !hasValue ? "—" : isPositiveInfinity ? "∞" : safeValue.toFixed(2);
 
@@ -151,7 +155,20 @@ function QualityGauge({ config }: { config: BarConfig }) {
     >
       <span className="quality-gauge__label">{label}</span>
       <div className="quality-gauge__dial">
-        <svg className="quality-gauge__svg" viewBox="0 0 200 118" preserveAspectRatio="xMidYMin meet">
+        <svg className="quality-gauge__svg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient
+              id={gradId}
+              gradientUnits="userSpaceOnUse"
+              x1={arcStart.x}
+              y1={arcStart.y}
+              x2={knob.x}
+              y2={knob.y}
+            >
+              <stop offset="0%" stopColor={gradFrom} />
+              <stop offset="100%" stopColor={gradTo} />
+            </linearGradient>
+          </defs>
           <path
             className="quality-gauge__base"
             d={arcPath(0, 1)}
@@ -159,30 +176,27 @@ function QualityGauge({ config }: { config: BarConfig }) {
             strokeWidth={GAUGE.sw}
             strokeLinecap="round"
           />
-          {segments.map((seg) => (
-            <path
-              key={seg.tone}
-              d={seg.d}
-              fill="none"
-              stroke={TONE_COLOR[seg.tone]}
-              strokeWidth={GAUGE.sw}
-              strokeLinecap="round"
-              opacity={hasValue ? (seg.tone === currentZone.tone ? 1 : 0.4) : 0.32}
-            />
-          ))}
-          {hasValue ? (
-            <g className="quality-gauge__needle">
-              <line
-                x1={knobOnArc.x}
-                y1={knobOnArc.y}
-                x2={knobOuter.x}
-                y2={knobOuter.y}
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth={2}
+          {hasValue && valueFrac > 0 ? (
+            <>
+              <path
+                className="quality-gauge__value-arc"
+                d={arcPath(0, valueFrac)}
+                fill="none"
+                stroke={`url(#${gradId})`}
+                strokeWidth={GAUGE.sw}
                 strokeLinecap="round"
+                style={{ filter: `drop-shadow(0 0 6px ${currentColor})` }}
               />
-              <circle cx={knobOuter.x} cy={knobOuter.y} r={6.5} fill={currentColor} stroke="#fff" strokeWidth={2} />
-            </g>
+              <circle
+                className="quality-gauge__knob"
+                cx={knob.x}
+                cy={knob.y}
+                r={GAUGE.sw / 2 + 1}
+                fill={currentColor}
+                stroke="#fff"
+                strokeWidth={2}
+              />
+            </>
           ) : null}
         </svg>
         <div className="quality-gauge__center">
@@ -196,9 +210,8 @@ function QualityGauge({ config }: { config: BarConfig }) {
           <span className="quality-gauge__tone" style={hasValue ? { color: currentColor } : undefined}>
             {hasValue ? currentZone.label : "ไม่มีข้อมูล"}
           </span>
+          <span className="quality-gauge__scale">0 – {scaleMax}</span>
         </div>
-        <span className="quality-gauge__min">0</span>
-        <span className="quality-gauge__max">{scaleMax}</span>
       </div>
       <span className="quality-gauge__subtitle">{subtitle}</span>
       {hint && sheetOpen ? (
