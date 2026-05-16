@@ -456,19 +456,31 @@ async function importReport(fileName: string, htmlContent: string) {
       });
     }
 
-    for (const deal of dealsToUpdate) {
-      await tx.deal.update({
-        where: {
-          tradingAccountId_dealNo: {
-            tradingAccountId: account.id,
-            dealNo: deal.dealNo,
-          },
-        },
-        data: deal.payload,
-      });
+    // Large historical reports can carry tens of thousands of deals to
+    // update. Awaiting each update sequentially blows past the interactive
+    // transaction timeout, so apply them in bounded-concurrency batches.
+    const DEAL_UPDATE_BATCH = 100;
+    for (let i = 0; i < dealsToUpdate.length; i += DEAL_UPDATE_BATCH) {
+      const batch = dealsToUpdate.slice(i, i + DEAL_UPDATE_BATCH);
+      await Promise.all(
+        batch.map((deal) =>
+          tx.deal.update({
+            where: {
+              tradingAccountId_dealNo: {
+                tradingAccountId: account.id,
+                dealNo: deal.dealNo,
+              },
+            },
+            data: deal.payload,
+          }),
+        ),
+      );
     }
 
     return account.id as string;
+  }, {
+    maxWait: 15_000,
+    timeout: 120_000,
   });
 
   await recomputeAccountReportResult(importedAccountId, reportDate);

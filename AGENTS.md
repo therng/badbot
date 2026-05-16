@@ -15,6 +15,8 @@
 - `Docs/`: supporting notes and examples.
 
 ## Core Commands
+- `npm install`: install project dependencies after cloning or when lockfile changes.
+- `cp .env.example .env`: create the local env file before running the app or worker.
 - `npm run dev`: run the dashboard locally.
 - `docker-compose up -d`: start the local PostgreSQL-backed stack from `docker-compose.yml`.
 - `npx prisma migrate dev`: apply local Prisma schema changes after the database is up.
@@ -66,6 +68,8 @@
 - If the task is dashboard-facing, start with `src/components/trading-monitor/`, `src/app/globals.css`, and the account API routes.
 - When modifying responsive dashboard behavior, verify both mobile portrait assumptions, not only portrait.
 - Keep API and UI terminology aligned: account list comes from `/api/accounts`; account-level overview comes from `/api/accounts/[id]?timeframe=...`.
+- For import/debug workflows, `npm run worker:reimport:local` reads reports from `data/source-reports` by default; override with `LOCAL_REPORT_DIR` when replaying another local folder.
+- The worker ignores report files that are still too fresh or too small; tune `WORKER_POLL_MS`, `WORKER_FILE_STABLE_MS`, and `WORKER_MIN_FILE_SIZE_BYTES` in `.env` before changing ingestion logic.
 
 ## Frontend Product Direction
 

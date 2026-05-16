@@ -10,10 +10,12 @@ import { KpiPreviewCard, useKpiHint, type KpiHintContent } from "@/components/tr
  *   • Profit Factor
  *   • Recovery Factor
  *
- * Each gauge is a 4-zone benchmark arc (Poor / Fair / Good / Great) with
- * the active zone highlighted, a pin marking the value on the arc, and a
- * bold zone-colored value plus subtitle at the center. Styling follows the
- * dashboard's AI-Core palette via design tokens in src/app/globals.css.
+ * Numbers-first design: a single accent per card (Sharpe green, Profit
+ * orange, Recovery blue). A dim track + accent progress arc fills to the
+ * value, faint ticks mark the zone thresholds, and a small accent dot
+ * sits on the arc at the value. The large accent value (with "/max") and
+ * the Thai zone label own the center; the full description lives in the
+ * tap hint. Styling via tokens in globals.css.
  */
 
 type ZoneTone = "poor" | "fair" | "good" | "great";
@@ -33,7 +35,8 @@ export interface PerformanceQualityPanelProps {
 interface BarConfig {
   key: string;
   label: string;
-  subtitle: string;
+  /** Single accent color for this card (number + arc + marker). */
+  accent: string;
   value: number | null | undefined;
   zones: Zone[];
   scaleMax: number;
@@ -85,13 +88,6 @@ const RECOVERY_ZONES: Zone[] = [
   { limit: 6.0, tone: "great", label: "แกร่ง" },
 ];
 
-const TONE_COLOR: Record<ZoneTone, string> = {
-  poor: "var(--negative)",
-  fair: "var(--warning)",
-  good: "var(--gold-300)",
-  great: "var(--positive)",
-};
-
 function pickZone(value: number, zones: Zone[]): Zone {
   for (const zone of zones) {
     if (value <= zone.limit) return zone;
@@ -100,7 +96,7 @@ function pickZone(value: number, zones: Zone[]): Zone {
 }
 
 function QualityGauge({ config }: { config: BarConfig }) {
-  const { label, subtitle, value, zones, scaleMax, infinityZoneIndex, hint } = config;
+  const { label, accent, value, zones, scaleMax, infinityZoneIndex, hint } = config;
   const {
     chipRef: triggerRef,
     sheetOpen,
@@ -120,20 +116,15 @@ function QualityGauge({ config }: { config: BarConfig }) {
   const currentZone = isPositiveInfinity && infinityZoneIndex !== undefined
     ? zones[infinityZoneIndex]
     : hasValue ? pickZone(safeValue, zones) : zones[0];
-  const currentColor = TONE_COLOR[currentZone.tone];
 
-  // One arc segment per zone, with a small angular gap between zones.
-  const GAP = 0.009;
-  const segments = zones.map((zone, index) => {
-    const rawStart = (index === 0 ? 0 : zones[index - 1].limit) / scaleMax;
-    const rawEnd = Math.min(zone.limit, scaleMax) / scaleMax;
-    const start = clamp01(index === 0 ? rawStart : rawStart + GAP);
-    const end = clamp01(index === zones.length - 1 ? rawEnd : rawEnd - GAP);
-    return { tone: zone.tone, d: arcPath(start, Math.max(start, end)) };
-  });
+  // Graduation ticks at the zone thresholds (interior boundaries only).
+  const tickFracs = zones
+    .slice(0, -1)
+    .map((zone) => zone.limit / scaleMax)
+    .filter((f) => f > 0 && f < 1);
 
-  const knobOnArc = gaugePoint(valueFrac, GAUGE.r);
-  const knobOuter = gaugePoint(valueFrac, GAUGE.r + 13);
+  const progressEnd = Math.max(valueFrac, 0.0001);
+  const dot = gaugePoint(valueFrac, GAUGE.r);
 
   const valueText = !hasValue ? "—" : isPositiveInfinity ? "∞" : safeValue.toFixed(2);
 
@@ -159,48 +150,57 @@ function QualityGauge({ config }: { config: BarConfig }) {
             strokeWidth={GAUGE.sw}
             strokeLinecap="round"
           />
-          {segments.map((seg) => (
+          {hasValue ? (
             <path
-              key={seg.tone}
-              d={seg.d}
+              className="quality-gauge__progress"
+              d={arcPath(0, progressEnd)}
               fill="none"
-              stroke={TONE_COLOR[seg.tone]}
+              stroke={accent}
               strokeWidth={GAUGE.sw}
               strokeLinecap="round"
-              opacity={hasValue ? (seg.tone === currentZone.tone ? 1 : 0.4) : 0.32}
             />
-          ))}
-          {hasValue ? (
-            <g className="quality-gauge__needle">
+          ) : null}
+          {tickFracs.map((f) => {
+            const inner = gaugePoint(f, GAUGE.r - GAUGE.sw / 2);
+            const outer = gaugePoint(f, GAUGE.r + GAUGE.sw / 2);
+            return (
               <line
-                x1={knobOnArc.x}
-                y1={knobOnArc.y}
-                x2={knobOuter.x}
-                y2={knobOuter.y}
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth={2}
-                strokeLinecap="round"
+                key={f}
+                x1={inner.x}
+                y1={inner.y}
+                x2={outer.x}
+                y2={outer.y}
+                className="quality-gauge__tick"
+                strokeWidth={2.4}
               />
-              <circle cx={knobOuter.x} cy={knobOuter.y} r={6.5} fill={currentColor} stroke="#fff" strokeWidth={2} />
-            </g>
+            );
+          })}
+          {hasValue ? (
+            <circle
+              className="quality-gauge__dot"
+              cx={dot.x}
+              cy={dot.y}
+              r={4.5}
+              fill={accent}
+            />
           ) : null}
         </svg>
         <div className="quality-gauge__center">
-          <span
-            className="quality-gauge__value"
-            data-empty={!hasValue ? "true" : undefined}
-            style={hasValue ? { color: currentColor } : undefined}
-          >
-            {valueText}
+          <span className="quality-gauge__readout">
+            <span
+              className="quality-gauge__value"
+              data-empty={!hasValue ? "true" : undefined}
+              style={hasValue ? { color: accent } : undefined}
+            >
+              {valueText}
+            </span>
+            <span className="quality-gauge__unit">/{scaleMax}</span>
           </span>
-          <span className="quality-gauge__tone" style={hasValue ? { color: currentColor } : undefined}>
+          <span className="quality-gauge__tone" style={hasValue ? { color: accent } : undefined}>
             {hasValue ? currentZone.label : "ไม่มีข้อมูล"}
           </span>
         </div>
-        <span className="quality-gauge__min">0</span>
-        <span className="quality-gauge__max">{scaleMax}</span>
       </div>
-      <span className="quality-gauge__subtitle">{subtitle}</span>
       {hint && sheetOpen ? (
         <KpiPreviewCard
           hint={hint}
@@ -224,20 +224,20 @@ function PerformanceQualityPanelImpl({
     {
       key: "sharpe",
       label: "SHARPE",
-      subtitle: "ผลตอบแทนปรับด้วยความเสี่ยง",
+      accent: "var(--positive)",
       value: sharpeRatio,
       zones: SHARPE_ZONES,
       scaleMax: 4,
       hint: {
         title: "Sharpe Ratio",
-        definition: "วัดผลตอบแทนที่ได้รับเทียบกับความเสี่ยงที่ยอมรับ คำนวณจากกำไรเฉลี่ยหารด้วยส่วนเบี่ยงเบนมาตรฐานของผลตอบแทน ยิ่งสูงยิ่งหมายความว่าคุณรับความเสี่ยงน้อยแต่ได้ผลตอบแทนมาก",
-        purpose: "< 1 = ต่ำ · 1–2 = พอใช้ · 2–3 = ดี · > 3 = ยอดเยี่ยม",
+        definition: "วัดผลตอบแทนที่ได้รับเทียบกับความเสี่ยงที่ยอมรับ  คำนวณจากกำไรเฉลี่ยหารด้วยส่วนเบี่ยงเบนมาตรฐานของผลตอบแทน ยิ่งสูงยิ่งหมายความว่าคุณรับความเสี่ยงน้อยแต่ได้ผลตอบแทนมาก",
+        purpose: "ผลตอบแทน / ความเสี่ยง",
       },
     },
     {
       key: "pf",
       label: "PROFIT F.",
-      subtitle: "กำไรรวม / ขาดทุนรวม",
+      accent: "var(--warning)",
       value: profitFactor,
       zones: PROFIT_FACTOR_ZONES,
       scaleMax: 3,
@@ -245,20 +245,20 @@ function PerformanceQualityPanelImpl({
       hint: {
         title: "Profit Factor",
         definition: "อัตราส่วนระหว่างกำไรรวมและขาดทุนรวมทุกออเดอร์ บอกว่าทุก 1 บาทที่ขาดทุน คุณได้กำไรกลับมากี่บาท ค่าต้องสูงกว่า 1.0 จึงจะทำกำไรสุทธิได้",
-        purpose: "< 1 = ขาดทุน · 1–1.5 = เสมอตัว · 1.5–2 = ดี · > 2 = แข็งแกร่ง",
+        purpose: "กำไร / ขาดทุน ",
       },
     },
     {
       key: "recovery",
       label: "RECOVERY",
-      subtitle: "กำไรสุทธิ / ดรอว์ดาวน์สูงสุด",
+      accent: "var(--gold-300)",
       value: recoveryFactor,
       zones: RECOVERY_ZONES,
       scaleMax: 6,
       hint: {
         title: "Recovery Factor",
         definition: "วัดความสามารถในการฟื้นตัวจากการขาดทุนสูงสุด คำนวณจากกำไรสุทธิหารด้วย Maximum Drawdown ค่าสูงแสดงว่าระบบสร้างกำไรได้มากเมื่อเทียบกับช่วงที่ขาดทุนหนักที่สุด",
-        purpose: "< 1 = อ่อนแอ · 1–2 = พอใช้ · 2–4 = ดี · > 4 = แข็งแกร่ง",
+        purpose: "กำไร / ดรอว์ดาวน์ ",
       },
     },
   ];
