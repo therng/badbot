@@ -10,7 +10,7 @@ const BOT_LABELS = [
   { label: "QQ", patterns: ["qq"] },
   { label: "BB", patterns: ["bb_return", "bb"] },
   { label: "Full", patterns: ["full throttle", "full"] },
-  { label: "Twi", patterns: ["twister", "twi"] },
+  { label: "Twi", patterns: ["twister", "twist"] },
   { label: "Wall", patterns: ["wall street", "wall"] },
   { label: "Gold", patterns: ["gold house", "gold"] },
   { label: "Aur", patterns: ["aurora", "aur"] },
