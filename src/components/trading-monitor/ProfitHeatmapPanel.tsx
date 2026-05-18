@@ -84,7 +84,7 @@ function getIntensityClass(pnl: number): string {
   const abs = Math.abs(pnl);
   // Levels by order of magnitude: <10 → 1 (units), 10–99 → 2 (tens),
   // 100–999 → 3 (hundreds), 1000–9999 → 4 (thousands), ≥10000 → 5 (ten-thousands+).
-  const level = abs < 10 ? 1 : abs < 100 ? 2 : abs < 1000 ? 3 : abs < 10000 ? 4 : 5;
+  const level = abs < 100 ? 1 : abs < 1000 ? 2 : abs < 10000 ? 3 : 4;
   return pnl > 0 ? `heatmap-cell--pos-${level}` : `heatmap-cell--neg-${level}`;
 }
 
