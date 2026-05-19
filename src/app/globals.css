@@ -1587,7 +1587,7 @@ select,
 .dashboard-section > .account-card .trade-history-row__volume.trade-history-row__side--sell { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__trail { display: grid; gap: 1px; justify-items: end; text-align: right; }
 .dashboard-section > .account-card .trade-history-panel__list .trade-history-row__trail strong { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
-.dashboard-section > .account-card .trade-history-row__trail--positive strong { color: var(--card-positive); }
+.dashboard-section > .account-card .trade-history-row__trail--positive strong { color: var(--card-neutral); }
 .dashboard-section > .account-card .trade-history-row__trail--negative strong { color: var(--card-negative); }
 .dashboard-section > .account-card .trade-history-row__trail--neutral  strong { color: var(--card-ink); }
 .dashboard-section > .account-card .trade-history-row__prices { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
