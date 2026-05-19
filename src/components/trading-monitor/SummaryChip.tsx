@@ -33,19 +33,23 @@ export function KpiPreviewCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const content = normalizeKpiHint(hint);
 
-  useEffect(() => {
-    if (triggerRef?.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const HALF = 150; // half of max-width (300px)
-      const PADDING = 12;
-      const clampedLeft = Math.max(HALF + PADDING, Math.min(cx, window.innerWidth - HALF - PADDING));
-      setCardPos({
-        left: clampedLeft,
-        bottom: window.innerHeight - rect.top + 8,
-      });
-    }
+  const computeCardPos = useCallback(() => {
+    if (!triggerRef?.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const HALF = 150;
+    const PADDING = 12;
+    setCardPos({
+      left: Math.max(HALF + PADDING, Math.min(cx, window.innerWidth - HALF - PADDING)),
+      bottom: window.innerHeight - rect.top + 8,
+    });
   }, [triggerRef]);
+
+  useEffect(() => {
+    computeCardPos();
+    window.addEventListener("resize", computeCardPos);
+    return () => window.removeEventListener("resize", computeCardPos);
+  }, [computeCardPos]);
 
   useEffect(() => {
     if (!isClosing) {
@@ -101,6 +105,7 @@ export function useKpiHint(hasHint: boolean) {
   useEffect(() => {
     return () => {
       clearTimeout(longPressTimer.current);
+      longPressTriggeredRef.current = false;
     };
   }, []);
 
