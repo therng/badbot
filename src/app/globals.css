@@ -376,6 +376,7 @@ select,
   flex-direction: column;
   overflow: auto;
   backdrop-filter: blur(8px);
+  touch-action: pan-x pan-y;
 }
 
 .dashboard-section > .account-card .sp-overlay-panel--pips {
