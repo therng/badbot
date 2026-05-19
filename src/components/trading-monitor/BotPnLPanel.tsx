@@ -16,10 +16,16 @@ const BOT_LABELS = [
   { label: "Aur", patterns: ["aurora", "aur"] },
 ];
 
+const HASH_ID_REGEX = /^#\d+\|(.+)$/;
+
 function normalizeBotName(comment: string | null | undefined): string {
   if (!comment) return MANUAL_LABEL;
   const trimmed = comment.trim();
   if (!trimmed) return MANUAL_LABEL;
+
+  const hashMatch = HASH_ID_REGEX.exec(trimmed);
+  if (hashMatch) return hashMatch[1].trim() || MANUAL_LABEL;
+
   const normalized = trimmed.toLowerCase();
   const matched = BOT_LABELS.find(({ patterns }) =>
     patterns.some((pattern) => normalized.startsWith(pattern)),
