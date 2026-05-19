@@ -26,7 +26,7 @@ export function PipsPerformanceTable({
               <th scope="col">%</th>
               <th scope="col">Profit</th>
               <th scope="col">Pips</th>
-              <th scope="col">Vol.</th>
+              <th scope="col">Lot</th>
             </tr>
           </thead>
           <tbody>
@@ -39,7 +39,7 @@ export function PipsPerformanceTable({
                 <td className={`tone-${toneFromNumber(row.profit)}`}>
                   {formatSignedCurrency(row.profit, 2)}
                 </td>
-                <td className={`tone-${toneFromNumber(row.pips)}`}>
+                <td className={typeof row.pips === "number" && row.pips < 0 ? "tone-negative" : "tone-neutral"}>
                   {formatCompactSignedNumber(row.pips, 1)}
                 </td>
                 <td>
