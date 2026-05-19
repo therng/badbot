@@ -30,6 +30,7 @@ export interface PerformanceQualityPanelProps {
   sharpeRatio: number | null | undefined;
   profitFactor: number | null | undefined;
   recoveryFactor: number | null | undefined;
+  winPercent: number | null | undefined;
 }
 
 // Shared red → amber → lime → green zone palette (poor → great).
@@ -237,10 +238,35 @@ function QualityGauge({ config }: { config: BarConfig }) {
   );
 }
 
+function ProfitabilityBar({ winPercent }: { winPercent: number | null | undefined }) {
+  const hasValue = typeof winPercent === "number" && Number.isFinite(winPercent);
+  const winPct = hasValue ? Math.max(0, Math.min(winPercent as number, 100)) : 50;
+  const lossPct = 100 - winPct;
+
+  return (
+    <div className="profitability-bar" role="img" aria-label={hasValue ? `Win ${winPct.toFixed(1)}% Loss ${lossPct.toFixed(1)}%` : "Profitability no data"}>
+      <span className="profitability-bar__title">PROFITABILITY</span>
+      <div className="profitability-bar__track" data-empty={!hasValue ? "true" : undefined}>
+        <div className="profitability-bar__segment profitability-bar__segment--win" style={{ width: `${winPct}%` }} />
+        <div className="profitability-bar__segment profitability-bar__segment--loss" style={{ width: `${lossPct}%` }} />
+      </div>
+      <div className="profitability-bar__values">
+        <span className="profitability-bar__pct profitability-bar__pct--win">
+          {hasValue ? `${winPct.toFixed(1)}%` : "—"}
+        </span>
+        <span className="profitability-bar__pct profitability-bar__pct--loss">
+          {hasValue ? `${lossPct.toFixed(1)}%` : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function PerformanceQualityPanelImpl({
   sharpeRatio,
   profitFactor,
   recoveryFactor,
+  winPercent,
 }: PerformanceQualityPanelProps) {
   const bars: BarConfig[] = [
     {
@@ -251,7 +277,7 @@ function PerformanceQualityPanelImpl({
       zones: SHARPE_ZONES,
       scaleMax: 5,
       hint: {
-        definition: "ผลตอบแทนเทียบความเสี่ยง ยิ่งสูงยิ่งคุ้มความเสี่ยงที่รับ",
+        definition: "ผลตอบแทนเทียบความเสี่ยง ยิ่งสูงยิ่งมีประสิทธิภาพ",
       },
     },
     {
@@ -263,7 +289,7 @@ function PerformanceQualityPanelImpl({
       scaleMax: 4,
       infinityZoneIndex: 2,
       hint: {
-        definition: "กำไรรวมหารขาดทุนรวม ต้องเกิน 1.0 จึงจะทำกำไรสุทธิได้",
+        definition: "กำไรรวม ÷ ขาดทุนรวม มากกว่า 1 = ยังมีกำไรสุทธิ",
       },
     },
     {
@@ -274,7 +300,7 @@ function PerformanceQualityPanelImpl({
       zones: RECOVERY_ZONES,
       scaleMax: 7,
       hint: {
-        definition: "กำไรสุทธิหาร Max Drawdown ยิ่งสูงยิ่งฟื้นจากขาดทุนเก่ง",
+        definition: "กำไรสุทธิ ÷ Max Drawdown ยิ่งสูงยิ่งฟื้นตัวจาก DD ได้ดี",
       },
     },
   ];
@@ -284,6 +310,7 @@ function PerformanceQualityPanelImpl({
       {bars.map((config) => (
         <QualityGauge key={config.key} config={config} />
       ))}
+      <ProfitabilityBar winPercent={winPercent} />
     </div>
   );
 }

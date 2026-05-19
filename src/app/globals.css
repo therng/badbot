@@ -552,6 +552,59 @@ select,
   color: var(--text-muted);
   white-space: nowrap;
 }
+.profitability-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 8px 8px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--border-dim);
+}
+.profitability-bar__title {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  text-align: center;
+}
+.profitability-bar__track {
+  display: flex;
+  height: 9px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 1px;
+}
+.profitability-bar__track[data-empty="true"] .profitability-bar__segment {
+  opacity: 0.2;
+}
+.profitability-bar__segment--win {
+  background: #3dd68c;
+  border-radius: 3px 0 0 3px;
+  transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  flex-shrink: 0;
+}
+.profitability-bar__segment--loss {
+  background: #f04d4d;
+  border-radius: 0 3px 3px 0;
+  flex: 1;
+}
+.profitability-bar__values {
+  display: flex;
+  justify-content: space-between;
+}
+.profitability-bar__pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.profitability-bar__pct--win { color: #3dd68c; }
+.profitability-bar__pct--loss { color: #f04d4d; }
 
 /* Chart skeleton */
 .dashboard-section > .account-card .account-card__chart-skeleton {
@@ -868,8 +921,8 @@ select,
   position: fixed;
   inset: 0;
   z-index: 9990;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(12px);
+  background: rgba(0,0,0,0.2);
+  backdrop-filter: blur(1px);
   display: flex;
   align-items: center;
   justify-content: center;

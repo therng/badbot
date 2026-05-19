@@ -231,7 +231,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: gainTone,
       fullValue: formatSignedCurrency(overview.data?.kpis.netProfit, 2),
       hint: {
-        definition: "กำไรขาดทุนสุทธิ รวม swap และ commission ในช่วงที่เลือก",
+        definition: "กำไร/ขาดทุนสุทธิ รวม swap และ commission",
       },
     },
     {
@@ -242,7 +242,7 @@ const DashboardCard = memo(function DashboardCard({
       tone: relativeDrawdownTone,
       meta: drawdownMeta,
       hint: {
-        definition: "การย่อตัวจาก peak ถึง trough เป็น % ยิ่งต่ำยิ่งดี ทั่วไปไม่ควรเกิน 20%",
+        definition: "เปอร์เซ็นต์การย่อตัวจากจุดสูงสุดถึงจุดต่ำสุดก่อนฟื้นตัว ยิ่งต่ำยิ่งดี",
       },
     },
     {
@@ -254,7 +254,7 @@ const DashboardCard = memo(function DashboardCard({
       meta: "Closed",
       fullValue: `${formatSignedPlainNumberValue(overview.data?.kpis.netPips, 1)} pips`,
       hint: {
-        definition: "ระยะราคาสุทธิจากออเดอร์ที่ปิดแล้ว (pip) เทียบทักษะข้ามบัญชีได้",
+        definition: "ระยะราคา (pip) สุทธิของออเดอร์ที่ปิดแล้ว ใช้เทียบประสิทธิภาพข้ามบัญชี",
       },
     },
     {
@@ -262,10 +262,10 @@ const DashboardCard = memo(function DashboardCard({
       expandKey: "trades",
       label: "Trades",
       value: formatCompactCount(overview.data?.kpis.trades, 1),
-      tone: "warning",
+      tone: "neutral",
       fullValue: formatWholeNumber(overview.data?.kpis.trades),
       hint: {
-        definition: "จำนวนออเดอร์ที่ปิดในช่วงที่เลือก น้อย = swing, มาก = scalping",
+        definition: "จำนวนออเดอร์ที่เทรดทั้งหมด",
       },
     },
     {
@@ -275,7 +275,7 @@ const DashboardCard = memo(function DashboardCard({
       value: formatPlainNumberValue(overview.data?.kpis.openCount, 0),
       tone: openTone,
       hint: {
-        definition: "จำนวน position ที่ยังเปิดอยู่ ยิ่งมากยิ่งเสี่ยงจาก market move",
+        definition: "จำนวน position ที่ยังเปิดอยู่",
       },
     },
   ];
@@ -316,7 +316,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: toneFromNumber(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission)),
           fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalCommission), 2),
           hint: {
-            definition: "ค่าธรรมเนียมโบรกเกอร์ต่อออเดอร์ เทรดบ่อยยิ่งสะสมมาก",
+            definition: "ค่าธรรมเนียมรวมจากการเทรด",
           },
         },
         {
@@ -325,7 +325,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: toneFromNumber(profitDetail.data?.summary.totalSwap),
           fullValue: formatSignedCurrency(profitDetail.data?.summary.totalSwap, 2),
           hint: {
-            definition: "ดอกเบี้ยถือ position ข้ามคืน บางคู่มี swap เป็นบวก",
+            definition: "ดอกเบี้ยจากการถือข้ามคืน",
           },
         },
         {
@@ -334,7 +334,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: "positive",
           fullValue: formatSignedCurrency(profitDetail.data?.summary.totalDeposit, 2),
           hint: {
-            definition: "เงินที่เติมเข้าบัญชี ใช้แยกกำไรจริงออกจากยอดเติมเงิน",
+            definition: "จํานวนเงินที่ฝากเข้าทั้งหมด",
           },
         },
         {
@@ -343,7 +343,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: "warning",
           fullValue: formatSignedCurrency(normalizeNegativeAmount(profitDetail.data?.summary.totalWithdrawal), 2),
           hint: {
-            definition: "เงินที่ถอนจากบัญชี ใช้คำนวณผลตอบแทนรวมจากบัญชี",
+            definition: "จำนวนเงินที่ถอนออกทั้งหมด",
           },
         },
       ];
@@ -358,7 +358,7 @@ const DashboardCard = memo(function DashboardCard({
           meta: "Balance absolute drawdown",
           fullValue: formatCurrency(balanceDetail.data?.summary.absoluteDrawdown, 2),
           hint: {
-            definition: "ยอดย่อตัวของ balance จากทุนเริ่มต้น ดูว่าบัญชียังอยู่เหนือทุนหรือไม่",
+            definition: "การย่อตัวจากทุนเริ่มต้น ดูว่าบัญชีเคยต่ำกว่าทุนหรือไม่",
           },
         },
         {
@@ -368,7 +368,7 @@ const DashboardCard = memo(function DashboardCard({
           meta: "Balance maximal drawdown",
           fullValue: formatCurrency(balanceDetail.data?.summary.maximalDrawdownAmount, 2),
           hint: {
-            definition: "DD สูงสุดจาก peak ถึง trough — worst-case จริงที่เคยเกิด",
+            definition: "จำนวนเงินของการเทรดเสียสูงสุด",
           },
         },
         {
@@ -378,7 +378,7 @@ const DashboardCard = memo(function DashboardCard({
           meta: "Closed positions win rate",
           fullValue: formatPlainPercent(overview.data?.kpis.winPercent, 2),
           hint: {
-            definition: "สัดส่วนออเดอร์ที่ปิดเป็นกำไร ต้องดูคู่กับ risk/reward",
+            definition: "สัดส่วนออเดอร์ที่ปิดกำไร ควรดูคู่กับ Risk/Reward",
           },
         },
       ];
@@ -392,7 +392,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: toneFromNumber(positionsDetail.data?.summary.tradeActivityPercent),
           meta: "Activity%",
           hint: {
-            definition: "สัดส่วนวันที่มีการเทรด บ่งบอกว่าบัญชียัง active หรือเงียบลง",
+            definition: "สัดส่วนวันที่มีการเทรด บ่งบอกความสม่ำเสมอ",
           },
         },
         {
@@ -401,7 +401,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: toneFromNumber(positionsDetail.data?.summary.tradesPerWeek),
           meta: "Trade per week",
           hint: {
-            definition: "ออเดอร์เฉลี่ยต่อสัปดาห์ สูง = scalping, ต่ำ = position trading",
+            definition: "จำนวนออเดอร์เฉลี่ยต่อสัปดาห์",
           },
         },
         {
@@ -410,7 +410,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: "neutral",
           meta: "Average hold time",
           hint: {
-            definition: "เวลาเฉลี่ยที่ถือ position ก่อนปิด นาที=scalper วัน=swing",
+            definition: "ระยะเวลาถือเฉลี่ย",
           },
         },
       ];
@@ -433,7 +433,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: toneFromNumber(openPositionSwap),
           fullValue: formatSignedCurrency(openPositionSwap, 2),
           hint: {
-            definition: "ดอกเบี้ยค้างของ position ที่เปิดอยู่ ยิ่งถือนานยิ่งกระทบกำไร",
+            definition: "ดอกเบี้ยสะสมของ position ที่ยังเปิดอยู่",
           },
         },
         {
@@ -442,7 +442,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: Number.isFinite(currentMargin) && (currentMargin ?? 0) > 0 ? "warning" : "muted",
           fullValue: formatCurrency(currentMargin, 2),
           hint: {
-            definition: "เงินค้ำประกัน position ที่เปิดอยู่ ใช้มากยิ่งเสี่ยง margin call",
+            definition: "เงินค้ำประกันที่ถูกใช้",
           },
         },
         {
@@ -451,7 +451,7 @@ const DashboardCard = memo(function DashboardCard({
           tone: marginLevelTone(currentMarginLevel),
           fullValue: formatPlainPercent(currentMarginLevel, 1),
           hint: {
-            definition: "equity ÷ margin เป็น % ต่ำกว่า 100% = margin call zone",
+            definition: "Equity ÷ Margin (%) ต่ำมากเสี่ยง Margin Call",
           },
         },
       ];
@@ -495,6 +495,7 @@ const DashboardCard = memo(function DashboardCard({
               sharpeRatio={balanceDetail.data?.summary.sharpeRatio}
               profitFactor={balanceDetail.data?.summary.profitFactor}
               recoveryFactor={balanceDetail.data?.summary.recoveryFactor}
+              winPercent={overview.data?.kpis.winPercent}
             />
           )}
           <div className="tf-row">
