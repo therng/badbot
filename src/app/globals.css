@@ -888,7 +888,7 @@ select,
 @keyframes kpi-card-zoom-in {
   0% {
     opacity: 0;
-    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.04);
+    transform: translateX(-50%) scale(0.1);
     filter: blur(4px);
   }
   40% {
@@ -897,14 +897,14 @@ select,
   }
   100% {
     opacity: 1;
-    transform: translate(0, 0) scale(1);
+    transform: translateX(-50%) scale(1);
     filter: blur(0);
   }
 }
 @keyframes kpi-card-zoom-out {
   0% {
     opacity: 1;
-    transform: translate(0, 0) scale(1);
+    transform: translateX(-50%) scale(1);
     filter: blur(0);
   }
   60% {
@@ -913,7 +913,7 @@ select,
   }
   100% {
     opacity: 0;
-    transform: translate(var(--origin-x, 0), var(--origin-y, 0)) scale(0.04);
+    transform: translateX(-50%) scale(0.1);
     filter: blur(6px);
   }
 }
@@ -924,10 +924,6 @@ select,
   z-index: 9990;
   background: rgba(0,0,0,0.2);
   backdrop-filter: blur(1px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
   animation: kpi-card-backdrop-in 260ms ease both;
   -webkit-tap-highlight-color: transparent;
 }
@@ -937,10 +933,11 @@ select,
 }
 
 .kpi-card {
-  position: relative;
+  position: fixed;
+  transform: translateX(-50%);
   width: fit-content;
   min-width: 160px;
-  max-width: 300px;
+  max-width: min(300px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   padding: 18px 20px;

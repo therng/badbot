@@ -29,7 +29,7 @@ export function KpiPreviewCard({
   triggerRef?: React.RefObject<HTMLElement | null>;
 }) {
   const [isClosing, setIsClosing] = useState(false);
-  const [origin, setOrigin] = useState({ tx: 0, ty: 0 });
+  const [cardPos, setCardPos] = useState<{ left: number; bottom: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const content = normalizeKpiHint(hint);
 
@@ -37,10 +37,13 @@ export function KpiPreviewCard({
     if (triggerRef?.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const wx = window.innerWidth / 2;
-      const wy = window.innerHeight / 2;
-      setOrigin({ tx: cx - wx, ty: cy - wy });
+      const HALF = 150; // half of max-width (300px)
+      const PADDING = 12;
+      const clampedLeft = Math.max(HALF + PADDING, Math.min(cx, window.innerWidth - HALF - PADDING));
+      setCardPos({
+        left: clampedLeft,
+        bottom: window.innerHeight - rect.top + 8,
+      });
     }
   }, [triggerRef]);
 
@@ -76,10 +79,10 @@ export function KpiPreviewCard({
         className={`kpi-card ${isClosing ? "is-closing" : ""}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
-        style={{
-          "--origin-x": `${origin.tx}px`,
-          "--origin-y": `${origin.ty}px`,
-        } as React.CSSProperties}
+        style={cardPos ? {
+          left: `${cardPos.left}px`,
+          bottom: `${cardPos.bottom}px`,
+        } : undefined}
       >
         <p className="kpi-card__body-definition">{content.definition}</p>
       </div>
