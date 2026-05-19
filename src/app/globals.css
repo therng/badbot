@@ -980,62 +980,6 @@ select,
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.dashboard-section > .account-card .bot-pnl-toolbar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 24px;
-}
-.dashboard-section > .account-card .bot-pnl-title {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-.dashboard-section > .account-card .bot-pnl-title span {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--warning);
-}
-.dashboard-section > .account-card .bot-pnl-title strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 700;
-}
-.dashboard-section > .account-card .bot-pnl-zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 0.5px solid rgba(255, 255, 255, 0.075);
-}
-.dashboard-section > .account-card .bot-pnl-zoom__button {
-  min-width: 25px;
-  height: 18px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-}
-.dashboard-section > .account-card .bot-pnl-zoom__button.is-active {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
-}
 .dashboard-section > .account-card .bot-pnl-frame {
   position: relative;
   flex: 1 1 auto;
@@ -1076,11 +1020,6 @@ select,
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.36);
   white-space: nowrap;
-}
-.dashboard-section > .account-card .bot-pnl-tick-label--max {
-  top: -4px;
-  bottom: auto;
-  color: var(--gold-300);
 }
 .dashboard-section > .account-card .bot-pnl-plot {
   flex: 1 1 auto;
