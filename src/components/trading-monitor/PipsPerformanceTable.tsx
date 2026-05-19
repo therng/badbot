@@ -23,27 +23,27 @@ export function PipsPerformanceTable({
           <thead>
             <tr>
               <th scope="col"></th>
+              <th scope="col">%</th>
+              <th scope="col">Profit</th>
               <th scope="col">Pips</th>
               <th scope="col">Vol.</th>
-              <th scope="col">Profit</th>
-              <th scope="col">%</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.label}>
                 <th scope="row">{row.label}</th>
+                <td className={`tone-${toneFromNumber(row.growth)}`}>
+                  {formatPercent(row.growth, 1)}
+                </td>
+                <td className={`tone-${toneFromNumber(row.profit)}`}>
+                  {formatSignedCurrency(row.profit, 2)}
+                </td>
                 <td className={`tone-${toneFromNumber(row.pips)}`}>
                   {formatCompactSignedNumber(row.pips, 1)}
                 </td>
                 <td>
                   {formatCompactNumber(row.volume, 1)}
-                </td>
-                <td className={`tone-${toneFromNumber(row.profit)}`}>
-                  {formatSignedCurrency(row.profit, 2)}
-                </td>
-                <td className={`tone-${toneFromNumber(row.growth)}`}>
-                  {formatPercent(row.growth, 1)}
                 </td>
               </tr>
             ))}
