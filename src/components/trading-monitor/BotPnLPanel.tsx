@@ -32,7 +32,7 @@ function normalizeBotName(comment: string | null | undefined): string {
   );
   if (matched) return matched.label;
 
-  const sepIdx = trimmed.search(SEP_REGEX);
+  const sepIdx = SEP_REGEX.exec(trimmed)?.index ?? -1;
   const name = (sepIdx === -1 ? trimmed : trimmed.slice(0, sepIdx)).trim();
   return name || MANUAL_LABEL;
 }
