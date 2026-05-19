@@ -105,9 +105,6 @@ function formatTick(value: number): string {
   return value.toString();
 }
 
-const ZOOM_LEVELS = [1, 2, 4] as const;
-type ZoomLevel = (typeof ZOOM_LEVELS)[number];
-
 interface Props {
   positions: PositionsResponse["historyPositions"] | null | undefined;
 }
@@ -116,15 +113,15 @@ function BotPnLPanelImpl({ positions }: Props) {
   const bots = useMemo(() => aggregate(positions), [positions]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [tooltipX, setTooltipX] = useState<number>(50);
-  const [zoom, setZoom] = useState<ZoomLevel>(1);
   const frameRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const maxAbs = bots.reduce(
     (max, b) => Math.max(max, b.grossProfit, Math.abs(b.grossLoss)),
     0,
   );
   const { ticks, scaleMax } = useMemo(() => niceTicks(maxAbs), [maxAbs]);
-  const visibleScaleMax = Math.max(scaleMax / zoom, 1);
+  const visibleScaleMax = Math.max(scaleMax, 1);
 
   if (!bots.length) {
     return (
@@ -135,8 +132,6 @@ function BotPnLPanelImpl({ positions }: Props) {
   }
 
   const activeBot = activeIndex !== null ? bots[activeIndex] : null;
-  const selectedScaleLabel = `${zoom}x`;
-  const totalTrades = bots.reduce((sum, b) => sum + b.trades, 0);
 
   function handleColClick(e: React.MouseEvent<HTMLButtonElement>, idx: number) {
     e.stopPropagation();
@@ -150,7 +145,9 @@ function BotPnLPanelImpl({ positions }: Props) {
         const btnRect = e.currentTarget.getBoundingClientRect();
         const center = btnRect.left + btnRect.width / 2 - frameRect.left;
         const pct = (center / frameRect.width) * 100;
-        setTooltipX(Math.max(8, Math.min(92, pct)));
+        const tooltipWidth = tooltipRef.current?.offsetWidth ?? 120;
+        const halfPct = (tooltipWidth / 2 / frameRect.width) * 100;
+        setTooltipX(Math.max(halfPct, Math.min(100 - halfPct, pct)));
       }
     }
   }
@@ -161,27 +158,10 @@ function BotPnLPanelImpl({ positions }: Props) {
       role="region"
       aria-label="Bot performance"
     >
-      <div className="bot-pnl-toolbar">
-        <div className="bot-pnl-title">
-        </div>
-        <div className="bot-pnl-zoom" aria-label="Zoom range">
-          {ZOOM_LEVELS.map((level) => (
-            <button
-              key={level}
-              type="button"
-              className={`bot-pnl-zoom__button${zoom === level ? " is-active" : ""}`}
-              aria-pressed={zoom === level}
-              onClick={() => setZoom(level)}
-            >
-              {level}x
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div ref={frameRef} className="bot-pnl-frame">
         {activeBot && (
           <div
+            ref={tooltipRef}
             className="bot-pnl-tooltip"
             style={{ left: `${tooltipX}%` }}
             aria-live="polite"
@@ -207,9 +187,6 @@ function BotPnLPanelImpl({ positions }: Props) {
                     {formatTick(t)}
                   </span>
                 ))}
-              <span className="bot-pnl-tick-label bot-pnl-tick-label--max">
-                {selectedScaleLabel}
-              </span>
             </div>
           </div>
 
