@@ -33,9 +33,8 @@ export interface PerformanceQualityPanelProps {
   winPercent: number | null | undefined;
 }
 
-// Shared red → amber → lime → green zone palette (poor → great).
-// poor=red  fair=yellow  good=blue  great=dark-green
-const ZONE_COLORS = ["#f04d4d", "#f5a623", "#4da8f5", " #3dd68c"] as const;
+// poor=red  fair=yellow  good=green  great=blue
+const ZONE_COLORS = ["#f04d4d", "#facc15", "#3dd68c", "#4da8f5"] as const;
 
 interface BarConfig {
   key: string;
