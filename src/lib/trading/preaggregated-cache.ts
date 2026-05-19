@@ -753,31 +753,27 @@ function buildTimeframeView(params: AccountPreaggregatedSource & { timeframe: Ti
       .map((deal) => dealNet(deal)),
   );
 
-  // Risk-adjusted KPIs surfaced via the DD panel gauge (sharpe/profit factor/recovery).
-  // Use all-time data so these metrics remain stable regardless of selected timeframe.
-  const allClosedPositionsDrawdown = computeBalanceDrawdown(drawdownDeals, null, null);
-  const balanceDetailTotalNet = allClosedPositionSummary.totalNetProfit;
-  
+  // Risk-adjusted KPIs scoped to the selected timeframe.
+  const balanceDetailTotalNet = closedPositionSummary.totalNetProfit;
+
   // No drawdown but positive net = "perfect" recovery; surface as Infinity so the
   // gauge picks the "great" zone instead of "NO DATA".
   let balanceDetailRecoveryFactor: number | null = null;
-  if (allClosedPositionsDrawdown.maximalAmount > 0) {
-    balanceDetailRecoveryFactor = balanceDetailTotalNet / allClosedPositionsDrawdown.maximalAmount;
+  if (drawdown.maximalAmount > 0) {
+    balanceDetailRecoveryFactor = balanceDetailTotalNet / drawdown.maximalAmount;
   } else if (balanceDetailTotalNet > 0) {
     balanceDetailRecoveryFactor = Number.POSITIVE_INFINITY;
   }
 
-  // Use all-time trade values for annualization so Sharpe remains stable across timeframes.
   const balanceDetailSharpeRatio = computeAnnualizedSharpeRatio(
-    allClosedPositionSummary.netValues,
-    computeTradesPerYear(allClosedPositions),
+    closedPositionSummary.netValues,
+    computeTradesPerYear(scopedClosedPositions),
   );
-  
-  // Use all-time profit factor so it remains stable regardless of selected timeframe.
+
   // Profit factor is undefined when there are zero losing trades; treat a
   // strictly winning sample as "great" (Infinity) for the gauge.
-  let balanceDetailProfitFactor = allClosedPositionSummary.profitFactor ?? null;
-  if (balanceDetailProfitFactor === null && allClosedPositionSummary.grossProfit > 0 && allClosedPositionSummary.grossLoss === 0) {
+  let balanceDetailProfitFactor = closedPositionSummary.profitFactor ?? null;
+  if (balanceDetailProfitFactor === null && closedPositionSummary.grossProfit > 0 && closedPositionSummary.grossLoss === 0) {
     balanceDetailProfitFactor = Number.POSITIVE_INFINITY;
   }
 
