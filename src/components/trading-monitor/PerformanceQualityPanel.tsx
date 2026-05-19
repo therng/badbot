@@ -228,9 +228,7 @@ function QualityGauge({ config }: { config: BarConfig }) {
       {hint && sheetOpen ? (
         <KpiPreviewCard
           hint={hint}
-          label={hint.title ?? label}
-          value={valueText}
-          tone="neutral"
+          label={label}
           onClose={closeSheet}
           triggerRef={triggerRef}
         />
@@ -253,9 +251,7 @@ function PerformanceQualityPanelImpl({
       zones: SHARPE_ZONES,
       scaleMax: 5,
       hint: {
-        title: "Sharpe Ratio",
-        definition: "วัดผลตอบแทนที่ได้รับเทียบกับความเสี่ยงที่ยอมรับ  คำนวณจากกำไรเฉลี่ยหารด้วยส่วนเบี่ยงเบนมาตรฐานของผลตอบแทน ยิ่งสูงยิ่งหมายความว่าคุณรับความเสี่ยงน้อยแต่ได้ผลตอบแทนมาก",
-        purpose: "ผลตอบแทน / ความเสี่ยง",
+        definition: "ผลตอบแทนเทียบความเสี่ยง ยิ่งสูงยิ่งคุ้มความเสี่ยงที่รับ",
       },
     },
     {
@@ -267,9 +263,7 @@ function PerformanceQualityPanelImpl({
       scaleMax: 4,
       infinityZoneIndex: 2,
       hint: {
-        title: "Profit Factor",
-        definition: "อัตราส่วนระหว่างกำไรรวมและขาดทุนรวมทุกออเดอร์ บอกว่าทุก 1 บาทที่ขาดทุน คุณได้กำไรกลับมากี่บาท ค่าต้องสูงกว่า 1.0 จึงจะทำกำไรสุทธิได้",
-        purpose: "กำไร / ขาดทุน ",
+        definition: "กำไรรวมหารขาดทุนรวม ต้องเกิน 1.0 จึงจะทำกำไรสุทธิได้",
       },
     },
     {
@@ -280,9 +274,7 @@ function PerformanceQualityPanelImpl({
       zones: RECOVERY_ZONES,
       scaleMax: 7,
       hint: {
-        title: "Recovery Factor",
-        definition: "วัดความสามารถในการฟื้นตัวจากการขาดทุนสูงสุด คำนวณจากกำไรสุทธิหารด้วย Maximum Drawdown ค่าสูงแสดงว่าระบบสร้างกำไรได้มากเมื่อเทียบกับช่วงที่ขาดทุนหนักที่สุด",
-        purpose: "กำไร / ดรอว์ดาวน์ ",
+        definition: "กำไรสุทธิหาร Max Drawdown ยิ่งสูงยิ่งฟื้นจากขาดทุนเก่ง",
       },
     },
   ];

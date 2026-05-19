@@ -5,9 +5,7 @@ import { createPortal } from "react-dom";
 import { type MetricTone } from "@/components/trading-monitor/formatters";
 
 export type KpiHintContent = {
-  title?: string;
   definition: string;
-  purpose?: string;
 };
 
 function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
@@ -22,15 +20,11 @@ function normalizeKpiHint(hint: string | KpiHintContent): KpiHintContent {
 export function KpiPreviewCard({
   hint,
   label,
-  value,
-  tone,
   onClose,
   triggerRef,
 }: {
   hint: string | KpiHintContent;
   label: string;
-  value?: string;
-  tone?: MetricTone;
   onClose: () => void;
   triggerRef?: React.RefObject<HTMLElement | null>;
 }) {
@@ -79,7 +73,7 @@ export function KpiPreviewCard({
     >
       <div
         ref={cardRef}
-        className={`kpi-card ${isClosing ? "is-closing" : ""}${tone ? ` kpi-card--tone-${tone}` : ""}`}
+        className={`kpi-card ${isClosing ? "is-closing" : ""}`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         style={{
@@ -87,19 +81,7 @@ export function KpiPreviewCard({
           "--origin-y": `${origin.ty}px`,
         } as React.CSSProperties}
       >
-        <div className="kpi-card__head">
-          <span className="kpi-card__metric-label">{content.title ?? label}</span>
-        </div>
-        {value != null ? (
-          <div className={`kpi-card__value-row tone-${tone ?? "neutral"}`}>
-            <span className="kpi-card__value-display">{value}</span>
-          </div>
-        ) : null}
-        <div className="kpi-card__divider" />
-        <div className="kpi-card__body">
-          <p className="kpi-card__body-definition">{content.definition}</p>
-          {content.purpose ? <p className="kpi-card__body-purpose">{content.purpose}</p> : null}
-        </div>
+        <p className="kpi-card__body-definition">{content.definition}</p>
       </div>
     </div>,
     document.body,
@@ -238,8 +220,6 @@ export function SummaryChip({
         <KpiPreviewCard
           hint={hint}
           label={label}
-          value={value}
-          tone={tone}
           onClose={closeSheet}
           triggerRef={chipRef}
         />
