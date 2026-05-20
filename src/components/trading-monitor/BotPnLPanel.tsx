@@ -30,10 +30,11 @@ const BOT_LABELS = [
 
 const HASH_ID_REGEX = /^#\d+\|(.+)$/;
 
-const POSITIVE_COLOR = "rgba(52, 211, 153, 0.85)";
-const POSITIVE_BORDER = "rgba(52, 211, 153, 1)";
-const NEGATIVE_COLOR = "rgba(248, 113, 113, 0.85)";
-const NEGATIVE_BORDER = "rgba(248, 113, 113, 1)";
+const POSITIVE_COLOR = "rgba(61, 214, 140, 0.85)";
+const POSITIVE_BORDER = "rgba(61, 214, 140, 1)";
+const NEGATIVE_COLOR = "rgba(240, 77, 77, 0.85)";
+const NEGATIVE_BORDER = "rgba(240, 77, 77, 1)";
+const MIN_PX_PER_BOT = 44;
 
 function normalizeBotName(comment: string | null | undefined): string {
   if (!comment) return MANUAL_LABEL;
@@ -233,11 +234,15 @@ function BotPnLPanelImpl({ positions }: Props) {
     );
   }
 
+  const scrollMinWidth = bots.length * MIN_PX_PER_BOT;
+
   return (
     <div className="bot-pnl-panel" role="region" aria-label="Bot performance">
       <div ref={containerRef} className="bot-pnl-frame">
-        <div className="bot-pnl-canvas-wrap">
-          <Bar data={chartData} options={chartOptions} />
+        <div className="bot-pnl-scroll">
+          <div className="bot-pnl-canvas-wrap" style={{ minWidth: `${scrollMinWidth}px` }}>
+            <Bar data={chartData} options={chartOptions} />
+          </div>
         </div>
       </div>
     </div>
