@@ -1057,6 +1057,18 @@ select,
   width: 100%;
   height: 100%;
 }
+.dashboard-section > .account-card .bot-pnl-a11y-list {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .dashboard-section > .account-card .kchip--skeleton {
   min-height: 46px;
   background: rgba(255,255,255,0.03);

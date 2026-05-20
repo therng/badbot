@@ -245,6 +245,18 @@ function BotPnLPanelImpl({ positions }: Props) {
           </div>
         </div>
       </div>
+      <ul className="bot-pnl-a11y-list" aria-label="Bot performance details">
+        {bots.map((bot) => (
+          <li key={bot.name}>
+            <button
+              type="button"
+              aria-label={`${bot.name}: profit ${formatSignedCurrency(bot.grossProfit, 2)}, loss ${formatSignedCurrency(bot.grossLoss, 2)}, net ${formatSignedCurrency(bot.netPnl, 2)}, ${bot.trades} trades`}
+            >
+              {bot.name}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
