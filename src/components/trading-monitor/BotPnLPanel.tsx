@@ -241,7 +241,12 @@ function BotPnLPanelImpl({ positions }: Props) {
       <div ref={containerRef} className="bot-pnl-frame">
         <div className="bot-pnl-scroll">
           <div className="bot-pnl-canvas-wrap" style={{ minWidth: `${scrollMinWidth}px` }}>
-            <Bar data={chartData} options={chartOptions} />
+            <Bar
+              data={chartData}
+              options={chartOptions}
+              role="img"
+              aria-label="Bot P&L: profit and loss bars grouped by bot label"
+            />
           </div>
         </div>
       </div>
