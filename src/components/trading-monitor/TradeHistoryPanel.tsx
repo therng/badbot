@@ -25,7 +25,7 @@ export function TradeHistoryPanel({
   if (!historyPositions.length) {
     return (
       <div className="trade-history-panel trade-history-panel--list-only" aria-label="Trades list">
-        <div className="trade-history-empty">No trades in this timeframe</div>
+        <div className="trade-history-empty">No trade history</div>
       </div>
     );
   }

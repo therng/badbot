@@ -183,7 +183,7 @@ export function parseTimeframe(value: string | null): Timeframe {
     case "1w": case "w": case "5d": case "week": return "1w";
     case "1m": case "m": case "month": return "1m";
     case "3m": return "3m";
-    case "6m": case "ytd": case "year-to-date": case "year_to_date": return "6m";
+    case "6m": return "6m";
     case "1y": case "year": return "1y";
     case "a": case "all": case "all-time": default: return "all";
   }

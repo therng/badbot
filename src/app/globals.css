@@ -432,7 +432,8 @@ select,
 .perf-quality-panel {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: clamp(10px, 4.5vw, 22px);
+  column-gap: clamp(8px, 3.5vw, 16px);
+  row-gap: 6px;
   padding: 8px 12px 12px;
   width: 100%;
 }
@@ -558,7 +559,7 @@ select,
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: 6px 8px 8px;
+  padding: 7px 10px 8px;
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.018);
   border: 1px solid var(--border-dim);
@@ -1170,7 +1171,7 @@ select,
   z-index: 10;
   transform: translateX(-50%);
   min-width: 112px;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border-radius: 7px;
   background: rgba(10, 10, 14, 0.88);
   border: 0.5px solid rgba(255, 255, 255, 0.13);
@@ -1178,7 +1179,7 @@ select,
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 .dashboard-section > .account-card .bot-pnl-tooltip__name {
   font-family: var(--font-mono);
@@ -1211,12 +1212,18 @@ select,
   font-weight: 600;
 }
 .dashboard-section > .account-card .bot-pnl-tooltip__profit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--positive);
-  opacity: 0.8;
 }
 .dashboard-section > .account-card .bot-pnl-tooltip__loss {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--negative);
-  opacity: 0.8;
 }
 .dashboard-section > .account-card .bot-pnl-tooltip__meta {
   display: flex;
@@ -1228,6 +1235,12 @@ select,
   border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   padding-top: 3px;
   margin-top: 1px;
+}
+.dashboard-section > .account-card .bot-pnl-tooltip__trades {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
 }
 .dashboard-section > .account-card .bot-pnl-col__legend {
   flex: 0 0 23px;
@@ -1244,7 +1257,7 @@ select,
   font-family: var(--font-mono);
   font-size: 8px;
   font-weight: 600;
-  color: var(--card-warning);
+  color: var(--text-secondary);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1433,6 +1446,7 @@ select,
   gap: 5px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
 }
 .dashboard-section > .account-card .open-positions-panel__row {
   display: grid;
@@ -1530,8 +1544,10 @@ select,
   align-content: start;
   gap: 0;
   overflow-y: auto;
-  scrollbar-width: none;
-  scrollbar-color: rgba(59,130,246,0.2) transparent;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59,130,246,0.18) transparent;
+  touch-action: pan-x pan-y;
 }
 .dashboard-section > .account-card .trade-history-row {
   display: grid;
@@ -1546,7 +1562,7 @@ select,
   gap: 2px;
   line-height: 1.25;
   width: 100%;
-  padding: 8px 0 8px;
+  padding: 8px 6px 8px 2px;
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -1569,7 +1585,7 @@ select,
 .dashboard-section > .account-card .trade-history-row__instrument {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 .dashboard-section > .account-card .trade-history-panel__list .trade-history-row__instrument strong {
@@ -1825,9 +1841,9 @@ select,
 @keyframes beacon-ambient-breath {
   0%, 100% { opacity: 0.55; box-shadow: 0 0 10px 2px rgba(26, 231, 74, 0.788); }
   14%      { opacity: 1;    box-shadow: 0 0 18px 6px rgba(26, 231, 74, 0.788); }
-  28%      { opacity: 0.7;  box-shadow: 0 0 9px 2px rgba(26, 231, 74, 0.788); }
+  28%      { opacity: 0.6;  box-shadow: 0 0 9px 2px rgba(26, 231, 74, 0.788); }
   42%      { opacity: 0.95; box-shadow: 0 0 16px 5px rgba(26, 231, 74, 0.788); }
-  62%      { opacity: 0.5;  box-shadow: 0 0 8px 2px rgba(26, 231, 74, 0.788); }
+  62%      { opacity: 0.2;  box-shadow: 0 0 8px 2px rgba(26, 231, 74, 0.788); }
 }
 
 .trade-history-empty {
@@ -2251,6 +2267,7 @@ a:focus-visible, button:focus-visible {
   scrollbar-width: none;
   flex: 1;
   min-width: 0;
+  touch-action: pan-x pan-y;
 }
 .dashboard-section > .account-card .heatmap-scroll::-webkit-scrollbar {
   display: none;

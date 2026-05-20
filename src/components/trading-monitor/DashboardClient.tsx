@@ -525,16 +525,13 @@ const DashboardCard = memo(function DashboardCard({
     case "trades":
       compactKpiPanel = (
         <div className="sp-overlay-panel" role="region" aria-label="Trade history">
-          {positionsDetail.error ? (
-            <InlineState tone="error" title="Trade history unavailable" message={positionsDetail.error} />
-          ) : positionsDetail.loading && !positionsDetail.data ? (
+          {heatmapPositions.error ? (
+            <InlineState tone="error" title="Trade history unavailable" message={heatmapPositions.error} />
+          ) : heatmapPositions.loading && !heatmapPositions.data ? (
             <div className="skeleton-chart account-card__chart-skeleton" aria-hidden="true" />
           ) : (
-            <TradeHistoryPanel positions={positionsDetail.data?.historyPositions} />
+            <TradeHistoryPanel positions={heatmapPositions.data?.historyPositions} />
           )}
-          <div className="tf-row">
-            <TimeframeStrip active={timeframe} onChange={handleTimeframeChange} />
-          </div>
         </div>
       );
       break;

@@ -166,10 +166,9 @@ function BotPnLPanelImpl({ positions }: Props) {
             style={{ left: `${tooltipX}%` }}
             aria-live="polite"
           >
-            <div className="bot-pnl-tooltip__rows">
-              <span className="bot-pnl-tooltip__profit">{formatSignedCurrency(activeBot.grossProfit, 2)}</span>
-              <span className="bot-pnl-tooltip__loss">{formatSignedCurrency(activeBot.grossLoss, 2)}</span>
-            </div>
+            <span className="bot-pnl-tooltip__profit">{formatSignedCurrency(activeBot.grossProfit, 2)}</span>
+            <span className="bot-pnl-tooltip__loss">{formatSignedCurrency(activeBot.grossLoss, 2)}</span>
+            <span className="bot-pnl-tooltip__trades">{activeBot.trades} trades</span>
           </div>
         )}
 

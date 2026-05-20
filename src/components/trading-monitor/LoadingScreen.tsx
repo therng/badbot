@@ -131,7 +131,7 @@ export function CandleAnimation({ onTouchStart, onTouchMove, onTouchEnd, onTouch
         ))}
       </svg>
 
-      <p className="candle-anim-footer">Analytic 6.3</p>
+      <p className="candle-anim-footer">Analytic {process.env.NEXT_PUBLIC_APP_VERSION}</p>
     </div>
   );
 }
