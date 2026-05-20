@@ -1,7 +1,19 @@
 "use client";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef } from "react";
+import {
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  type ChartOptions,
+  Legend,
+  LinearScale,
+  Tooltip,
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
 import type { PositionsResponse } from "@/lib/trading/types";
 import { formatSignedCurrency } from "@/components/trading-monitor/formatters";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 const SEP_REGEX = /[-_ #[(.]/;
 const MANUAL_LABEL = "Manual";
@@ -17,6 +29,11 @@ const BOT_LABELS = [
 ];
 
 const HASH_ID_REGEX = /^#\d+\|(.+)$/;
+
+const POSITIVE_COLOR = "rgba(52, 211, 153, 0.85)";
+const POSITIVE_BORDER = "rgba(52, 211, 153, 1)";
+const NEGATIVE_COLOR = "rgba(248, 113, 113, 0.85)";
+const NEGATIVE_BORDER = "rgba(248, 113, 113, 1)";
 
 function normalizeBotName(comment: string | null | undefined): string {
   if (!comment) return MANUAL_LABEL;
@@ -73,24 +90,6 @@ function aggregate(positions: PositionsResponse["historyPositions"] | null | und
   return Array.from(map.values()).sort((a, b) => b.netPnl - a.netPnl);
 }
 
-function niceTicks(maxValue: number, count = 2): { ticks: number[]; scaleMax: number } {
-  if (!Number.isFinite(maxValue) || maxValue <= 0) return { ticks: [0], scaleMax: 1 };
-  const niceMagnitudes = [1, 2, 2.5, 5, 10];
-  const raw = maxValue / count;
-  const exp = Math.floor(Math.log10(raw));
-  const fraction = raw / Math.pow(10, exp);
-  const nice = niceMagnitudes.find((m) => m >= fraction) ?? 10;
-  const step = nice * Math.pow(10, exp);
-  const ticks: number[] = [];
-  let v = 0;
-  while (v < maxValue + step * 0.0001) {
-    ticks.push(v);
-    v += step;
-  }
-  const scaleMax = ticks[ticks.length - 1] || step;
-  return { ticks, scaleMax };
-}
-
 function formatTick(value: number): string {
   if (value === 0) return "0";
   const abs = Math.abs(value);
@@ -111,17 +110,120 @@ interface Props {
 
 function BotPnLPanelImpl({ positions }: Props) {
   const bots = useMemo(() => aggregate(positions), [positions]);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [tooltipX, setTooltipX] = useState<number>(50);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const maxAbs = bots.reduce(
-    (max, b) => Math.max(max, b.grossProfit, Math.abs(b.grossLoss)),
-    0,
+  const chartData = useMemo(
+    () => ({
+      labels: bots.map((b) => b.name),
+      datasets: [
+        {
+          label: "Profit",
+          data: bots.map((b) => b.grossProfit),
+          backgroundColor: POSITIVE_COLOR,
+          borderColor: POSITIVE_BORDER,
+          borderWidth: 0,
+          borderRadius: 4,
+          borderSkipped: false as const,
+          maxBarThickness: 14,
+        },
+        {
+          label: "Loss",
+          data: bots.map((b) => Math.abs(b.grossLoss)),
+          backgroundColor: NEGATIVE_COLOR,
+          borderColor: NEGATIVE_BORDER,
+          borderWidth: 0,
+          borderRadius: 4,
+          borderSkipped: false as const,
+          maxBarThickness: 14,
+        },
+      ],
+    }),
+    [bots],
   );
-  const { ticks, scaleMax } = useMemo(() => niceTicks(maxAbs), [maxAbs]);
-  const visibleScaleMax = Math.max(scaleMax, 1);
+
+  const chartOptions = useMemo<ChartOptions<"bar">>(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "x",
+      layout: {
+        padding: { top: 8, right: 4, bottom: 0, left: 0 },
+      },
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(10, 10, 14, 0.92)",
+          borderColor: "rgba(255, 255, 255, 0.13)",
+          borderWidth: 0.5,
+          padding: 8,
+          cornerRadius: 7,
+          titleColor: "rgba(255, 255, 255, 0.92)",
+          titleFont: { family: "var(--font-mono)", size: 10, weight: 700 },
+          bodyFont: { family: "var(--font-mono)", size: 10, weight: 600 },
+          bodySpacing: 3,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
+          callbacks: {
+            title: (items) => {
+              const idx = items[0]?.dataIndex ?? 0;
+              const bot = bots[idx];
+              return bot ? `${bot.name}  •  ${bot.trades} trades` : "";
+            },
+            label: (ctx) => {
+              const idx = ctx.dataIndex;
+              const bot = bots[idx];
+              if (!bot) return "";
+              if (ctx.datasetIndex === 0) {
+                return `Profit  ${formatSignedCurrency(bot.grossProfit, 2)}`;
+              }
+              return `Loss    ${formatSignedCurrency(bot.grossLoss, 2)}`;
+            },
+            afterBody: (items) => {
+              const idx = items[0]?.dataIndex ?? -1;
+              const bot = bots[idx];
+              if (!bot) return [];
+              return [`Net     ${formatSignedCurrency(bot.netPnl, 2)}`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false, drawTicks: false },
+          border: { display: false, color: "rgba(255, 255, 255, 0.22)" },
+          ticks: {
+            color: "var(--card-warning)",
+            font: { family: "var(--font-mono)", size: 9, weight: 600 },
+            padding: 4,
+            maxRotation: 0,
+            autoSkip: false,
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: (ctx) => (ctx.tick.value === 0 ? "rgba(255, 255, 255, 0.22)" : "rgba(255, 255, 255, 0.08)"),
+            lineWidth: 1,
+          },
+          border: { display: false },
+          ticks: {
+            color: "rgba(255, 255, 255, 0.42)",
+            font: { family: "var(--font-mono)", size: 8 },
+            padding: 4,
+            maxTicksLimit: 4,
+            callback: (value) => formatTick(typeof value === "number" ? value : Number(value)),
+          },
+        },
+      },
+      animation: { duration: 220 },
+    }),
+    [bots],
+  );
 
   if (!bots.length) {
     return (
@@ -131,112 +233,11 @@ function BotPnLPanelImpl({ positions }: Props) {
     );
   }
 
-  const activeBot = activeIndex !== null ? bots[activeIndex] : null;
-
-  function handleColClick(e: React.MouseEvent<HTMLButtonElement>, idx: number) {
-    e.stopPropagation();
-    const isActive = activeIndex === idx;
-    if (isActive) {
-      setActiveIndex(null);
-    } else {
-      setActiveIndex(idx);
-      if (frameRef.current) {
-        const frameRect = frameRef.current.getBoundingClientRect();
-        const btnRect = e.currentTarget.getBoundingClientRect();
-        const center = btnRect.left + btnRect.width / 2 - frameRect.left;
-        const pct = (center / frameRect.width) * 100;
-        const tooltipWidth = tooltipRef.current?.offsetWidth ?? 120;
-        const halfPct = (tooltipWidth / 2 / frameRect.width) * 100;
-        setTooltipX(Math.max(halfPct, Math.min(100 - halfPct, pct)));
-      }
-    }
-  }
-
   return (
-    <div
-      className={`bot-pnl-panel${activeBot ? " has-active-bot" : ""}`}
-      role="region"
-      aria-label="Bot performance"
-    >
-      <div ref={frameRef} className="bot-pnl-frame">
-        {activeBot && (
-          <div
-            ref={tooltipRef}
-            className="bot-pnl-tooltip"
-            style={{ left: `${tooltipX}%` }}
-            aria-live="polite"
-          >
-            <span className="bot-pnl-tooltip__profit">{formatSignedCurrency(activeBot.grossProfit, 2)}</span>
-            <span className="bot-pnl-tooltip__loss">{formatSignedCurrency(activeBot.grossLoss, 2)}</span>
-            <span className="bot-pnl-tooltip__trades">{activeBot.trades} trades</span>
-          </div>
-        )}
-
-        <div className="bot-pnl-chart-area">
-          <div className="bot-pnl-axis" aria-hidden="true">
-            <div className="bot-pnl-axis-inner">
-              {ticks
-                .filter((t) => t <= visibleScaleMax)
-                .map((t) => (
-                  <span
-                    key={t}
-                    className="bot-pnl-tick-label"
-                    style={{ bottom: `${(t / visibleScaleMax) * 100}%` }}
-                  >
-                    {formatTick(t)}
-                  </span>
-                ))}
-            </div>
-          </div>
-
-          <div className="bot-pnl-plot">
-            <div className="bot-pnl-gridlines" aria-hidden="true">
-              {ticks
-                .filter((t) => t <= visibleScaleMax)
-                .map((t) => (
-                  <div
-                    key={t}
-                    className={`bot-pnl-gridline${t === 0 ? " bot-pnl-gridline--baseline" : ""}`}
-                    style={{ bottom: `${(t / visibleScaleMax) * 100}%` }}
-                  />
-                ))}
-            </div>
-
-            <div className="bot-pnl-scroll" onClick={() => setActiveIndex(null)}>
-              <div className="bot-pnl-chart">
-                {bots.map((bot, idx) => {
-                  const profitPct = Math.min((bot.grossProfit / visibleScaleMax) * 100, 100);
-                  const lossPct = Math.min((Math.abs(bot.grossLoss) / visibleScaleMax) * 100, 100);
-                  const isActive = activeIndex === idx;
-                  return (
-                    <button
-                      key={bot.name}
-                      type="button"
-                      className={`bot-pnl-col${isActive ? " is-active" : ""}`}
-                      aria-label={`${bot.name}: profit ${bot.grossProfit.toFixed(2)}, loss ${bot.grossLoss.toFixed(2)}, ${bot.trades} trades`}
-                      onClick={(e) => handleColClick(e, idx)}
-                    >
-                      <div className="bot-pnl-col__bars">
-                        <div
-                          className="bot-pnl-bar bot-pnl-bar--profit"
-                          style={{ height: `${profitPct}%` }}
-                        />
-                        <div
-                          className="bot-pnl-bar bot-pnl-bar--loss"
-                          style={{ height: `${lossPct}%` }}
-                        />
-                      </div>
-                      <div className="bot-pnl-col__legend">
-                        <span className="bot-pnl-col__label" title={bot.name}>
-                          {bot.name}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+    <div className="bot-pnl-panel" role="region" aria-label="Bot performance">
+      <div ref={containerRef} className="bot-pnl-frame">
+        <div className="bot-pnl-canvas-wrap">
+          <Bar data={chartData} options={chartOptions} />
         </div>
       </div>
     </div>
